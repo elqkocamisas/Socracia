@@ -38,6 +38,7 @@ implementa `HttpSyncClient`, en las pruebas un servidor en memoria.
 | POST   | `/auth/register` | `{ email, password }`                    | `{ token, userId }`          |
 | POST   | `/auth/login`    | `{ email, password }`                    | `{ token, userId }`          |
 | POST   | `/auth/logout`   | — (con `Authorization`)                  | `{ "status": "cerrado" }`    |
+| DELETE | `/account`       | — (con `Authorization`)                  | `{ "status": "eliminada" }`  |
 | POST   | `/sync/push`     | `ProgressSnapshot` (con `Authorization`) | `ProgressSnapshot` fusionada |
 | GET    | `/sync/pull`     | — (con `Authorization`)                  | `ProgressSnapshot` guardada  |
 

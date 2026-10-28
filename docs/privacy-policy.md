@@ -117,7 +117,9 @@ propia app:
 
 - puede **borrar cualquier documento** desde la biblioteca;
 - puede **cerrar sesión** y seguir usando la app sin cuenta;
-- puede **eliminar la cuenta** solicitándolo por el correo de contacto.
+- puede **eliminar la cuenta** desde la propia pantalla de cuenta, sin escribir a
+  nadie. El borrado elimina la cuenta y el progreso guardado en el servidor; el
+  progreso del dispositivo se conserva para que siga estudiando sin cuenta.
 
 ## 8. Menores
 

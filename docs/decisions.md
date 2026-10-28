@@ -332,6 +332,53 @@ sprint por una cuestión menor.
   la tabla `app_meta`; moverlo a `expo-secure-store` más adelante no cambia nada
   más porque el resto de la app solo conoce el puerto `CredentialStore`.
 
+## D-028 — Los assets de tienda se generan por script y se validan por prueba
+
+- **Contexto:** los iconos y el splash son obligatorios para publicar, pero un
+  PNG binario en el repositorio no se puede revisar en un pull request ni
+  regenerar de forma fiable.
+- **Decisión:** `scripts/generate-assets.mjs` dibuja la marca con una polilínea
+  Catmull-Rom y un campo de distancia firmada, y escribe los PNG con `pngjs`.
+  Los PNG resultantes sí se versionan, porque las tiendas consumen ficheros.
+  `storeAssets.test.ts` valida lo que provoca rechazo automático: 1024×1024 sin
+  alfa para iOS, 512×512 para la ficha de Play, y que la tinta quede dentro de
+  la caja segura del icono adaptativo de Android.
+- **Consecuencias:** cambiar el icono es cambiar el script, no editar un binario
+  opaco. `pngjs` ya llega como dependencia transitiva de `@expo/cli`, así que no
+  añade peso al bundle (solo se usa en scripts y pruebas).
+
+## D-029 — No se introduce CI en este sprint
+
+- **Contexto:** el Sprint 5 pide que «las pruebas E2E pasan», y un pipeline de
+  integración continua sería el sitio natural para demostrarlo.
+- **Decisión:** **no** se añade configuración de CI/CD. Las reglas de trabajo del
+  proyecto prohíben tocar configuración de CI sin indicación expresa, y la
+  verificación se realiza en local con `npm run verify` (lint + typecheck +
+  pruebas de los tres workspaces). Añadir un workflow sería un cambio de
+  infraestructura que este sprint no ha pedido, y su coste no está justificado
+  mientras no haya varios contribuyentes.
+- **Consecuencias:** quien adopte el repositorio debe añadir el pipeline; la
+  lista de comprobación de tienda lo incluye como paso previo a publicar. La
+  puerta de calidad mientras tanto es `npm run verify`, que cubre lo mismo que
+  ejecutaría un CI.
+
+## D-030 — La eliminación de cuenta borra datos y conserva el progreso local
+
+- **Contexto:** App Store exige que una app con cuentas permita eliminarlas
+  desde dentro de la app, y que esa acción borre los datos de verdad. El
+  progreso local, sin embargo, es del dispositivo y no de la cuenta.
+- **Decisión:** `DELETE /account` invalida todas las sesiones de la cuenta,
+  borra las credenciales (el correo queda libre para volver a registrarse) y
+  elimina la instantánea de progreso del servidor. En el cliente, la pantalla
+  pide confirmación en dos pasos y solo limpia las credenciales locales cuando
+  el servidor confirma. El progreso **local** se conserva.
+- **Consecuencias:** eliminar la cuenta no deja al usuario sin app: sigue
+  estudiando sin cuenta con lo que tenía en el dispositivo, que es el modo por
+  defecto (D-016). Si el servidor falla, la sesión no se limpia y se muestra el
+  error, para que nadie crea que sus datos se borraron cuando no fue así. El
+  progreso local no se borra porque no pertenece a la cuenta; quien quiera
+  borrarlo todo desinstala la app o elimina los documentos.
+
 ## Ambigüedades pendientes (no bloqueantes)
 
 - **Vertical inicial (oposiciones vs PAU):** resuelto en el Sprint 1: el corpus
