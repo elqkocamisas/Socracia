@@ -6,6 +6,7 @@ import type {
   SocraticQuestion,
   StudySession,
   Timestamp,
+  UserAnswer,
 } from '../domain/types';
 import { evaluateAnswer, type EvaluationThresholds } from './evaluate';
 import { detectGaps, initialReviewState, scheduleReview } from './gaps';
@@ -55,6 +56,7 @@ export class MayeuticSessionEngine {
   private cursor = 0;
   private attemptsOnCurrent = 0;
   private readonly evaluations: AnswerEvaluation[] = [];
+  private readonly answers: UserAnswer[] = [];
   private readonly reviews = new Map<string, ReviewState>();
   private readonly conceptById: Map<string, Concept>;
   private finished = false;
@@ -93,12 +95,15 @@ export class MayeuticSessionEngine {
     }
 
     const question = step.question;
-    const evaluation = evaluateAnswer(
-      question,
-      { questionId: question.id, text, answeredAt: now, latencyMs },
-      this.options.thresholds,
-    );
+    const answer: UserAnswer = {
+      questionId: question.id,
+      text,
+      answeredAt: now,
+      latencyMs,
+    };
+    const evaluation = evaluateAnswer(question, answer, this.options.thresholds);
     this.evaluations.push(evaluation);
+    this.answers.push(answer);
     this.attemptsOnCurrent += 1;
 
     const review =
@@ -134,7 +139,9 @@ export class MayeuticSessionEngine {
       scores.length === 0 ? 0 : scores.reduce((sum, score) => sum + score, 0) / scores.length;
 
     return {
-      answered: this.evaluations.length,
+      // Se cuentan preguntas distintas, no intentos: un reintento con andamiaje
+      // no debe hacer que el progreso supere el total del itinerario.
+      answered: new Set(this.evaluations.map((evaluation) => evaluation.questionId)).size,
       total,
       averageScore,
       correct: this.countVerdict('correcta'),
@@ -157,6 +164,25 @@ export class MayeuticSessionEngine {
   /** Todas las evaluaciones emitidas, en orden. */
   public allEvaluations(): readonly AnswerEvaluation[] {
     return [...this.evaluations];
+  }
+
+  /** Todas las respuestas registradas, en orden. */
+  public allAnswers(): readonly UserAnswer[] {
+    return [...this.answers];
+  }
+
+  /**
+   * Sesión con las respuestas acumuladas hasta el momento.
+   *
+   * Permite persistir el avance sin depender del estado en memoria de la UI.
+   */
+  public snapshot(finishedAt: Timestamp | null = null): StudySession {
+    return {
+      ...this.session,
+      answers: [...this.answers],
+      finishedAt:
+        finishedAt ?? (this.isFinished() ? (this.answers.at(-1)?.answeredAt ?? null) : null),
+    };
   }
 
   private advance(): void {
