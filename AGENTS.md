@@ -28,6 +28,7 @@ npm run lint
 npm run format         # Prettier
 npm run start          # Expo
 npm start --workspace @socracia/api   # backend en :8787
+npm run package:source # entrega .tar.gz sin Git (dist/)
 ```
 
 ## Convenciones
@@ -164,3 +165,5 @@ Trampas conocidas:
 - `docs/rag-strategy.md` — RAG local vs backend, decisión y alternancia.
 - `docs/backend.md` — API de cuentas y sincronización (Sprint 4).
 - `docs/decisions.md` — registro de decisiones (D-001…).
+- `docs/store-release-checklist.md` — publicación en App Store y Google Play.
+- `docs/no-git-delivery.md` — entrega y arranque sin Git.

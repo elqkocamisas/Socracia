@@ -379,6 +379,24 @@ sprint por una cuestión menor.
   progreso local no se borra porque no pertenece a la cuenta; quien quiera
   borrarlo todo desinstala la app o elimina los documentos.
 
+## D-031 — La entrega sin Git es un archivo de código fuente con manifiesto
+
+- **Contexto:** el proyecto debe poder entregarse y arrancarse en entornos donde
+  Git no está disponible o no se usa: máquinas sin permisos, entrega a un
+  tercero, despliegues que parten de un archivo.
+- **Decisión:** `npm run package:source` produce un `.tar.gz` con el código
+  fuente y un `manifest.json` con la huella SHA-256 de cada fichero. Se
+  excluyen `node_modules`, artefactos de build y todo fichero de credenciales
+  (`play-service-account.json`, `*.jks`, `*.p8`, `.env`). La lógica de qué
+  entra vive en `scripts/lib/release-files.cjs` (CommonJS, para poder probarse)
+  y el CLI en `scripts/package-release.mjs`.
+- **Consecuencias:** quien no puede clonar recibe un archivo verificable, y
+  `packageRelease.test.ts` falla si alguna vez un secreto pudiera colarse en la
+  entrega. Se pierde el historial de Git, así que `docs/decisions.md` y el
+  manifiesto de cada entrega sustituyen a los `git tag`. Se documenta todo en
+  `docs/no-git-delivery.md`. No se introduce ningún servicio externo: sigue sin
+  haber CI (D-029).
+
 ## Ambigüedades pendientes (no bloqueantes)
 
 - **Vertical inicial (oposiciones vs PAU):** resuelto en el Sprint 1: el corpus

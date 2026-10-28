@@ -61,6 +61,7 @@ anteriores.
 | `npm run lint`      | ESLint (flat config)            |
 | `npm run format`    | Prettier                        |
 | `npm run verify`    | lint + typecheck + test         |
+| `npm run package:source` | Entrega en `.tar.gz` sin Git |
 
 ## Documentación
 
@@ -68,6 +69,8 @@ anteriores.
 - [`docs/rag-strategy.md`](docs/rag-strategy.md) — RAG local vs backend y decisión.
 - [`docs/backend.md`](docs/backend.md) — API de cuentas y sincronización.
 - [`docs/decisions.md`](docs/decisions.md) — registro de decisiones.
+- [`docs/no-git-delivery.md`](docs/no-git-delivery.md) — entrega y arranque sin Git.
+- [`docs/store-release-checklist.md`](docs/store-release-checklist.md) — publicación en tiendas.
 
 ## Privacidad
 

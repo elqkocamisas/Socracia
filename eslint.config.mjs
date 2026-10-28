@@ -48,4 +48,16 @@ export default tseslint.config(
       globals: { ...globals.node },
     },
   },
+  {
+    // Librerías CommonJS de los scripts: se cargan con `require` desde el CLI
+    // ESM y desde las pruebas, así que no pueden ser módulos ESM.
+    files: ['scripts/**/*.cjs'],
+    languageOptions: {
+      sourceType: 'commonjs',
+      globals: { ...globals.node },
+    },
+    rules: {
+      '@typescript-eslint/no-require-imports': 'off',
+    },
+  },
 );
