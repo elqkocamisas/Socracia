@@ -1,0 +1,25 @@
+{
+  "name": "@socracia/core",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Dominio agnóstico de plataforma: motor mayéutico, evaluación y abstracción RAG",
+  "license": "UNLICENSED",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "jest"
+  },
+  "devDependencies": {
+    "@types/jest": "30.0.0",
+    "@types/node": "26.6.5",
+    "jest": "30.5.2",
+    "ts-jest": "29.4.15",
+    "typescript": "5.9.3"
+  }
+}

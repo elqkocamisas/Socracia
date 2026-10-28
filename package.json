@@ -1,0 +1,37 @@
+{
+  "name": "socracia",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Autoaprendizaje mayéutico para temarios reglados (oposiciones, PAU y similares)",
+  "license": "UNLICENSED",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "postinstall": "npm run build --workspace @socracia/core",
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "verify": "npm run lint && npm run typecheck && npm run test",
+    "start": "npm run start --workspace @socracia/mobile",
+    "android": "npm run android --workspace @socracia/mobile",
+    "ios": "npm run ios --workspace @socracia/mobile"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "eslint": "10.13.0",
+    "eslint-config-prettier": "10.1.8",
+    "globals": "17.13.0",
+    "prettier": "3.9.10",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.72.1"
+  }
+}
