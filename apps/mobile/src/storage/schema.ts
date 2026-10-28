@@ -57,6 +57,15 @@ export const SCHEMA_STATEMENTS: readonly string[] = [
     key TEXT PRIMARY KEY NOT NULL,
     value TEXT NOT NULL
   );`,
+  `CREATE TABLE IF NOT EXISTS chunks (
+    id TEXT PRIMARY KEY NOT NULL,
+    document_id TEXT NOT NULL,
+    ordinal INTEGER NOT NULL,
+    char_start INTEGER NOT NULL,
+    char_end INTEGER NOT NULL,
+    text TEXT NOT NULL
+  );`,
+  `CREATE INDEX IF NOT EXISTS idx_chunks_document ON chunks (document_id, ordinal);`,
 ];
 
 /** Crea el esquema si no existe. Idempotente. */

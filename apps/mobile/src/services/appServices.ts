@@ -90,6 +90,11 @@ export function createServices(options: CreateServicesOptions): AppServices {
  * `openDatabase` se inyecta para no acoplar el runtime a `expo-sqlite` en las
  * pruebas. Si la apertura falla, el error sube al llamante, que decide entre
  * reintentar o degradar a almacenamiento en memoria.
+ *
+ * Tras abrir la base se rehidrata el índice vectorial desde los fragmentos
+ * guardados: sin este paso, el índice arrancaría vacío y no se podrían generar
+ * preguntas sobre un temario ya importado (los fragmentos son el único estado
+ * del RAG que vive en disco).
  */
 export async function bootstrap(
   options: Omit<CreateServicesOptions, 'storage'> & {
@@ -98,7 +103,22 @@ export async function bootstrap(
   },
 ): Promise<AppServices> {
   const storage = await openStorage(options.openDatabase, options.databaseName ?? 'socracia.db');
-  return createServices({ ...options, storage });
+  const services = createServices({ ...options, storage });
+  await rehydrateIndex(services);
+  return services;
+}
+
+/**
+ * Reconstruye el índice vectorial a partir de los fragmentos persistidos.
+ *
+ * Los embeddings se recalculan en el dispositivo; el texto nunca sale de la
+ * app. Si la rehidratación falla, la app sigue arrancando: el usuario podrá
+ * volver a adjuntar el documento.
+ */
+export async function rehydrateIndex(services: AppServices): Promise<number> {
+  const chunks = await services.storage.documents.listAllChunks();
+  const result = await services.rag.rehydrate(chunks);
+  return result.ok ? result.value : 0;
 }
 
 /** Flujo completo de importación: elegir archivo, leer bytes, ingerir y guardar. */
@@ -141,6 +161,9 @@ export async function importDocument(
     concepts: curriculum.concepts,
     createdAt: now,
   });
+  // Los fragmentos se persisten para poder rehidratar el índice en el próximo
+  // arranque; sin ellos el temario quedaría ilegible tras cerrar la app.
+  await services.storage.documents.saveChunks(ingested.value.chunks);
 
   return {
     ok: true,

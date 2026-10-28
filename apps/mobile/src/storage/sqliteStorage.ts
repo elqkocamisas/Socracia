@@ -5,6 +5,7 @@ import type {
   CurriculumRecord,
   DocumentRepository,
   GapProfile,
+  KnowledgeChunk,
   KnowledgeDocument,
   ProgressRepository,
   QuestionRepository,
@@ -18,6 +19,15 @@ import { migrate } from './schema';
 
 interface PayloadRow {
   readonly payload: string;
+}
+
+interface ChunkRow {
+  readonly id: string;
+  readonly document_id: string;
+  readonly ordinal: number;
+  readonly char_start: number;
+  readonly char_end: number;
+  readonly text: string;
 }
 
 /**
@@ -58,6 +68,7 @@ export class SqliteDocumentRepository implements DocumentRepository {
       await this.db.runAsync('DELETE FROM documents WHERE id = ?;', [id]);
       await this.db.runAsync('DELETE FROM curricula WHERE id = ?;', [id]);
       await this.db.runAsync('DELETE FROM questions WHERE document_id = ?;', [id]);
+      await this.db.runAsync('DELETE FROM chunks WHERE document_id = ?;', [id]);
     });
   }
 
@@ -83,6 +94,53 @@ export class SqliteDocumentRepository implements DocumentRepository {
     );
     return rows.map((row) => JSON.parse(row.payload) as CurriculumRecord);
   }
+
+  public async saveChunks(chunks: readonly KnowledgeChunk[]): Promise<void> {
+    if (chunks.length === 0) {
+      return;
+    }
+    await this.db.withTransactionAsync(async () => {
+      for (const chunk of chunks) {
+        await this.db.runAsync(
+          `INSERT INTO chunks (id, document_id, ordinal, char_start, char_end, text)
+           VALUES (?, ?, ?, ?, ?, ?)
+           ON CONFLICT(id) DO UPDATE SET
+             document_id = excluded.document_id,
+             ordinal = excluded.ordinal,
+             char_start = excluded.char_start,
+             char_end = excluded.char_end,
+             text = excluded.text;`,
+          [chunk.id, chunk.documentId, chunk.ordinal, chunk.charStart, chunk.charEnd, chunk.text],
+        );
+      }
+    });
+  }
+
+  public async listChunks(documentId: string): Promise<readonly KnowledgeChunk[]> {
+    const rows = await this.db.getAllAsync<ChunkRow>(
+      'SELECT id, document_id, ordinal, char_start, char_end, text FROM chunks WHERE document_id = ? ORDER BY ordinal ASC;',
+      [documentId],
+    );
+    return rows.map(toChunk);
+  }
+
+  public async listAllChunks(): Promise<readonly KnowledgeChunk[]> {
+    const rows = await this.db.getAllAsync<ChunkRow>(
+      'SELECT id, document_id, ordinal, char_start, char_end, text FROM chunks ORDER BY document_id ASC, ordinal ASC;',
+    );
+    return rows.map(toChunk);
+  }
+}
+
+function toChunk(row: ChunkRow): KnowledgeChunk {
+  return {
+    id: row.id,
+    documentId: row.document_id,
+    text: row.text,
+    ordinal: row.ordinal,
+    charStart: row.char_start,
+    charEnd: row.char_end,
+  };
 }
 
 export class SqliteQuestionRepository implements QuestionRepository {
