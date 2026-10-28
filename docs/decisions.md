@@ -214,6 +214,38 @@ sprint por una cuestión menor.
   peso de modelo en la descarga de tienda y una ruta de mejora clara sin
   reescribir la app.
 
+## D-019 — La lógica de la conversación mayéutica vive en el núcleo, no en la UI
+
+- **Contexto:** el Sprint 3 necesita el bucle pregunta → respuesta → feedback →
+  siguiente pregunta, y la tentación es implementarlo dentro del componente React.
+- **Decisión:** el bucle vive en `MayeuticSessionController` (`packages/core`),
+  que expone un `StudyViewState` inmutable. `StudyScreen` solo pinta ese estado y
+  captura gestos. El controlador recibe `StudyService` y `StoragePort` por
+  inyección y no conoce React.
+- **Consecuencias:** el flujo crítico se prueba en Node sin simulador (22 suites
+  de core) y la UI queda reducida a presentación; cambiar de framework móvil no
+  obliga a reescribir la conversación.
+
+## D-020 — El progreso cuenta preguntas distintas, no intentos
+
+- **Contexto:** el andamiaje permite reintentar la misma pregunta. Al sumar cada
+  intento, el contador de la UI llegó a mostrar `12 / 6` respuestas.
+- **Decisión:** `SessionProgress.answered` cuenta identificadores de pregunta
+  distintos (`new Set(evaluation.questionId).size`). El detalle de intentos
+  sigue disponible en `allEvaluations()` para métricas.
+- **Consecuencias:** el progreso nunca supera el total del itinerario y refleja
+  el avance real del usuario, que es lo que la barra de progreso debe comunicar.
+
+## D-021 — La navegación del MVP es una máquina de estados explícita
+
+- **Contexto:** el MVP tiene tres pantallas (biblioteca, estudio, progreso). Añadir
+  un enrutador (React Navigation) suma dependencia, configuración nativa y peso.
+- **Decisión:** `App.tsx` mantiene una unión discriminada `Route` y renderiza la
+  pantalla activa. Es suficiente para el alcance actual y se puede sustituir por
+  un enrutador cuando el producto lo exija.
+- **Consecuencias:** cero dependencias de navegación en el MVP y una máquina de
+  estados trivial de probar; la ruta de migración está acotada a `App.tsx`.
+
 ## Ambigüedades pendientes (no bloqueantes)
 
 - **Vertical inicial (oposiciones vs PAU):** resuelto en el Sprint 1: el corpus

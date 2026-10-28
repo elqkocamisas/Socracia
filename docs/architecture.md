@@ -206,7 +206,46 @@ En `apps/mobile`:
 El SQL del adaptador se prueba contra SQLite real vía `node:sqlite` (D-017), así
 que las sentencias quedan verificadas antes de llegar al dispositivo.
 
-## 9. Comandos
+## 9. Experiencia mayéutica y progreso (Sprint 3)
+
+El Sprint 3 cierra el recorrido de usuario completo: **adjuntar → responder →
+progreso**. La lógica de la conversación vive en el núcleo y la UI solo pinta.
+
+```mermaid
+flowchart TD
+  A[StudyService.prepareSession] --> B[MayeuticSessionController.start]
+  B --> C{¿Hay pregunta?}
+  C -- sí --> D[StudyScreen: pregunta + fuente]
+  D --> E[Usuario responde]
+  E --> F[StudyService.answer]
+  F --> G[evaluateAnswer + detectGaps]
+  G --> H{¿Necesita andamiaje?}
+  H -- sí --> I[Repregunta guiada]
+  I --> E
+  H -- no --> J[Persistir evaluación, repaso y sesión]
+  J --> C
+  C -- no --> K[Progreso: dominio, lagunas y repaso]
+```
+
+En `packages/core`:
+
+| Módulo                  | Responsabilidad                                                                         |
+| ----------------------- | --------------------------------------------------------------------------------------- |
+| `app/progressService`   | `buildProgressOverview` y `nextActionHint`: dominio, lagunas y repaso, funciones puras. |
+| `app/sessionController` | Bucle pregunta → respuesta → feedback → siguiente; expone `StudyViewState`.             |
+| `app/studyService`      | Persiste la sesión en cada respuesta y ofrece `overview`.                               |
+| `mayeu/session`         | Acumula respuestas y evaluaciones; `snapshot()` para persistir sin estado de UI.        |
+
+En `apps/mobile`:
+
+| Módulo                   | Responsabilidad                                                          |
+| ------------------------ | ------------------------------------------------------------------------ |
+| `screens/StudyScreen`    | Conversación guiada con feedback, andamiaje y trazabilidad de la fuente. |
+| `screens/ProgressScreen` | Dominio, lagunas con severidad y repaso pendiente.                       |
+| `components/States`      | Estados vacío, carga y error, y barra de progreso reutilizables.         |
+| `App.tsx`                | Navegación por máquina de estados y arranque con degradación a memoria.  |
+
+## 10. Comandos
 
 ```bash
 npm install            # instala workspaces y compila @socracia/core

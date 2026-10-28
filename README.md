@@ -9,12 +9,14 @@ un itinerario de asimilación progresiva del conocimiento.
 
 ## Estado
 
-Sprints 0–2 completados. El Sprint 0 dejó las fundaciones y el dominio base; el
+Sprints 0–3 completados. El Sprint 0 dejó las fundaciones y el dominio base; el
 Sprint 1, el motor mayéutico completo (extracción de conceptos, generación de
-preguntas no triviales, itinerario progresivo, andamiaje y motor de sesión); y el
+preguntas no triviales, itinerario progresivo, andamiaje y motor de sesión); el
 Sprint 2, la ingesta de documentos (PDF, TXT y MD) con RAG on-device,
-persistencia local en SQLite y la pantalla de importación. Ver
-`docs/architecture.md` para el alcance por sprint.
+persistencia local en SQLite y la pantalla de importación; y el Sprint 3, la
+conversación guiada y la pantalla de progreso con repetición espaciada. El
+recorrido **adjuntar documento → responder preguntas → ver progreso** funciona
+de principio a fin. Ver `docs/architecture.md` para el alcance por sprint.
 
 ## Stack
 
