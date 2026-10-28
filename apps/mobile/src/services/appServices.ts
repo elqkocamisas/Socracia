@@ -5,6 +5,7 @@ import {
   DocumentIngestionService,
   HashingEmbeddingProvider,
   InMemoryVectorStore,
+  MayeuticSessionController,
   RagEngine,
   StudyService,
   defaultRegistry,
@@ -41,6 +42,7 @@ export interface AppServices {
   readonly storage: StoragePort;
   readonly rag: RagEngine;
   readonly study: StudyService;
+  readonly session: MayeuticSessionController;
   readonly ingestion: DocumentIngestionService;
   readonly picker: DocumentPickerPort;
   readonly reader: FileBytesReader;
@@ -69,11 +71,13 @@ export function createServices(options: CreateServicesOptions): AppServices {
   const rag = new RagEngine(store, provider);
   const ingestion = new DocumentIngestionService(defaultRegistry(fflateInflate), rag);
   const study = new StudyService(rag, options.storage);
+  const session = new MayeuticSessionController(study, options.storage, LOCAL_USER_ID);
 
   return {
     storage: options.storage,
     rag,
     study,
+    session,
     ingestion,
     picker: options.picker,
     reader: options.reader,

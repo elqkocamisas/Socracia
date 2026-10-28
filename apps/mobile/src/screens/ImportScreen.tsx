@@ -19,6 +19,8 @@ export interface ImportScreenProps {
   readonly services: AppServices;
   /** Reloj inyectable para que la pantalla sea determinista en pruebas. */
   readonly now?: () => number;
+  /** Abre la sesión mayéutica sobre un documento ya importado. */
+  readonly onStudy?: (documentId: string) => void;
 }
 
 /**
@@ -28,7 +30,11 @@ export interface ImportScreenProps {
  * ver el resultado de la ingesta y la lista de documentos ya incorporados. La
  * conversación mayéutica llega en el Sprint 3.
  */
-export function ImportScreen({ services, now = Date.now }: ImportScreenProps): React.JSX.Element {
+export function ImportScreen({
+  services,
+  now = Date.now,
+  onStudy,
+}: ImportScreenProps): React.JSX.Element {
   const [state, setState] = useState<ScreenState>({ kind: 'cargando' });
 
   const refresh = useCallback(async () => {
@@ -107,6 +113,16 @@ export function ImportScreen({ services, now = Date.now }: ImportScreenProps): R
             <Text style={styles.cardBody}>
               {document.mimeType} · {formatBytes(document.sizeBytes)} · procesado en el dispositivo
             </Text>
+            {onStudy ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Estudiar ${document.title}`}
+                onPress={() => onStudy(document.id)}
+                style={styles.studyButton}
+              >
+                <Text style={styles.studyLabel}>Estudiar</Text>
+              </Pressable>
+            ) : null}
           </View>
         ))
       )}
@@ -202,5 +218,18 @@ const styles = StyleSheet.create({
     fontSize: 15,
     marginTop: spacing.sm,
     lineHeight: 22,
+  },
+  studyButton: {
+    marginTop: spacing.md,
+    alignSelf: 'flex-start',
+    backgroundColor: colors.primary,
+    borderRadius: radius.md,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
+  },
+  studyLabel: {
+    color: colors.primaryContrast,
+    fontSize: 15,
+    fontWeight: '600',
   },
 });
