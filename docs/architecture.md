@@ -308,7 +308,7 @@ En `apps/mobile`:
 ## 11. Comandos
 
 ```bash
-npm install            # instala workspaces y compila @socracia/core
+npm install            # instala workspaces y compila core y api
 npm test               # pruebas de core (Jest) y mobile (jest-expo)
 npm run typecheck      # TypeScript estricto en ambos workspaces
 npm run lint           # ESLint flat config

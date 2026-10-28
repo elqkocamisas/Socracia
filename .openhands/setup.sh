@@ -3,7 +3,7 @@
 # Socracia — bootstrap del entorno de desarrollo.
 #
 # Idempotente: puede ejecutarse varias veces sin efectos adversos.
-# Instala dependencias del monorepo, compila @socracia/core y verifica la
+# Instala dependencias del monorepo, compila todos los workspaces y verifica la
 # suite de pruebas.
 
 set -uo pipefail
@@ -21,8 +21,8 @@ echo "==> Instalando dependencias del monorepo (npm workspaces)"
 # --no-audit/--no-fund mantienen la salida limpia en CI.
 npm install --no-audit --no-fund
 
-echo "==> Compilando @socracia/core (el postinstall ya lo intenta; se asegura aquí)"
-npm run build --workspace @socracia/core
+echo "==> Compilando los workspaces (el postinstall ya lo intenta; se asegura aquí)"
+npm run build
 
 echo "==> Ejecutando lint"
 npm run lint || echo "WARN: lint reportó problemas (revisar antes de commitear)"

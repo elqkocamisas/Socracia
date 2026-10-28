@@ -44,7 +44,7 @@ docs/             # arquitectura, estrategia RAG, backend, registro de decisione
 ## Puesta en marcha
 
 ```bash
-npm install        # instala workspaces y compila @socracia/core
+npm install        # instala workspaces y compila core y api
 npm run verify     # lint + typecheck + pruebas
 npm run start      # arranca Expo (o: npm run android / npm run ios)
 ```

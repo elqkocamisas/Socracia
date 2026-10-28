@@ -61,10 +61,22 @@ sha256sum -c <(node -e '
 Los pasos no cambian respecto a un clon con Git:
 
 ```bash
-npm ci            # instala exactamente lo del lockfile
+npm ci            # instala exactamente lo del lockfile y compila core y api
 npm run verify    # lint + typecheck + pruebas de los tres workspaces
 npm start         # arranca Expo (app móvil)
 ```
+
+`npm ci` ejecuta el `postinstall`, que compila **todos** los workspaces. No hace
+falta un `npm run build` manual: al terminar, `apps/api/dist/index.js` existe y
+el backend arranca con un solo comando.
+
+```bash
+npm start --workspace @socracia/api   # backend en http://localhost:8787
+```
+
+Comprobado sobre una extracción limpia del paquete: `tar -xzf` + `npm ci` +
+`npm start --workspace @socracia/api`, seguido de registro, sincronización y
+borrado de cuenta contra `http://127.0.0.1:8787`. Sin pasos intermedios.
 
 Requisitos: Node 20 o superior y npm. Para el móvil, la app Expo Go en el
 teléfono o un emulador. No hace falta Git en ningún paso.

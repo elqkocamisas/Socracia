@@ -397,6 +397,26 @@ sprint por una cuestión menor.
   `docs/no-git-delivery.md`. No se introduce ningún servicio externo: sigue sin
   haber CI (D-029).
 
+## D-032 — El arranque del backend se prueba desde el punto de entrada publicado
+
+- **Contexto:** al probar la entrega en una extracción limpia (`tar -xzf` +
+  `npm ci`), `npm start --workspace @socracia/api` terminaba al instante sin
+  abrir puerto. La causa: `start` ejecutaba `dist/server.js`, que solo exporta
+  `createApiServer` y nunca llama a `listen`; el fichero que sí arranca es
+  `dist/index.js`. Ninguna prueba lo detectaba porque todas construyen el
+  servidor con `createApiServer`, no con el fichero que usa `npm start`.
+- **Decisión:** `main`, `start` y `dev` de `apps/api` apuntan a `dist/index.js`.
+  El `postinstall` de la raíz compila **todos** los workspaces
+  (`npm run build --workspaces --if-present`) y no solo `core`, para que
+  `npm ci` deje la API lista sin un `npm run build` manual. Se añade
+  `apps/api/src/__tests__/entrypoint.test.ts`, que lanza el fichero real, espera
+  a `/health` y exige respuesta.
+- **Consecuencias:** una instalación limpia arranca con un solo comando. La
+  prueba nueva falla si alguien vuelve a apuntar `start` a un módulo sin
+  `listen`; se comprobó revirtiendo el arreglo a propósito. Coste: el
+  `postinstall` tarda unos segundos más al compilar la API, aceptable frente a
+  un backend que no arranca.
+
 ## Ambigüedades pendientes (no bloqueantes)
 
 - **Vertical inicial (oposiciones vs PAU):** resuelto en el Sprint 1: el corpus
