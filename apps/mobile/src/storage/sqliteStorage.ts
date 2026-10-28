@@ -303,3 +303,19 @@ export async function openStorage(
   await migrate(db);
   return sqliteStorage(db);
 }
+
+/**
+ * Abre la base y devuelve también el handle.
+ *
+ * Lo necesitan los adaptadores que escriben fuera de los repositorios de
+ * dominio, como el almacén de credenciales (tabla `app_meta`). El esquema se
+ * aplica una sola vez aquí.
+ */
+export async function openLocalDatabase(
+  open: (name: string) => Promise<SQLiteDatabase>,
+  name = 'socracia.db',
+): Promise<{ db: SQLiteDatabase; storage: StoragePort }> {
+  const db = await open(name);
+  await migrate(db);
+  return { db, storage: sqliteStorage(db) };
+}

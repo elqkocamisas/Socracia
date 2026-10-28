@@ -16,7 +16,14 @@ import {
   type VectorStore,
 } from '@socracia/core';
 
-import { openStorage } from '../storage/sqliteStorage';
+import { openLocalDatabase } from '../storage/sqliteStorage';
+import { AccountService } from './accountService';
+import {
+  InMemoryCredentialStore,
+  SqliteCredentialStore,
+  type CredentialStore,
+} from './credentialStore';
+import { HttpSyncClient } from './httpSyncClient';
 import {
   readPickedFile,
   type DocumentPickerPort,
@@ -37,6 +44,9 @@ export interface SqliteHandle {
 /** Identificador de usuario local hasta que exista cuenta (Sprint 4). */
 export const LOCAL_USER_ID = 'local-user';
 
+/** URL base del backend; configurable por entorno en el build de producción. */
+export const DEFAULT_API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? 'http://localhost:8787';
+
 /** Servicios que consume la UI. */
 export interface AppServices {
   readonly storage: StoragePort;
@@ -46,6 +56,7 @@ export interface AppServices {
   readonly ingestion: DocumentIngestionService;
   readonly picker: DocumentPickerPort;
   readonly reader: FileBytesReader;
+  readonly account: AccountService;
 }
 
 /** Opciones de creación del runtime. */
@@ -56,6 +67,12 @@ export interface CreateServicesOptions {
   /** Proveedor de embeddings; por defecto, hashing local sin módulos nativos. */
   readonly provider?: EmbeddingProvider;
   readonly vectorStore?: VectorStore;
+  /** Cliente de sincronización; por defecto, HTTP contra `apiBaseUrl`. */
+  readonly syncClient?: HttpSyncClient;
+  /** Almacén de credenciales; por defecto, en memoria. */
+  readonly credentials?: CredentialStore;
+  /** URL base del backend. */
+  readonly apiBaseUrl?: string;
 }
 
 /**
@@ -72,6 +89,11 @@ export function createServices(options: CreateServicesOptions): AppServices {
   const ingestion = new DocumentIngestionService(defaultRegistry(fflateInflate), rag);
   const study = new StudyService(rag, options.storage);
   const session = new MayeuticSessionController(study, options.storage, LOCAL_USER_ID);
+  const syncClient =
+    options.syncClient ??
+    new HttpSyncClient({ baseUrl: options.apiBaseUrl ?? DEFAULT_API_BASE_URL });
+  const credentials = options.credentials ?? new InMemoryCredentialStore();
+  const account = new AccountService(syncClient, credentials, options.storage, LOCAL_USER_ID);
 
   return {
     storage: options.storage,
@@ -81,6 +103,7 @@ export function createServices(options: CreateServicesOptions): AppServices {
     ingestion,
     picker: options.picker,
     reader: options.reader,
+    account,
   };
 }
 
@@ -97,14 +120,22 @@ export function createServices(options: CreateServicesOptions): AppServices {
  * del RAG que vive en disco).
  */
 export async function bootstrap(
-  options: Omit<CreateServicesOptions, 'storage'> & {
+  options: Omit<CreateServicesOptions, 'storage' | 'credentials'> & {
     openDatabase: (name: string) => Promise<SQLiteDatabase>;
     databaseName?: string;
   },
 ): Promise<AppServices> {
-  const storage = await openStorage(options.openDatabase, options.databaseName ?? 'socracia.db');
-  const services = createServices({ ...options, storage });
+  const { db, storage } = await openLocalDatabase(
+    options.openDatabase,
+    options.databaseName ?? 'socracia.db',
+  );
+  const services = createServices({
+    ...options,
+    storage,
+    credentials: new SqliteCredentialStore(db),
+  });
   await rehydrateIndex(services);
+  await services.account.restore();
   return services;
 }
 
