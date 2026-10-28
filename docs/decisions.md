@@ -246,6 +246,37 @@ sprint por una cuestión menor.
 - **Consecuencias:** cero dependencias de navegación en el MVP y una máquina de
   estados trivial de probar; la ruta de migración está acotada a `App.tsx`.
 
+## D-022 — El índice vectorial se rehidrata desde los fragmentos persistidos
+
+- **Contexto:** el índice vive en memoria y solo se poblaba durante la ingesta.
+  Al cerrar y reabrir la app quedaba vacío, así que «Estudiar» fallaba con «No se
+  pudieron generar preguntas para este temario» aunque el documento siguiera en
+  la biblioteca. Para el usuario, el temario importado era inservible tras el
+  primer cierre.
+- **Decisión:** se persiste el **texto** de los fragmentos en SQLite (tabla
+  `chunks`), nunca sus vectores. Al arrancar, `bootstrap` llama a
+  `RagEngine.rehydrate`, que recalcula los embeddings en el dispositivo desde los
+  fragmentos guardados.
+- **Consecuencias:** el temario sobrevive al reinicio sin releer el archivo
+  original y sin enviar texto a ningún servidor, lo que respeta la promesa de
+  privacidad. El coste es recalcular embeddings en cada arranque: con el
+  proveedor de hashing es despreciable, y si se adopta un modelo on-device real
+  habrá que medirlo y, si procede, cachear los vectores en la misma tabla.
+- **Alternativa descartada:** guardar los vectores junto a los fragmentos. Ahorra
+  el recálculo, pero ata los datos al modelo concreto: cambiar de proveedor
+  invalidaría el índice guardado. Guardar texto mantiene el índice reconstruible
+  con cualquier proveedor futuro.
+
+## D-023 — La rehidratación es tolerante a fallos y no bloquea el arranque
+
+- **Contexto:** `rehydrate` recalcula embeddings y puede fallar (proveedor no
+  disponible, datos corruptos). Un fallo ahí no debe impedir abrir la app.
+- **Decisión:** `bootstrap` espera la rehidratación, pero `rehydrateIndex`
+  devuelve `0` en caso de error en lugar de lanzar. La app arranca con el índice
+  vacío y el usuario puede volver a adjuntar el documento.
+- **Consecuencias:** la app nunca se queda en pantalla de carga por un problema
+  de índice; el fallo degrada a «vuelve a importar» en lugar de «la app no abre».
+
 ## Ambigüedades pendientes (no bloqueantes)
 
 - **Vertical inicial (oposiciones vs PAU):** resuelto en el Sprint 1: el corpus

@@ -123,6 +123,9 @@ Trampas conocidas:
   recorrido E2E usa un router de prueba en un único árbol.
 - **`@socracia/core` se consume desde `dist`.** Tras tocar el núcleo hay que
   `npm run build --workspace @socracia/core` o el móvil usará la versión previa.
+- **El índice vectorial no sobrevive solo.** Cualquier estado que viva en memoria
+  (hoy el índice del RAG) debe persistirse y rehidratarse en `bootstrap`, o la
+  funcionalidad se rompe en silencio al reabrir la app (D-022).
 
 ## Reglas de trabajo
 

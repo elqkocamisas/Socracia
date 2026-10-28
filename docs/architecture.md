@@ -194,17 +194,25 @@ El Sprint 2 cierra el recorrido «adjuntar documento → preguntas con fuente»:
 
 En `apps/mobile`:
 
-| Módulo                    | Responsabilidad                                                          |
-| ------------------------- | ------------------------------------------------------------------------ |
-| `storage/schema`          | DDL del esquema local e `migrate` idempotente.                           |
-| `storage/sqliteStorage`   | Adaptador de `StoragePort` sobre `expo-sqlite`.                          |
-| `services/documentImport` | Validación de formato y lectura de bytes, agnóstica de plataforma.       |
-| `services/appServices`    | Composición de servicios e `importDocument` (flujo completo de ingesta). |
-| `services/expoAdapters`   | Adaptadores de `expo-document-picker` y `expo-file-system`.              |
-| `screens/ImportScreen`    | UI de importación con estados vacío, carga y error.                      |
+| Módulo                    | Responsabilidad                                                           |
+| ------------------------- | ------------------------------------------------------------------------- |
+| `storage/schema`          | DDL del esquema local e `migrate` idempotente.                            |
+| `storage/sqliteStorage`   | Adaptador de `StoragePort` sobre `expo-sqlite`, incluidos los fragmentos. |
+| `services/documentImport` | Validación de formato y lectura de bytes, agnóstica de plataforma.        |
+| `services/appServices`    | Composición de servicios, `importDocument` y rehidratación del índice.    |
+| `services/expoAdapters`   | Adaptadores de `expo-document-picker` y `expo-file-system`.               |
+| `screens/ImportScreen`    | UI de importación con estados vacío, carga y error.                       |
 
 El SQL del adaptador se prueba contra SQLite real vía `node:sqlite` (D-017), así
 que las sentencias quedan verificadas antes de llegar al dispositivo.
+
+### Persistencia del índice vectorial
+
+El índice vive en memoria, así que tras cerrar la app hay que reconstruirlo. Los
+fragmentos (texto, nunca vectores) se guardan en la tabla `chunks` y `bootstrap`
+rehidrata el índice al arrancar, recalculando los embeddings en el dispositivo
+(D-022, D-023). Sin este paso, un temario importado dejaba de generar preguntas
+en cuanto se reabría la app.
 
 ## 9. Experiencia mayéutica y progreso (Sprint 3)
 
