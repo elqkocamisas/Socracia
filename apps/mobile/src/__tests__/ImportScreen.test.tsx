@@ -87,3 +87,43 @@ describe('ImportScreen', () => {
     await waitFor(() => expect(screen.getByText(/No se pudo leer/i)).toBeTruthy());
   });
 });
+
+describe('ImportScreen: acceso al estudio', () => {
+  it('ofrece estudiar un documento importado y avisa al llamante', async () => {
+    const app = services(
+      {
+        name: 'temario.txt',
+        mimeType: 'text/plain',
+        uri: 'file:///t.txt',
+        sizeBytes: TEMARIO.length,
+      },
+      encoder.encode(TEMARIO),
+    );
+    let studied: string | null = null;
+    await render(<ImportScreen services={app} now={() => NOW} onStudy={(id) => (studied = id)} />);
+    await waitFor(() => expect(screen.getByText('Sin documentos')).toBeTruthy());
+
+    fireEvent.press(screen.getByText('Adjuntar temario'));
+    await waitFor(() => expect(screen.getByText('Estudiar')).toBeTruthy());
+
+    fireEvent.press(screen.getByText('Estudiar'));
+    expect(studied).not.toBeNull();
+  });
+
+  it('sin manejador de estudio no muestra el botón', async () => {
+    const app = services(
+      {
+        name: 'temario.txt',
+        mimeType: 'text/plain',
+        uri: 'file:///t.txt',
+        sizeBytes: TEMARIO.length,
+      },
+      encoder.encode(TEMARIO),
+    );
+    await render(<ImportScreen services={app} now={() => NOW} />);
+    await waitFor(() => expect(screen.getByText('Sin documentos')).toBeTruthy());
+    fireEvent.press(screen.getByText('Adjuntar temario'));
+    await waitFor(() => expect(screen.getByText('temario')).toBeTruthy());
+    expect(screen.queryByText('Estudiar')).toBeNull();
+  });
+});
