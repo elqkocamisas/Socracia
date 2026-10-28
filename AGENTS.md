@@ -115,6 +115,14 @@ Trampas conocidas:
   was invoked without --experimental-vm-modules»): usar imports estáticos.
 - **`render` de `@testing-library/react-native` 14 es asíncrono:** hay que
   `await render(...)`.
+- **React 19 no aplica `fireEvent.changeText` de forma síncrona.** Hay que
+  esperar a que `props.value` refleje el texto antes de pulsar enviar; el helper
+  `typeAnswer` de `appTestHarness` lo hace.
+- **No montar y desmontar pantallas con efectos async pendientes en el mismo
+  test.** Provoca «overlapping act() calls» y estados a medio aplicar; el
+  recorrido E2E usa un router de prueba en un único árbol.
+- **`@socracia/core` se consume desde `dist`.** Tras tocar el núcleo hay que
+  `npm run build --workspace @socracia/core` o el móvil usará la versión previa.
 
 ## Reglas de trabajo
 
