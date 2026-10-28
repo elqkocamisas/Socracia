@@ -66,6 +66,41 @@ describe('RagEngine', () => {
     }
   });
 
+  it('indexDocument devuelve los fragmentos para poder persistirlos', async () => {
+    const engine = buildEngine();
+    const result = await engine.indexDocument(document, corpus);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.length).toBeGreaterThan(0);
+      expect(result.value[0]?.documentId).toBe(document.id);
+    }
+  });
+
+  it('rehydrate reconstruye el índice desde fragmentos persistidos', async () => {
+    const source = buildEngine();
+    const indexed = await source.indexDocument(document, corpus);
+    expect(indexed.ok).toBe(true);
+    if (!indexed.ok) {
+      return;
+    }
+
+    // Motor nuevo (proceso nuevo): índice vacío hasta rehidratar.
+    const restarted = buildEngine();
+    expect(restarted.indexedChunks()).toBe(0);
+
+    const rehydrated = await restarted.rehydrate(indexed.value);
+
+    expect(rehydrated.ok).toBe(true);
+    expect(restarted.indexedChunks()).toBe(indexed.value.length);
+    const hits = await restarted.retrieve('habilitación legal de la Administración', 1);
+    expect(hits.ok && hits.value[0]?.chunk.text).toContain('legalidad');
+  });
+
+  it('rehydrate sin fragmentos no hace nada', async () => {
+    const engine = buildEngine();
+    expect(await engine.rehydrate([])).toEqual({ ok: true, value: 0 });
+  });
+
   it('genera preguntas con cita de la fuente recuperada', async () => {
     const engine = buildEngine();
     await engine.ingestDocument(document, corpus);

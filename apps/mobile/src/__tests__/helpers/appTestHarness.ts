@@ -1,7 +1,12 @@
 import { inMemoryStorage, ok, type StoragePort } from '@socracia/core';
 import { fireEvent, screen, waitFor } from '@testing-library/react-native';
 
-import { createServices, importDocument, type AppServices } from '../../services/appServices';
+import {
+  createServices,
+  importDocument,
+  rehydrateIndex,
+  type AppServices,
+} from '../../services/appServices';
 import type {
   DocumentPickerPort,
   FileBytesReader,
@@ -26,6 +31,19 @@ const NO_PICKER: DocumentPickerPort = { pick: async () => null };
 export function makeServices(storage: StoragePort = inMemoryStorage()): AppServices {
   const reader: FileBytesReader = { read: async () => ok(encoder.encode(TEMARIO)) };
   return createServices({ storage, picker: NO_PICKER, reader });
+}
+
+/**
+ * Simula cerrar y reabrir la app: servicios nuevos sobre el mismo almacén.
+ *
+ * El índice vectorial vive en memoria, así que un arranque real empieza con él
+ * vacío y lo reconstruye desde los fragmentos persistidos. Esta función
+ * reproduce ese arranque para poder probar la rehidratación.
+ */
+export async function restartServices(storage: StoragePort): Promise<AppServices> {
+  const services = makeServices(storage);
+  await rehydrateIndex(services);
+  return services;
 }
 
 /** Importa el temario de prueba y devuelve el identificador del documento. */

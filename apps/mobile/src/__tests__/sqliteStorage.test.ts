@@ -2,6 +2,7 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 
 import type {
   AnswerEvaluation,
+  KnowledgeChunk,
   KnowledgeDocument,
   ReviewState,
   SocraticQuestion,
@@ -72,6 +73,18 @@ const review: ReviewState = {
   dueAt: NOW + 86_400_000,
   lastReviewedAt: NOW,
 };
+
+function chunk(documentId: string, ordinal: number): KnowledgeChunk {
+  const text = `fragmento ${ordinal}`;
+  return {
+    id: `${documentId}:${ordinal}`,
+    documentId,
+    text,
+    ordinal,
+    charStart: ordinal * 10,
+    charEnd: ordinal * 10 + text.length,
+  };
+}
 
 describe('migrate', () => {
   it('es idempotente', async () => {
@@ -150,6 +163,42 @@ describe('SqliteDocumentRepository', () => {
     expect(await storage.documents.getDocument('d1')).toBeNull();
     expect(await storage.documents.getCurriculum('d1')).toBeNull();
     expect(await storage.questions.listByDocument('d1')).toHaveLength(0);
+  });
+
+  it('guarda y recupera fragmentos en orden de aparición', async () => {
+    const { storage } = await openTestStorage();
+    await storage.documents.saveChunks([chunk('d1', 1), chunk('d1', 0)]);
+
+    const chunks = await storage.documents.listChunks('d1');
+
+    expect(chunks.map((item) => item.ordinal)).toEqual([0, 1]);
+    expect(chunks[0]?.text).toBe('fragmento 0');
+  });
+
+  it('el upsert de fragmentos no duplica al reindexar', async () => {
+    const { storage } = await openTestStorage();
+    await storage.documents.saveChunks([chunk('d1', 0)]);
+    await storage.documents.saveChunks([chunk('d1', 0)]);
+
+    expect(await storage.documents.listChunks('d1')).toHaveLength(1);
+  });
+
+  it('listAllChunks devuelve los fragmentos de todos los documentos', async () => {
+    const { storage } = await openTestStorage();
+    await storage.documents.saveChunks([chunk('d1', 0)]);
+    await storage.documents.saveChunks([chunk('d2', 0)]);
+
+    expect(await storage.documents.listAllChunks()).toHaveLength(2);
+  });
+
+  it('borrar un documento elimina también sus fragmentos', async () => {
+    const { storage } = await openTestStorage();
+    await storage.documents.saveDocument(document);
+    await storage.documents.saveChunks([chunk('d1', 0)]);
+
+    await storage.documents.deleteDocument('d1');
+
+    expect(await storage.documents.listAllChunks()).toHaveLength(0);
   });
 });
 

@@ -6,12 +6,25 @@ import {
 } from '../storage/inMemory';
 import type {
   AnswerEvaluation,
+  KnowledgeChunk,
   KnowledgeDocument,
   ReviewState,
   SocraticQuestion,
 } from '../domain/types';
 
 const NOW = 1_700_000_000_000;
+
+function chunk(documentId: string, ordinal: number): KnowledgeChunk {
+  const text = `fragmento ${ordinal}`;
+  return {
+    id: `${documentId}:${ordinal}`,
+    documentId,
+    text,
+    ordinal,
+    charStart: ordinal * 10,
+    charEnd: ordinal * 10 + text.length,
+  };
+}
 
 const document: KnowledgeDocument = {
   id: 'd1',
@@ -85,6 +98,41 @@ describe('InMemoryDocumentRepository', () => {
     await repo.deleteDocument('d1');
     expect(await repo.getDocument('d1')).toBeNull();
     expect(await repo.getCurriculum('d1')).toBeNull();
+  });
+
+  it('guarda y recupera fragmentos en orden de aparición', async () => {
+    const repo = new InMemoryDocumentRepository();
+    await repo.saveChunks([chunk('d1', 1), chunk('d1', 0)]);
+
+    const chunks = await repo.listChunks('d1');
+
+    expect(chunks.map((item) => item.ordinal)).toEqual([0, 1]);
+  });
+
+  it('reemplaza los fragmentos de un documento al reindexar', async () => {
+    const repo = new InMemoryDocumentRepository();
+    await repo.saveChunks([chunk('d1', 0), chunk('d1', 1)]);
+    await repo.saveChunks([chunk('d1', 0)]);
+
+    expect(await repo.listChunks('d1')).toHaveLength(1);
+  });
+
+  it('listAllChunks reúne los fragmentos de todos los documentos', async () => {
+    const repo = new InMemoryDocumentRepository();
+    await repo.saveChunks([chunk('d1', 0)]);
+    await repo.saveChunks([chunk('d2', 0)]);
+
+    expect(await repo.listAllChunks()).toHaveLength(2);
+  });
+
+  it('borrar un documento elimina sus fragmentos', async () => {
+    const repo = new InMemoryDocumentRepository();
+    await repo.saveDocument(document);
+    await repo.saveChunks([chunk('d1', 0)]);
+
+    await repo.deleteDocument('d1');
+
+    expect(await repo.listChunks('d1')).toHaveLength(0);
   });
 
   it('guarda y lista temarios', async () => {
