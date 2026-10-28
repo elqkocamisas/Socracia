@@ -86,4 +86,9 @@ export class RagEngine {
   public indexedChunks(): number {
     return this.store.size();
   }
+
+  /** Elimina del índice todos los fragmentos de un documento. */
+  public removeDocument(documentId: string): void {
+    this.store.removeDocument(documentId);
+  }
 }
