@@ -99,10 +99,70 @@ sprint por una cuestión menor.
 - **Consecuencias:** las pruebas de UI del proyecto siguen la API actual de la
   librería; no se fija una versión antigua.
 
+## D-010 — Extracción de conceptos por encabezados y patrones de definición
+
+- **Contexto:** el Sprint 1 necesita convertir un texto de temario en conceptos
+  evaluables sin depender de un LLM ni de infraestructura pesada.
+- **Decisión:** `extractCurriculum` usa una estrategia determinista en dos
+  niveles: los encabezados (markdown, «Tema N.», «Unidad N.», numerados)
+  delimitan temas, y las oraciones con patrón de definición delimitan conceptos.
+  El término se acota recortando el sintagma nominal hasta el primer
+  determinante, verbo o relativo.
+- **Consecuencias:** funciona offline, es reproducible y testeable. No capta
+  definiciones con estructura atípica; se acepta como limitación del MVP y se
+  compensa porque el usuario puede revisar los conceptos extraídos (Sprint 3).
+- **Alternativa descartada:** extracción con LLM on-device. Se pospone al
+  Sprint 2+, cuando exista el módulo nativo; la interfaz del extractor no
+  cambiaría.
+
+## D-011 — El generador excluye el nivel «recordar» por defecto
+
+- **Contexto:** el enunciado exige preguntas mayéuticas, «no preguntas triviales
+  de memoria». Las plantillas del Sprint 0 incluían una de definición pura.
+- **Decisión:** `GenerateQuestionsOptions.minLevel` (por defecto `comprender`)
+  filtra las plantillas elegibles. `mayeu/questionQuality.ts` añade una segunda
+  barrera independiente que marca como trivial toda pregunta de recuerdo sin
+  razonamiento.
+- **Consecuencias:** dos capas de defensa, ambas verificables en pruebas. El
+  comportamiento antiguo sigue disponible pasando `minLevel: 'recordar'`, lo que
+  permite pruebas comparativas y un futuro modo «repaso rápido» si se decide.
+
+## D-012 — Orden del itinerario en tres franjas
+
+- **Contexto:** hay que decidir qué estudiar primero: lo que se falla, lo nuevo
+  o lo que ya se domina.
+- **Decisión:** franjas ordenadas por clave de rango: lagunas (dominio por
+  debajo de `GAP_THRESHOLD`, las peores antes), después conceptos sin evaluar,
+  después dominados. Dentro de cada concepto, las preguntas ascienden en
+  exigencia cognitiva.
+- **Consecuencias:** se refuerza lo fallido antes de estrenar materia nueva, sin
+  abandonar nunca lo ya controlado. Los conceptos sin evaluar no se entierran
+  bajo las lagunas ni se anteponen a lo urgente.
+
+## D-013 — El andamiaje nunca entrega la respuesta
+
+- **Contexto:** el método mayéutico exige que el usuario construya la respuesta;
+  dar la solución rompe el método.
+- **Decisión:** `buildScaffold` genera repreguntas de orientación, acotación,
+  descomposición o ejemplificación, proporcionales a la gravedad del fallo, sin
+  incluir nunca `expectedAnswer`. Hay una prueba dedicada que lo verifica.
+- **Consecuencias:** el usuario recibe ayuda real sin que se le resuelva el
+  ejercicio. El número de intentos por pregunta antes de avanzar es configurable
+  (`maxAttemptsPerQuestion`, por defecto 2).
+
+## D-014 — Corpus de ejemplo de autoría propia
+
+- **Contexto:** las pruebas necesitan un temario realista, pero no se puede
+  reproducir contenido con derechos de autor.
+- **Decisión:** `__fixtures__/sampleCurriculum.ts` contiene un temario escrito
+  para el proyecto, con estilo y estructura de oposición pero contenido original.
+- **Consecuencias:** cero riesgo de derechos de autor; las pruebas son
+  autosuficientes y no dependen de descargas de red.
+
 ## Ambigüedades pendientes (no bloqueantes)
 
-- **Vertical inicial (oposiciones vs PAU):** se difiere al Sprint 1. El dominio
-  es agnóstico; el corpus de ejemplo del Sprint 1 será de oposiciones
-  (Administración) por ser el caso con temario más reglado.
+- **Vertical inicial (oposiciones vs PAU):** resuelto en el Sprint 1: el corpus
+  de ejemplo es de oposiciones (Administración), por ser el caso con temario más
+  reglado. El dominio sigue siendo agnóstico y sirve para PAU sin cambios.
 - **Gestión de cuentas:** se decide en el Sprint 4. El MVP funciona sin cuenta,
   con progreso local; la cuenta solo añade sincronización.

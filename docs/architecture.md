@@ -137,13 +137,41 @@ mayor urgencia de asimilación.
 | Sprint | Alcance                                        | Estado                               |
 | ------ | ---------------------------------------------- | ------------------------------------ |
 | 0      | Fundaciones, monorepo, dominio base, docs      | ✅ completado                        |
-| 1      | Modelo mayéutico completo y motor de preguntas | base ya implementada en `core`       |
+| 1      | Modelo mayéutico completo y motor de preguntas | ✅ completado                        |
 | 2      | Ingesta de documentos y RAG on-device          | interfaces listas; falta UI y nativo |
 | 3      | UX mayéutica y progreso                        | pendiente                            |
 | 4      | Backend mínimo y sincronización                | pendiente                            |
 | 5      | Calidad, privacidad y tiendas                  | pendiente                            |
 
-## 7. Comandos
+## 7. Motor mayéutico (Sprint 1)
+
+El Sprint 1 completa el ciclo pregunta → respuesta → feedback → progreso con
+piezas nuevas en `packages/core`:
+
+| Módulo                    | Responsabilidad                                                                        |
+| ------------------------- | -------------------------------------------------------------------------------------- |
+| `ingest/conceptExtractor` | Extrae temas y conceptos de un texto reglado por encabezados y patrones de definición. |
+| `mayeu/cognitive`         | Escala ordenada de niveles cognitivos y comparadores.                                  |
+| `mayeu/questionQuality`   | Política de no-trivialidad: rechaza el interrogatorio de memoria.                      |
+| `mayeu/itinerary`         | Ordena el estudio en tres franjas: lagunas, sin evaluar, dominados.                    |
+| `mayeu/scaffolding`       | Repregunta guiada ante fallo, sin entregar nunca la respuesta.                         |
+| `mayeu/session`           | Orquesta el bucle completo y mantiene progreso, lagunas y repaso.                      |
+
+### Regla de no-trivialidad
+
+El generador excluye por defecto las plantillas de nivel `recordar`. Además,
+`assessQuestionQuality` marca como trivial cualquier pregunta de recuerdo sin
+exigencia de razonamiento, respuesta de referencia demasiado corta o sin
+términos clave. Es la garantía verificable de que la app pregunta para pensar,
+no para recitar.
+
+### Regla de no-facilitación
+
+`buildScaffold` nunca revela la respuesta de referencia: orienta, descompone o
+acota según la gravedad del fallo. Hay una prueba que lo comprueba
+explícitamente.
+
+## 8. Comandos
 
 ```bash
 npm install            # instala workspaces y compila @socracia/core

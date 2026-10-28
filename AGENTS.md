@@ -54,8 +54,35 @@ npm run start          # Expo
   `sourceType: 'commonjs'` y `globals.node` de `eslint.config.mjs`.
 - **`jest.config.js` en core usa CommonJS** (`module.exports`) porque `core`
   compila a CommonJS para que Jest lo consuma sin transformación.
+- **Prettier reformatea tablas Markdown.** Al editar tablas en `docs/`, escribir
+  el cambio y volver a ejecutar `npm run format`; no dar por buena una edición
+  que Prettier va a realinear.
 - **Clon superficial:** el repo es shallow; usar `git fetch --unshallow` si se
   necesita historia.
+- **Sin lookbehind en regex.** El código de `core` debe funcionar en Hermes, que
+  no soporta lookbehind. Ya se evitó en `splitSentences`.
+
+## Arquitectura del motor mayéutico (Sprint 1)
+
+Flujo de datos, todo en `packages/core` y sin dependencias de plataforma:
+
+```
+texto del temario
+  → ingest/conceptExtractor.extractCurriculum   → Topic[] + Concept[]
+  → rag/engine.RagEngine.ingestDocument          → fragmentos indexados
+  → rag/engine.generateConceptQuestions          → SocraticQuestion[] (con Citation)
+  → mayeu/questionQuality.filterNonTrivial       → solo preguntas no triviales
+  → mayeu/itinerary.buildItinerary               → ItineraryStep[] ordenados
+  → mayeu/session.MayeuticSessionEngine          → turnos: evaluación, andamiaje, siguiente
+  → mayeu/gaps.detectGaps                        → GapProfile
+```
+
+Invariantes que no deben romperse (hay pruebas que las protegen):
+
+- Las preguntas generadas **nunca** son de nivel `recordar` por defecto.
+- El andamiaje **nunca** contiene `expectedAnswer`.
+- El itinerario ordena lagunas → sin evaluar → dominados.
+- `detectGaps` es puro: misma entrada, misma salida.
 
 ## Reglas de trabajo
 

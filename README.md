@@ -9,9 +9,10 @@ un itinerario de asimilación progresiva del conocimiento.
 
 ## Estado
 
-Sprint 0 completado: fundaciones, monorepo, dominio mayéutico base y
-documentación de decisiones. Ver `docs/architecture.md` para el alcance por
-sprint.
+Sprint 0 completado (fundaciones y dominio base) y Sprint 1 completado (motor
+mayéutico completo: extracción de conceptos, generación de preguntas no
+triviales, itinerario progresivo, andamiaje y motor de sesión). Ver
+`docs/architecture.md` para el alcance por sprint.
 
 ## Stack
 
