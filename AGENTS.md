@@ -10,8 +10,8 @@ y repetición espaciada. Target: iOS y Android (App Store / Google Play).
 
 ## Stack y estructura
 
-- **Monorepo npm workspaces.** `apps/mobile` (Expo + RN + TS) y
-  `packages/core` (dominio puro TS).
+- **Monorepo npm workspaces.** `apps/mobile` (Expo + RN + TS),
+  `apps/api` (backend mínimo Node nativo) y `packages/core` (dominio puro TS).
 - **`packages/core` no puede importar nada de React Native ni de Expo.** Toda la
   lógica crítica vive ahí y se prueba en Node.
 - `apps/mobile` consume `@socracia/core` por workspace (`"@socracia/core": "*"`).
@@ -22,11 +22,12 @@ y repetición espaciada. Target: iOS y Android (App Store / Google Play).
 ```bash
 npm install            # instala y compila core (postinstall)
 npm run verify         # lint + typecheck + test  ← antes de commitear
-npm test               # Jest en core y jest-expo en mobile
+npm test               # Jest en core y api, jest-expo en mobile
 npm run typecheck
 npm run lint
 npm run format         # Prettier
 npm run start          # Expo
+npm start --workspace @socracia/api   # backend en :8787
 ```
 
 ## Convenciones
@@ -126,6 +127,28 @@ Trampas conocidas:
 - **El índice vectorial no sobrevive solo.** Cualquier estado que viva en memoria
   (hoy el índice del RAG) debe persistirse y rehidratarse en `bootstrap`, o la
   funcionalidad se rompe en silencio al reabrir la app (D-022).
+- **`jest-expo` sustituye `fetch` por un polyfill que no hace red en Node.**
+  Las pruebas que necesiten HTTP real inyectan `helpers/nodeFetch.ts` (sobre
+  `node:http`); sin él `response.json()` devuelve `undefined`.
+- **`node:http`/`node:net` no tienen tipos en el móvil.** No se añade
+  `@types/node` (arrastraría globales de Node al bundle): los helpers de prueba
+  los declaran en `helpers/node-http.d.ts`, como ya se hace con `node:sqlite`.
+- **El backend ignora el `userId` del cuerpo** en `/sync/push` y usa el de la
+  sesión. No "arreglar" esto pasando el del cliente: es lo que impide escribir
+  el progreso de otro usuario.
+
+## Arquitectura de cuenta y sincronización (Sprint 4)
+
+- **Fusión pura en el núcleo.** `mergeSnapshots` (`packages/core/src/sync/merge.ts`)
+  la usan el backend y el cliente; no hay dos implementaciones (D-024).
+- **Identidad por contenido.** Evaluaciones por `questionId` (`c1:q0`), repaso
+  por `conceptId`, sesiones por `id`; gana el `updatedAt` mayor (D-025).
+- **Backend sin dependencias.** `apps/api` sobre `node:http`, contraseñas con
+  `scrypt`, almacén en memoria o JSON (D-026).
+- **Cuenta opcional.** El progreso local sigue bajo `local-user`; solo se
+  sincroniza el progreso, nunca los documentos (D-027).
+- El móvil implementa `SyncPort` en `services/httpSyncClient.ts`; la sesión se
+  guarda en `app_meta` vía `services/credentialStore.ts`.
 
 ## Reglas de trabajo
 
@@ -139,4 +162,5 @@ Trampas conocidas:
 
 - `docs/architecture.md` — arquitectura y diagrama del flujo mayéutico.
 - `docs/rag-strategy.md` — RAG local vs backend, decisión y alternancia.
+- `docs/backend.md` — API de cuentas y sincronización (Sprint 4).
 - `docs/decisions.md` — registro de decisiones (D-001…).
