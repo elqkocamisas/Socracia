@@ -9,9 +9,11 @@ un itinerario de asimilación progresiva del conocimiento.
 
 ## Estado
 
-Sprint 0 completado (fundaciones y dominio base) y Sprint 1 completado (motor
-mayéutico completo: extracción de conceptos, generación de preguntas no
-triviales, itinerario progresivo, andamiaje y motor de sesión). Ver
+Sprints 0–2 completados. El Sprint 0 dejó las fundaciones y el dominio base; el
+Sprint 1, el motor mayéutico completo (extracción de conceptos, generación de
+preguntas no triviales, itinerario progresivo, andamiaje y motor de sesión); y el
+Sprint 2, la ingesta de documentos (PDF, TXT y MD) con RAG on-device,
+persistencia local en SQLite y la pantalla de importación. Ver
 `docs/architecture.md` para el alcance por sprint.
 
 ## Stack
@@ -19,6 +21,7 @@ triviales, itinerario progresivo, andamiaje y motor de sesión). Ver
 - **App:** React Native + Expo (SDK 58) + TypeScript estricto.
 - **Dominio:** `packages/core`, TypeScript puro, sin dependencias de plataforma.
 - **RAG:** on-device por defecto (ver `docs/rag-strategy.md`).
+- **Almacenamiento local:** SQLite (`expo-sqlite`) para documentos y progreso.
 - **Pruebas:** Jest (dominio) y jest-expo (UI).
 
 ## Estructura

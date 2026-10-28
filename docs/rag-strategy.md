@@ -133,9 +133,45 @@ detección de lagunas ni la UI.
 - **Rendimiento:** si el dispositivo no soporta el modelo, se degrada con
   elegancia al proveedor de hashing (recuperación léxica) antes que fallar.
 
-## 6. Métricas para revisar la decisión en el Sprint 2
+## 6. Métricas del Sprint 2 y decisión
 
-- Latencia de ingesta por página de PDF en gama media.
-- Calidad de recuperación (top-1 relevante) frente al proveedor de hashing.
-- Tamaño del modelo y su impacto en la descarga.
-- Tasa de uso del conmutador de nube, si se llega a habilitar.
+Las métricas se midieron con el corpus de ejemplo de oposición
+(`sampleCurriculum`, contenido de autoría propia) y PDFs generados en las
+pruebas. Los valores son reproducibles con `npm test`.
+
+| Métrica                                   | Resultado medido                                                     |
+| ----------------------------------------- | -------------------------------------------------------------------- |
+| Extracción de texto PDF (FlateDecode)     | Funciona en Node y Hermes sin módulos nativos (`fflate`, JS puro).   |
+| PDF escaneado / sin capa de texto         | No extraíble; la app informa («puede ser un escaneo») sin fallar.    |
+| Recuperación top-1 por concepto           | Correcta en el corpus de prueba (fragmento del concepto consultado). |
+| Ingesta completa de un temario de ejemplo | Milisegundos en Node; sin llamadas de red.                           |
+| Peso añadido a la descarga de tienda      | Cero: no se empaqueta ningún modelo.                                 |
+
+### Decisión tomada
+
+**RAG local con proveedor inyectable, sin modelo empaquetado en el MVP.** El
+motor usa `HashingEmbeddingProvider` (bolsa de términos vectorizada), que es
+determinista, sin red y sin binarios, y cumple el criterio de aceptación del
+sprint. El modelo on-device real (`edge-llm`/MediaPipe BERT) queda como
+sustitución de una sola línea en `createServices`, pendiente de validar latencia
+y tamaño en dispositivo físico.
+
+**Motivos:**
+
+1. El criterio de aceptación del Sprint 2 (PDF → preguntas con fuente) se cumple
+   sin depender de un modelo que aún no se ha validado en hardware real.
+2. Cero peso de modelo en la descarga inicial mejora la conversión en tienda.
+3. La interfaz `EmbeddingProvider` ya está probada con dos implementaciones
+   (hashing y la de pruebas), así que el cambio a un modelo real no toca el
+   motor mayéutico, la evaluación ni la UI.
+4. La privacidad se mantiene por defecto: todo el cálculo es local.
+
+### Cuándo revisar
+
+- Si la calidad de recuperación del hashing resulta insuficiente en temarios
+  largos y con vocabulario muy variado.
+- Si el dispositivo objetivo no puede ejecutar el modelo con latencia aceptable
+  (< 200 ms por consulta en gama media).
+- Si se habilita la sincronización del Sprint 4 y se opta por corpus en nube:
+  entonces el proveedor remoto entra por el mismo puerto, con consentimiento
+  explícito por documento.

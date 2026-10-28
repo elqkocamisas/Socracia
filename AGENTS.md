@@ -84,6 +84,38 @@ Invariantes que no deben romperse (hay pruebas que las protegen):
 - El itinerario ordena lagunas → sin evaluar → dominados.
 - `detectGaps` es puro: misma entrada, misma salida.
 
+## Arquitectura de ingesta y persistencia (Sprint 2)
+
+Segunda mitad del recorrido, repartida entre `packages/core` (puro) y
+`apps/mobile` (adaptadores):
+
+```
+bytes de un PDF/TXT/MD
+  → ingest/extractors.ExtractorRegistry.extract     → texto (o IngestError)
+  → ingest/ingestionService.DocumentIngestionService → KnowledgeDocument + índice
+  → app/studyService.StudyService.prepareSession     → sesión con preguntas y citas
+  → app/studyService.StudyService.answer             → turno + evaluación persistida
+```
+
+Invariantes que no deben romperse (hay pruebas que las protegen):
+
+- `core` no importa `expo-*` ni `react-native`: los adaptadores viven en la app.
+- El dominio solo conoce `StoragePort`, `EmbeddingProvider` y `VectorStore`.
+- El SQL del adaptador se prueba contra SQLite real (`node:sqlite`), no con un
+  doble que imita SQL.
+- El texto del usuario nunca sale del dispositivo salvo `cloudConsent` explícito.
+
+Trampas conocidas:
+
+- **PDF FlateDecode usa zlib, no raw deflate.** `fflateInflate` intenta
+  `unzlibSync` y cae a `inflateSync`; al revés falla con «unexpected EOF».
+- **`Result<string>` sin parámetro de error usa `Error`.** Los extractores deben
+  declarar `Result<string, IngestError>` o `error.code` no existe en tipos.
+- **Jest no soporta `await import()` en este proyecto** («dynamic import callback
+  was invoked without --experimental-vm-modules»): usar imports estáticos.
+- **`render` de `@testing-library/react-native` 14 es asíncrono:** hay que
+  `await render(...)`.
+
 ## Reglas de trabajo
 
 - Una rama por sprint (`sprint-N-<tema>`), PR a `main` al terminar.

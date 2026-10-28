@@ -22,17 +22,25 @@ El sistema se organiza en tres capas con una regla de dependencia estricta:
 │                                                              │
 │   domain/   modelo de datos (temario, conceptos, preguntas,   │
 │             respuestas, lagunas, repaso espaciado)            │
+│   ingest/   extracción de texto (PDF/TXT/MD), chunking y      │
+│             servicio de ingesta de documentos                 │
 │   rag/      chunking → embeddings → almacén vectorial →      │
 │             recuperación semántica (RagEngine)                │
 │   mayeu/    generación de preguntas socráticas, evaluación    │
 │             de respuestas, detección de lagunas, SM-2         │
+│   storage/  puertos de persistencia (documentos, preguntas,   │
+│             progreso) e implementación en memoria             │
+│   app/      servicio de estudio: sesión, respuestas, progreso │
 │   math/     similitud coseno y utilidades vectoriales         │
 └───────────────┬──────────────────────────────────────────────┘
                 │ implementado por (inyección de dependencias)
 ┌───────────────▼──────────────────────────────────────────────┐
-│  Adaptadores (Sprint 2+)                                     │
-│   EmbeddingProvider → hashing local | MediaPipe BERT | cloud  │
-│   VectorStore       → memoria | SQLite+vector | ANN           │
+│  Adaptadores (apps/mobile, Sprint 2)                         │
+│   EmbeddingProvider → hashing local (MVP) | MediaPipe | cloud │
+│   VectorStore       → memoria (MVP) | SQLite+vector | ANN     │
+│   StoragePort       → SQLite local (expo-sqlite) | memoria    │
+│   FileBytesReader   → expo-file-system                        │
+│   DocumentPickerPort→ expo-document-picker                    │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -134,14 +142,14 @@ mayor urgencia de asimilación.
 
 ## 6. Estado por sprint
 
-| Sprint | Alcance                                        | Estado                               |
-| ------ | ---------------------------------------------- | ------------------------------------ |
-| 0      | Fundaciones, monorepo, dominio base, docs      | ✅ completado                        |
-| 1      | Modelo mayéutico completo y motor de preguntas | ✅ completado                        |
-| 2      | Ingesta de documentos y RAG on-device          | interfaces listas; falta UI y nativo |
-| 3      | UX mayéutica y progreso                        | pendiente                            |
-| 4      | Backend mínimo y sincronización                | pendiente                            |
-| 5      | Calidad, privacidad y tiendas                  | pendiente                            |
+| Sprint | Alcance                                        | Estado        |
+| ------ | ---------------------------------------------- | ------------- |
+| 0      | Fundaciones, monorepo, dominio base, docs      | ✅ completado |
+| 1      | Modelo mayéutico completo y motor de preguntas | ✅ completado |
+| 2      | Ingesta de documentos y RAG on-device          | ✅ completado |
+| 3      | UX mayéutica y progreso                        | pendiente     |
+| 4      | Backend mínimo y sincronización                | pendiente     |
+| 5      | Calidad, privacidad y tiendas                  | pendiente     |
 
 ## 7. Motor mayéutico (Sprint 1)
 
@@ -171,7 +179,34 @@ no para recitar.
 acota según la gravedad del fallo. Hay una prueba que lo comprueba
 explícitamente.
 
-## 8. Comandos
+## 8. Ingesta y RAG (Sprint 2)
+
+El Sprint 2 cierra el recorrido «adjuntar documento → preguntas con fuente»:
+
+| Módulo                    | Responsabilidad                                                                 |
+| ------------------------- | ------------------------------------------------------------------------------- |
+| `ingest/extractors`       | `ExtractorRegistry` y extractores de PDF, TXT y MD; errores con código estable. |
+| `ingest/inflate`          | Descompresión FlateDecode de PDF con `fflate` (JS puro, Hermes y Node).         |
+| `ingest/ingestionService` | Extrae texto, crea el registro del documento y lo indexa en el RAG.             |
+| `storage/ports`           | Puertos de persistencia que el dominio consume sin conocer el motor.            |
+| `storage/inMemory`        | Implementación en memoria: doble de pruebas y respaldo si SQLite no abre.       |
+| `app/studyService`        | Prepara la sesión, registra respuestas y persiste progreso y lagunas.           |
+
+En `apps/mobile`:
+
+| Módulo                    | Responsabilidad                                                          |
+| ------------------------- | ------------------------------------------------------------------------ |
+| `storage/schema`          | DDL del esquema local e `migrate` idempotente.                           |
+| `storage/sqliteStorage`   | Adaptador de `StoragePort` sobre `expo-sqlite`.                          |
+| `services/documentImport` | Validación de formato y lectura de bytes, agnóstica de plataforma.       |
+| `services/appServices`    | Composición de servicios e `importDocument` (flujo completo de ingesta). |
+| `services/expoAdapters`   | Adaptadores de `expo-document-picker` y `expo-file-system`.              |
+| `screens/ImportScreen`    | UI de importación con estados vacío, carga y error.                      |
+
+El SQL del adaptador se prueba contra SQLite real vía `node:sqlite` (D-017), así
+que las sentencias quedan verificadas antes de llegar al dispositivo.
+
+## 9. Comandos
 
 ```bash
 npm install            # instala workspaces y compila @socracia/core

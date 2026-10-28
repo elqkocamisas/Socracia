@@ -159,6 +159,61 @@ sprint por una cuestión menor.
 - **Consecuencias:** cero riesgo de derechos de autor; las pruebas son
   autosuficientes y no dependen de descargas de red.
 
+## D-015 — Extracción de texto PDF propia, sin dependencias nativas
+
+- **Contexto:** el MVP debe ingerir los PDF de temario que adjunta el usuario en
+  iOS y Android. Las librerías de PDF habituales o son nativas (rompen Expo Go y
+  el build gestionado) o son enormes.
+- **Decisión:** `PdfTextExtractor` implementa una extracción mínima pero real:
+  localiza flujos de contenido, resuelve literales `Tj`/`TJ` con escapes y
+  octales, y descomprime `FlateDecode` con `fflate` (JavaScript puro, funciona en
+  Hermes y en Node). `Inflate` se inyecta, así que el núcleo no depende de
+  `fflate` ni de la plataforma.
+- **Consecuencias:** funciona en el build gestionado de Expo sin módulos nativos
+  y se prueba en Node con PDFs reales generados en el propio test. Limitación
+  conocida y documentada: no interpreta fuentes con codificación personalizada ni
+  ToUnicode CMaps, por lo que un PDF escaneado o con subconjunto de fuente
+  exótico puede no dar texto; en ese caso la app informa con un mensaje claro
+  («puede ser un escaneo») en lugar de fallar en silencio.
+
+## D-016 — El progreso y los documentos viven en SQLite local
+
+- **Contexto:** la privacidad es un requisito de producto: el material del
+  usuario no debe salir del dispositivo.
+- **Decisión:** `StoragePort` define repositorios (`DocumentRepository`,
+  `QuestionRepository`, `ProgressRepository`) que el dominio consume sin conocer
+  el motor. La implementación por defecto es SQLite (`expo-sqlite`) en el
+  dispositivo; hay una implementación en memoria que sirve de doble en pruebas y
+  de respaldo si la base no abre.
+- **Consecuencias:** la app es útil sin cuenta ni red. La sincronización del
+  Sprint 4 añadirá una implementación remota del mismo puerto sin tocar el motor
+  mayéutico ni la UI.
+
+## D-017 — El SQL del adaptador se prueba contra SQLite real
+
+- **Contexto:** probar la capa de datos con un doble que imita SQL no valida las
+  sentencias: un `ON CONFLICT` mal escrito pasaría las pruebas y fallaría en el
+  dispositivo.
+- **Decisión:** las pruebas de `sqliteStorage` ejecutan el SQL real del adaptador
+  sobre `node:sqlite` (Node ≥ 22) mediante un shim fino del driver. Solo se
+  sustituye el enlace nativo; las consultas son las mismas que corren en el móvil.
+- **Consecuencias:** los upserts, índices, transacciones y borrados en cascada
+  quedan verificados de verdad. El shim vive en `__tests__/helpers` y no forma
+  parte del bundle de la app.
+
+## D-018 — Los embeddings del MVP son locales y sin módulos nativos
+
+- **Contexto:** el proveedor de embeddings definitivo (modelo on-device) se
+  decide con las métricas del Sprint 2, pero la app no puede quedarse sin RAG
+  mientras tanto.
+- **Decisión:** el MVP usa `HashingEmbeddingProvider` (bolsa de términos
+  vectorizada por hashing) tras la interfaz `EmbeddingProvider`. Es determinista,
+  sin red y sin binarios. El proveedor se inyecta en `createServices`, así que
+  sustituirlo por un modelo real o por el backend es cambiar un argumento.
+- **Consecuencias:** recuperación léxica sólida desde el primer arranque, cero
+  peso de modelo en la descarga de tienda y una ruta de mejora clara sin
+  reescribir la app.
+
 ## Ambigüedades pendientes (no bloqueantes)
 
 - **Vertical inicial (oposiciones vs PAU):** resuelto en el Sprint 1: el corpus
@@ -166,3 +221,6 @@ sprint por una cuestión menor.
   reglado. El dominio sigue siendo agnóstico y sirve para PAU sin cambios.
 - **Gestión de cuentas:** se decide en el Sprint 4. El MVP funciona sin cuenta,
   con progreso local; la cuenta solo añade sincronización.
+- **Modelo on-device definitivo:** pendiente de las métricas de latencia y
+  calidad del Sprint 2. La decisión no bloquea el MVP porque el proveedor es
+  inyectable (D-018).
