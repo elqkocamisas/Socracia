@@ -27,6 +27,7 @@
     },
     "web": {
       "bundler": "metro"
-    }
+    },
+    "plugins": ["expo-sqlite"]
   }
 }
