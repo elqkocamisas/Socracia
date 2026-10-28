@@ -208,3 +208,62 @@ describe('StudyService con TXT adjuntado por el usuario', () => {
     expect(documents.map((d) => d.id)).toEqual(['doc1']);
   });
 });
+
+describe('StudyService: persistencia de sesión y vista de progreso', () => {
+  it('acumula las respuestas en la sesión persistida', async () => {
+    const { service, rag, storage } = makeService();
+    const curriculum = await ingestSample(rag);
+    const prepared = await service.prepareSession(USER, curriculum, [], NOW, 'sess-1');
+    expect(prepared.ok).toBe(true);
+    if (!prepared.ok) {
+      return;
+    }
+
+    await service.answer(prepared.value, USER, 'Primera respuesta con contenido.', 400, NOW);
+    await service.answer(prepared.value, USER, 'Segunda respuesta distinta.', 400, NOW + 1);
+
+    const saved = await storage.progress.getSession('sess-1');
+    expect(saved).not.toBeNull();
+    expect(saved!.answers).toHaveLength(2);
+    expect(saved!.answers[0]!.text).toBe('Primera respuesta con contenido.');
+  });
+
+  it('marca la sesión como terminada al agotar el itinerario', async () => {
+    const { service, rag, storage } = makeService();
+    const curriculum = await ingestSample(rag);
+    const prepared = await service.prepareSession(USER, curriculum, [], NOW, 'sess-2');
+    if (!prepared.ok) {
+      throw new Error('sesión no preparada');
+    }
+
+    let turn = await service.answer(prepared.value, USER, 'respuesta', 100, NOW);
+    let guard = 0;
+    while (!turn.progress.finished && guard < 200) {
+      turn = await service.answer(prepared.value, USER, 'respuesta', 100, NOW + guard);
+      guard += 1;
+    }
+
+    expect(turn.progress.finished).toBe(true);
+    const saved = await storage.progress.getSession('sess-2');
+    expect(saved!.finishedAt).not.toBeNull();
+  });
+
+  it('overview refleja el progreso real tras responder', async () => {
+    const { service, rag } = makeService();
+    const curriculum = await ingestSample(rag);
+    const prepared = await service.prepareSession(USER, curriculum, [], NOW, 'sess-3');
+    if (!prepared.ok) {
+      throw new Error('sesión no preparada');
+    }
+
+    const empty = await service.overview(USER, curriculum.concepts, NOW);
+    expect(empty.mastery.conceptsNotEvaluated).toBe(curriculum.concepts.length);
+    expect(empty.hint).toContain('sesión guiada');
+
+    await service.answer(prepared.value, USER, 'respuesta', 100, NOW);
+
+    const after = await service.overview(USER, curriculum.concepts, NOW + 1);
+    expect(after.mastery.conceptsNotEvaluated).toBeLessThan(curriculum.concepts.length);
+    expect(after.generatedAt).toBe(NOW + 1);
+  });
+});

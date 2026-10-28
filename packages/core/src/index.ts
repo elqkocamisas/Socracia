@@ -26,4 +26,6 @@ export * from './mayeu/scaffolding';
 export * from './mayeu/session';
 export * from './storage/ports';
 export * from './storage/inMemory';
+export * from './app/progressService';
+export * from './app/sessionController';
 export * from './app/studyService';

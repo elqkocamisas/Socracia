@@ -24,6 +24,7 @@ import {
 import { DEFAULT_THRESHOLDS } from '../mayeu/evaluate';
 import type { RagEngine } from '../rag/engine';
 import type { StoragePort } from '../storage/ports';
+import { buildProgressOverview, nextActionHint, type ProgressOverview } from './progressService';
 
 /** Opciones del servicio de estudio. */
 export interface StudyServiceOptions {
@@ -136,7 +137,29 @@ export class StudyService {
     const turn = active.engine.submit(text, latencyMs, now);
     await this.storage.progress.appendEvaluations(userId, [turn.evaluation]);
     await this.storage.progress.saveReviewStates(userId, active.engine.reviewStates());
+    // El avance se persiste para poder reanudar o sincronizar la sesión sin
+    // depender del estado en memoria de la UI.
+    await this.storage.progress.saveSession(active.engine.snapshot());
     return turn;
+  }
+
+  /**
+   * Vista de progreso lista para la UI: dominio, lagunas y repaso pendiente.
+   *
+   * Reúne las evaluaciones y los estados de repaso persistidos y delega el
+   * cálculo en `buildProgressOverview`, que es puro.
+   */
+  public async overview(
+    userId: string,
+    concepts: readonly Concept[],
+    now: Timestamp,
+  ): Promise<ProgressOverview & { readonly hint: string }> {
+    const [evaluations, reviewStates] = await Promise.all([
+      this.storage.progress.listEvaluations(userId),
+      this.storage.progress.listReviewStates(userId),
+    ]);
+    const overview = buildProgressOverview(userId, concepts, evaluations, reviewStates, now);
+    return { ...overview, hint: nextActionHint(overview) };
   }
 
   /** Perfil de lagunas actualizado, persistido para la pantalla de progreso. */
