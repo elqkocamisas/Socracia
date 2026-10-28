@@ -58,15 +58,21 @@ El sistema se organiza en tres capas con una regla de dependencia estricta:
 ```
 Socracia/
 ├── apps/
-│   └── mobile/                 # Expo + RN + TS
-│       ├── App.tsx             # raíz de la app
-│       ├── index.ts            # registerRootComponent
-│       ├── app.json            # configuración Expo (bundle id, versiones)
-│       ├── metro.config.js     # resolución de monorepo
+│   ├── mobile/                 # Expo + RN + TS
+│   │   ├── App.tsx             # raíz de la app
+│   │   ├── index.ts            # registerRootComponent
+│   │   ├── app.json            # configuración Expo (bundle id, versiones)
+│   │   ├── metro.config.js     # resolución de monorepo
+│   │   └── src/
+│   │       ├── screens/        # pantallas
+│   │       ├── components/     # componentes reutilizables
+│   │       └── theme/          # tokens de diseño
+│   └── api/                    # API mínima de cuentas y sincronización
 │       └── src/
-│           ├── screens/        # pantallas
-│           ├── components/     # componentes reutilizables
-│           └── theme/          # tokens de diseño
+│           ├── server.ts       # servidor HTTP (Node nativo)
+│           ├── auth.ts         # cuentas y sesiones (scrypt)
+│           ├── store.ts        # almacén de progreso (memoria / JSON)
+│           └── validation.ts   # validación de instantáneas
 ├── packages/
 │   └── core/                   # dominio puro (@socracia/core)
 │       └── src/
@@ -74,8 +80,9 @@ Socracia/
 │           ├── math/           # similitud coseno
 │           ├── rag/            # chunking, embeddings, vector store, engine
 │           ├── mayeu/          # motor mayéutico
+│           ├── sync/           # contratos y fusión de progreso
 │           └── __tests__/      # pruebas unitarias e integración
-├── docs/                       # arquitectura, estrategia RAG, decisiones
+├── docs/                       # arquitectura, estrategia RAG, backend, decisiones
 ├── .openhands/setup.sh         # bootstrap del entorno
 ├── eslint.config.mjs           # ESLint flat config
 └── package.json                # npm workspaces + scripts raíz
@@ -147,8 +154,8 @@ mayor urgencia de asimilación.
 | 0      | Fundaciones, monorepo, dominio base, docs      | ✅ completado |
 | 1      | Modelo mayéutico completo y motor de preguntas | ✅ completado |
 | 2      | Ingesta de documentos y RAG on-device          | ✅ completado |
-| 3      | UX mayéutica y progreso                        | pendiente     |
-| 4      | Backend mínimo y sincronización                | pendiente     |
+| 3      | UX mayéutica y progreso                        | ✅ completado |
+| 4      | Backend mínimo y sincronización                | ✅ completado |
 | 5      | Calidad, privacidad y tiendas                  | pendiente     |
 
 ## 7. Motor mayéutico (Sprint 1)
@@ -253,7 +260,52 @@ En `apps/mobile`:
 | `components/States`      | Estados vacío, carga y error, y barra de progreso reutilizables.         |
 | `App.tsx`                | Navegación por máquina de estados y arranque con degradación a memoria.  |
 
-## 10. Comandos
+## 10. Backend mínimo y sincronización (Sprint 4)
+
+La cuenta es opcional: sin ella la app funciona igual y el progreso se queda en
+el dispositivo. Con ella, el progreso se continúa en otro dispositivo. Detalle en
+[`docs/backend.md`](backend.md).
+
+```mermaid
+flowchart TD
+  A[AccountScreen] --> B[AccountService]
+  B --> C[Sincronizar ahora]
+  C --> D[SyncService.snapshot]
+  D --> E[SyncPort.push]
+  E --> F[POST /sync/push]
+  F --> G[mergeSnapshots en el servidor]
+  G --> H[Instantánea fusionada]
+  H --> I[SyncService.apply]
+  I --> J[Progreso local actualizado]
+```
+
+En `packages/core`:
+
+| Módulo             | Responsabilidad                                                     |
+| ------------------ | ------------------------------------------------------------------- |
+| `sync/contracts`   | `ProgressSnapshot`, `SyncPort`, `SyncOutcome` y `SyncError`.        |
+| `sync/merge`       | `mergeSnapshots`: fusión pura, por clave y marca de tiempo (D-025). |
+| `sync/syncService` | Orquesta instantánea, push, fusión y aplicación del resultado.      |
+
+En `apps/api`:
+
+| Módulo          | Responsabilidad                                        |
+| --------------- | ------------------------------------------------------ |
+| `server.ts`     | Servidor HTTP y enrutado de los seis endpoints.        |
+| `auth.ts`       | Registro/login con `scrypt` y sal; sesiones por token. |
+| `store.ts`      | `ProgressStore` en memoria y en fichero JSON.          |
+| `validation.ts` | Validación de la instantánea recibida.                 |
+
+En `apps/mobile`:
+
+| Módulo                     | Responsabilidad                                                       |
+| -------------------------- | --------------------------------------------------------------------- |
+| `services/httpSyncClient`  | `SyncPort` sobre `fetch`; traduce errores de red y HTTP.              |
+| `services/credentialStore` | Persiste la sesión (`app_meta`); puerto sustituible por secure-store. |
+| `services/accountService`  | Registro, login, logout y sincronización.                             |
+| `screens/AccountScreen`    | Pestaña Cuenta: formulario, sesión activa y sincronización manual.    |
+
+## 11. Comandos
 
 ```bash
 npm install            # instala workspaces y compila @socracia/core

@@ -35,4 +35,5 @@ npm test
 
 echo "==> Setup completado."
 echo "    App móvil:  npm run start  (o: npm run android / npm run ios)"
+echo "    Backend:    npm start --workspace @socracia/api  (por defecto :8787)"
 echo "    Verificar:  npm run verify"

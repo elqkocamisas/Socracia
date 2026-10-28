@@ -277,13 +277,71 @@ sprint por una cuestión menor.
 - **Consecuencias:** la app nunca se queda en pantalla de carga por un problema
   de índice; el fallo degrada a «vuelve a importar» en lugar de «la app no abre».
 
+## D-024 — La fusión del progreso es lógica pura en el núcleo
+
+- **Contexto:** sincronizar exige combinar dos versiones del progreso (la local
+  y la remota). Si esa combinación viviera en el backend o en la pantalla, no se
+  podría probar sin red y el cliente y el servidor podrían divergir.
+- **Decisión:** `mergeSnapshots` vive en `@socracia/core` como función pura:
+  recibe dos instantáneas y devuelve la fusionada. Tanto el backend
+  (`apps/api`) como el cliente aplican exactamente la misma función.
+- **Consecuencias:** la regla de fusión se prueba una sola vez con Jest en Node y
+  vale para los dos lados; no hay dos implementaciones que mantener en sincronía.
+  El coste es que el backend depende de `@socracia/core`, asumible porque es
+  TypeScript sin dependencias nativas.
+
+## D-025 — Las evaluaciones se identifican por contenido y se fusionan por marca de tiempo
+
+- **Contexto:** dos dispositivos pueden evaluar la misma pregunta sin conexión.
+  Al sincronizar hay que decidir qué versión gana sin duplicar entradas.
+- **Decisión:** cada evaluación se identifica por su `questionId` (formato
+  `concepto:índice`, p. ej. `c1:q0`) y cada entrada lleva un `updatedAt`. La
+  fusión conserva la entrada con `updatedAt` mayor y descarta duplicados. La
+  instantánea se ordena de forma estable para que dos fusiones equivalentes
+  produzcan el mismo resultado.
+- **Consecuencias:** sincronizar es idempotente: subir dos veces lo mismo no
+  duplica nada. La última respuesta del usuario gana, que es lo que espera. Se
+  descarta la fusión por suma de intentos porque el progreso mide dominio, no
+  actividad (D-020).
+
+## D-026 — El backend del MVP usa Node nativo y no añade dependencias
+
+- **Contexto:** el Sprint 4 pide una API mínima para cuentas y sincronización,
+  sin microservicios innecesarios.
+- **Decisión:** el backend (`apps/api`) se implementa sobre el módulo `http` de
+  Node, sin Express ni framework alguno. El almacén por defecto es en memoria;
+  `JsonFileProgressStore` da persistencia en un fichero sin base de datos. Las
+  contraseñas se guardan con `scrypt` y sal por usuario, del propio Node.
+- **Consecuencias:** cero dependencias de producción que auditar y una superficie
+  de ataque mínima; el contenedor arranca sin base de datos. El coste es que no
+  hay enrutado declarativo ni middlewares: para los cuatro endpoints del MVP el
+  enrutado manual es suficiente y explícito. Migrar a un framework más adelante
+  es sustituir `server.ts`, no reescribir el dominio.
+
+## D-027 — La cuenta es opcional y no migra el progreso local
+
+- **Contexto:** la app nació local y privada (D-016). Añadir cuentas no debe
+  convertir la nube en obligatoria ni reescribir los datos ya guardados.
+- **Decisión:** el progreso local sigue bajo el identificador `local-user`. Al
+  iniciar sesión, el cliente sube su instantánea y el backend la indexa por la
+  cuenta; el servidor **ignora el `userId` del cuerpo** y usa el de la sesión.
+  Los documentos y su texto nunca se sincronizan.
+- **Consecuencias:** sin cuenta la app funciona igual; con cuenta el usuario
+  continúa en otro dispositivo. Que el servidor imponga el `userId` evita que un
+  cliente escriba el progreso de otro manipulando el JSON. El token se guarda en
+  la tabla `app_meta`; moverlo a `expo-secure-store` más adelante no cambia nada
+  más porque el resto de la app solo conoce el puerto `CredentialStore`.
+
 ## Ambigüedades pendientes (no bloqueantes)
 
 - **Vertical inicial (oposiciones vs PAU):** resuelto en el Sprint 1: el corpus
   de ejemplo es de oposiciones (Administración), por ser el caso con temario más
   reglado. El dominio sigue siendo agnóstico y sirve para PAU sin cambios.
-- **Gestión de cuentas:** se decide en el Sprint 4. El MVP funciona sin cuenta,
-  con progreso local; la cuenta solo añade sincronización.
+- **Gestión de cuentas:** resuelto en el Sprint 4 (D-027): cuenta opcional que
+  solo añade sincronización de progreso.
+- **Almacén del backend:** el MVP arranca con almacén en memoria y fichero JSON
+  (D-026). Una base de datos real se decidirá cuando haya usuarios y métricas de
+  carga; el puerto `ProgressStore` ya la abstrae.
 - **Modelo on-device definitivo:** pendiente de las métricas de latencia y
   calidad del Sprint 2. La decisión no bloquea el MVP porque el proveedor es
   inyectable (D-018).
