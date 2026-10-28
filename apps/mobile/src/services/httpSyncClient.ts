@@ -66,6 +66,31 @@ export class HttpSyncClient implements SyncPort {
     this.token = null;
   }
 
+  /**
+   * Elimina la cuenta en el servidor.
+   *
+   * A diferencia del cierre de sesión, aquí **no** se puede ignorar un fallo:
+   * si el servidor no borra los datos, el usuario debe saberlo. Solo se limpia
+   * el token local cuando el servidor confirma el borrado.
+   */
+  public async deleteAccount(): Promise<Result<void, SyncError>> {
+    if (!this.token) {
+      return {
+        ok: false,
+        error: { code: 'sin-sesion', message: 'No hay sesión activa que eliminar.' },
+      };
+    }
+    const result = await this.request<{ status: string }>('/account', {
+      method: 'DELETE',
+      headers: this.headers(),
+    });
+    if (!result.ok) {
+      return result;
+    }
+    this.token = null;
+    return { ok: true, value: undefined };
+  }
+
   public async push(snapshot: ProgressSnapshot): Promise<Result<ProgressSnapshot, SyncError>> {
     if (!this.token) {
       return {

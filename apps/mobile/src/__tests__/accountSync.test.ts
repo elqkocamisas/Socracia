@@ -193,4 +193,50 @@ describe('HttpSyncClient y AccountService', () => {
 
     expect(await credentials.load()).toBeNull();
   });
+  it('eliminar la cuenta borra las credenciales locales', async () => {
+    const credentials = new InMemoryCredentialStore();
+    const account = new AccountService(
+      new HttpSyncClient({ baseUrl: api.baseUrl, fetchImpl: nodeFetch }),
+      credentials,
+      inMemoryStorage(),
+      'local-user',
+    );
+    await account.login('ana@ejemplo.com', 'contrasena-larga');
+
+    const result = await account.deleteAccount();
+
+    expect(result.ok).toBe(true);
+    expect(await credentials.load()).toBeNull();
+  });
+
+  it('si el servidor no puede borrar la cuenta, se conserva la sesión', async () => {
+    const credentials = new InMemoryCredentialStore();
+    const account = new AccountService(
+      new HttpSyncClient({ baseUrl: api.baseUrl, fetchImpl: nodeFetch }),
+      credentials,
+      inMemoryStorage(),
+      'local-user',
+    );
+    await account.login('ana@ejemplo.com', 'contrasena-larga');
+
+    // Sin red, el borrado falla y el usuario no debe quedarse sin sesión: si se
+    // limpiaran las credenciales, creería que sus datos se borraron.
+    const offline = new AccountService(
+      new HttpSyncClient({
+        baseUrl: 'http://127.0.0.1:1',
+        fetchImpl: nodeFetch,
+      }),
+      credentials,
+      inMemoryStorage(),
+      'local-user',
+    );
+    // `restore` carga la sesión en el cliente sin red: así el fallo que se
+    // prueba es el de red, no el de «sin sesión».
+    expect(await offline.restore()).not.toBeNull();
+    const result = await offline.deleteAccount();
+
+    expect(result.ok).toBe(false);
+    expect(result.ok === false && result.error.code).toBe('red');
+    expect(await credentials.load()).not.toBeNull();
+  });
 });

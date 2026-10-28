@@ -30,6 +30,7 @@ const MAX_BODY_BYTES = 5 * 1024 * 1024;
  * - `POST /auth/register` — alta de cuenta y emisión de token.
  * - `POST /auth/login`    — inicio de sesión.
  * - `POST /auth/logout`   — cierre de sesión.
+ * - `DELETE /account`     — elimina la cuenta y su progreso (requisito de App Store).
  * - `POST /sync/push`     — sube la instantánea y devuelve la fusionada.
  * - `GET  /sync/pull`     — descarga la instantánea guardada.
  * - `GET  /health`        — comprobación de vida.
@@ -95,6 +96,24 @@ async function route(
       deps.auth.logout(token);
     }
     sendJson(res, 200, { status: 'cerrado' });
+    return;
+  }
+
+  if (method === 'DELETE' && url.pathname === '/account') {
+    const token = bearerToken(req);
+    if (!token) {
+      sendJson(res, 401, { error: 'no-autorizado', message: 'Falta el token de sesión.' });
+      return;
+    }
+    // Borra credenciales y progreso: App Store exige que eliminar la cuenta
+    // elimine de verdad los datos, no solo que se cierre la sesión.
+    const userId = deps.auth.deleteAccount(token);
+    if (!userId) {
+      sendJson(res, 401, { error: 'no-autorizado', message: 'La sesión no es válida.' });
+      return;
+    }
+    await deps.store.remove(userId);
+    sendJson(res, 200, { status: 'eliminada' });
     return;
   }
 

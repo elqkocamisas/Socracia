@@ -181,4 +181,39 @@ describe('Recorrido de cuenta y sincronización entre dispositivos', () => {
     const after = await storage.progress.listEvaluations(LOCAL_USER_ID);
     expect(after.length).toBeGreaterThan(0);
   });
+  it('elimina la cuenta desde la app, como exige App Store', async () => {
+    const storage = inMemoryStorage();
+    const { services } = deviceWithAccount(storage, api);
+    const documentId = await importTemario(services);
+    await services.session.start(documentId, NOW, 'sess-a');
+    await services.session.answer('Una declaración unilateral de la Administración.', 900, NOW);
+
+    await render(<AccountScreen services={services} now={() => NOW} />);
+    await submitCredentials('Crear cuenta');
+    expect(api.stored('user-opositora@example.com')).not.toBeNull();
+
+    // Primero se pide confirmación; borrar no puede ser un toque accidental.
+    fireEvent.press(screen.getByText('Eliminar cuenta'));
+    await waitFor(() => expect(screen.getByText('Sí, eliminar mi cuenta')).toBeTruthy());
+
+    // Se puede cancelar sin consecuencias.
+    fireEvent.press(screen.getByText('Cancelar'));
+    await waitFor(() => expect(screen.queryByText('Sí, eliminar mi cuenta')).toBeNull());
+    expect(api.stored('user-opositora@example.com')).not.toBeNull();
+
+    fireEvent.press(screen.getByText('Eliminar cuenta'));
+    await waitFor(() => expect(screen.getByText('Sí, eliminar mi cuenta')).toBeTruthy());
+    fireEvent.press(screen.getByText('Sí, eliminar mi cuenta'));
+
+    await waitFor(() =>
+      expect(
+        screen.getByText('Cuenta eliminada. Tu progreso sigue en este dispositivo.'),
+      ).toBeTruthy(),
+    );
+    // El servidor ya no guarda nada de esa cuenta.
+    expect(api.stored('user-opositora@example.com')).toBeNull();
+    // Y el progreso local sigue intacto.
+    const local = await storage.progress.listEvaluations(LOCAL_USER_ID);
+    expect(local.length).toBeGreaterThan(0);
+  });
 });

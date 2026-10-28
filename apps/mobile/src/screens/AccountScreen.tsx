@@ -41,6 +41,8 @@ export function AccountScreen({ services, now = Date.now }: AccountScreenProps):
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [notice, setNotice] = useState<Notice>(null);
+  /** Confirmación en dos pasos del borrado de cuenta (acción irreversible). */
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -104,6 +106,33 @@ export function AccountScreen({ services, now = Date.now }: AccountScreenProps):
     setNotice({ tone: 'ok', message: 'Sesión cerrada. Tu progreso sigue en este dispositivo.' });
   }, [services]);
 
+  /**
+   * Borra la cuenta y sus datos en el servidor.
+   *
+   * El progreso local no se toca: el usuario sigue estudiando sin cuenta. Si el
+   * servidor falla, se avisa y **no** se limpia la sesión, para que pueda
+   * reintentar en lugar de creer que sus datos se borraron.
+   */
+  const onDeleteAccount = useCallback(async () => {
+    setNotice(null);
+    setState({ kind: 'enviando' });
+    const result = await services.account.deleteAccount();
+    setConfirmDelete(false);
+    if (!result.ok) {
+      // Las credenciales solo se borran si el servidor confirma, así que la
+      // sesión sigue viva y se restaura para que el usuario pueda reintentar.
+      const session = await services.account.restore();
+      setState(session ? { kind: 'sesion', session } : { kind: 'sin-sesion' });
+      setNotice({ tone: 'error', message: result.error.message });
+      return;
+    }
+    setState({ kind: 'sin-sesion' });
+    setNotice({
+      tone: 'ok',
+      message: 'Cuenta eliminada. Tu progreso sigue en este dispositivo.',
+    });
+  }, [services]);
+
   if (state.kind === 'cargando') {
     return (
       <View style={styles.centered}>
@@ -149,6 +178,38 @@ export function AccountScreen({ services, now = Date.now }: AccountScreenProps):
           <Pressable accessibilityRole="button" onPress={onLogout} style={styles.secondaryButton}>
             <Text style={styles.secondaryLabel}>Cerrar sesión</Text>
           </Pressable>
+
+          {confirmDelete ? (
+            <View style={styles.dangerBox}>
+              <Text style={styles.dangerText}>
+                Se eliminará tu cuenta y el progreso guardado en el servidor. Esta acción no se puede
+                deshacer. El progreso de este dispositivo se conserva.
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => void onDeleteAccount()}
+                disabled={busy}
+                style={[styles.dangerButton, busy && styles.buttonDisabled]}
+              >
+                <Text style={styles.dangerButtonLabel}>Sí, eliminar mi cuenta</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => setConfirmDelete(false)}
+                style={styles.secondaryButton}
+              >
+                <Text style={styles.secondaryLabel}>Cancelar</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => setConfirmDelete(true)}
+              style={styles.secondaryButton}
+            >
+              <Text style={styles.dangerLabel}>Eliminar cuenta</Text>
+            </Pressable>
+          )}
         </View>
       ) : (
         <View style={styles.card}>
@@ -306,5 +367,35 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontSize: 15,
     fontWeight: '600',
+  },
+  dangerLabel: {
+    color: colors.danger,
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  dangerBox: {
+    marginTop: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.danger,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    backgroundColor: colors.background,
+  },
+  dangerText: {
+    color: colors.textSecondary,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  dangerButton: {
+    marginTop: spacing.md,
+    backgroundColor: colors.danger,
+    borderRadius: radius.md,
+    paddingVertical: spacing.md,
+    alignItems: 'center',
+  },
+  dangerButtonLabel: {
+    color: colors.background,
+    fontSize: 16,
+    fontWeight: '700',
   },
 });

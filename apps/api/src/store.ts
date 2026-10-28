@@ -13,6 +13,8 @@ export interface ProgressStore {
   merge(userId: string, incoming: ProgressSnapshot): Promise<ProgressSnapshot>;
   /** Instantánea guardada de un usuario, o `null` si no tiene ninguna. */
   get(userId: string): Promise<ProgressSnapshot | null>;
+  /** Borra el progreso de un usuario. Idempotente. */
+  remove(userId: string): Promise<void>;
 }
 
 /** Almacén en memoria; por defecto y suficiente para el MVP de un solo nodo. */
@@ -28,6 +30,10 @@ export class InMemoryProgressStore implements ProgressStore {
 
   public async get(userId: string): Promise<ProgressSnapshot | null> {
     return this.byUser.get(userId) ?? null;
+  }
+
+  public async remove(userId: string): Promise<void> {
+    this.byUser.delete(userId);
   }
 }
 
@@ -58,6 +64,12 @@ export class JsonFileProgressStore implements ProgressStore {
   public async get(userId: string): Promise<ProgressSnapshot | null> {
     await this.ensureLoaded();
     return this.byUser.get(userId) ?? null;
+  }
+
+  public async remove(userId: string): Promise<void> {
+    await this.ensureLoaded();
+    this.byUser.delete(userId);
+    await this.flush();
   }
 
   private async ensureLoaded(): Promise<void> {

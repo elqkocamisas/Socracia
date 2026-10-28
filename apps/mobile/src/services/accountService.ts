@@ -60,6 +60,21 @@ export class AccountService {
   }
 
   /**
+   * Elimina la cuenta en el servidor y las credenciales locales.
+   *
+   * El progreso **local** se conserva: el usuario sigue pudiendo estudiar sin
+   * cuenta con lo que ya tiene en el dispositivo. Lo que se borra es la cuenta
+   * y los datos asociados en el servidor, que es lo que exige App Store.
+   */
+  public async deleteAccount(): Promise<Result<void, SyncError>> {
+    const result = await this.client.deleteAccount();
+    if (result.ok) {
+      await this.credentials.clear();
+    }
+    return result;
+  }
+
+  /**
    * Sincroniza el progreso.
    *
    * Requiere sesión: sin cuenta no hay a dónde sincronizar y el progreso sigue

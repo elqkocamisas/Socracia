@@ -8,6 +8,8 @@ export const colors = {
   textPrimary: '#F5F7FF',
   textSecondary: '#A7AEC9',
   border: '#2A3054',
+  /** Acciones destructivas (borrar cuenta, eliminar documento). */
+  danger: '#FF6B6B',
 } as const;
 
 export const spacing = {

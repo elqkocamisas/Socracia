@@ -6,9 +6,9 @@ import { mergeSnapshots, type ProgressSnapshot } from '@socracia/core';
 /**
  * Backend de pruebas mínimo que reutiliza la fusión del dominio.
  *
- * Reproduce el contrato de la API real (registro, push, pull) sobre Node, de
- * modo que el cliente HTTP del móvil se prueba contra HTTP de verdad sin
- * depender del workspace `@socracia/api`.
+ * Reproduce el contrato de la API real (registro, inicio de sesión, push, pull
+ * y borrado de cuenta) sobre Node, de modo que el cliente HTTP del móvil se
+ * prueba contra HTTP de verdad sin depender del workspace `@socracia/api`.
  */
 export interface FakeApi {
   readonly baseUrl: string;
@@ -82,6 +82,14 @@ async function handle(
   if (url.pathname === '/auth/logout') {
     tokens.delete(token ?? '');
     send(res, 200, { status: 'cerrado' });
+    return;
+  }
+  if (url.pathname === '/account' && req.method === 'DELETE') {
+    // Borra la cuenta y su progreso, como el backend real: el token se
+    // invalida y la instantánea desaparece.
+    byUser.delete(userId);
+    tokens.delete(token ?? '');
+    send(res, 200, { status: 'eliminada' });
     return;
   }
   send(res, 404, { message: 'no encontrado' });

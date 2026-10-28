@@ -188,4 +188,89 @@ describe('API de sincronización', () => {
     });
     expect(after.status).toBe(401);
   });
+  it('elimina la cuenta y su progreso, e invalida el token', async () => {
+    const { token, userId } = await register(baseUrl, 'borrame@ejemplo.com');
+    await push(token, {
+      ...emptySnapshot(userId, 1000),
+      evaluations: [
+        {
+          updatedAt: 1000,
+          value: {
+            questionId: 'c1:q0',
+            conceptId: 'c1',
+            verdict: 'correcta',
+            score: 0.9,
+            matchedKeyTerms: [],
+            missingKeyTerms: [],
+            feedback: 'bien',
+          },
+        },
+      ],
+    });
+
+    const deleted = await fetch(`${baseUrl}/account`, {
+      method: 'DELETE',
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(deleted.status).toBe(200);
+    expect(await deleted.json()).toEqual({ status: 'eliminada' });
+
+    // El token deja de valer.
+    const afterDelete = await fetch(`${baseUrl}/sync/pull`, {
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(afterDelete.status).toBe(401);
+
+    // Y el correo queda libre: la cuenta se borró de verdad, no solo la sesión.
+    const reRegister = await fetch(`${baseUrl}/auth/register`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: 'borrame@ejemplo.com', password: 'contrasena-larga' }),
+    });
+    expect(reRegister.status).toBe(200);
+  });
+
+  it('el progreso de la cuenta eliminada no reaparece en una cuenta nueva', async () => {
+    const { token, userId } = await register(baseUrl, 'borrame2@ejemplo.com');
+    await push(token, {
+      ...emptySnapshot(userId, 1000),
+      evaluations: [
+        {
+          updatedAt: 1000,
+          value: {
+            questionId: 'c1:q0',
+            conceptId: 'c1',
+            verdict: 'correcta',
+            score: 0.9,
+            matchedKeyTerms: [],
+            missingKeyTerms: [],
+            feedback: 'bien',
+          },
+        },
+      ],
+    });
+    await fetch(`${baseUrl}/account`, {
+      method: 'DELETE',
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    // Misma persona, cuenta nueva: el servidor no conserva el progreso borrado.
+    const fresh = await register(baseUrl, 'borrame2@ejemplo.com');
+    const pull = await fetch(`${baseUrl}/sync/pull`, {
+      headers: { authorization: `Bearer ${fresh.token}` },
+    });
+    const snapshot = (await pull.json()) as ProgressSnapshot;
+    expect(snapshot.evaluations).toEqual([]);
+  });
+
+  it('rechaza el borrado de cuenta sin token válido', async () => {
+    const withoutToken = await fetch(`${baseUrl}/account`, { method: 'DELETE' });
+    expect(withoutToken.status).toBe(401);
+
+    const badToken = await fetch(`${baseUrl}/account`, {
+      method: 'DELETE',
+      headers: { authorization: 'Bearer token-inventado' },
+    });
+    expect(badToken.status).toBe(401);
+  });
 });

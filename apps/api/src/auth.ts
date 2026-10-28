@@ -96,6 +96,34 @@ export class AuthService {
     this.sessions.delete(token);
   }
 
+  /**
+   * Elimina la cuenta y todas sus sesiones.
+   *
+   * App Store exige que el usuario pueda borrar su cuenta desde la app; esto
+   * borra también las credenciales, no solo el progreso. Devuelve el `userId`
+   * eliminado para que el llamante borre el progreso asociado, o `null` si el
+   * token no era válido.
+   */
+  public deleteAccount(token: string): string | null {
+    const userId = this.sessions.get(token) ?? null;
+    if (!userId) {
+      return null;
+    }
+    const account = this.accountsById.get(userId);
+    if (account) {
+      this.accountsById.delete(userId);
+      this.accountsByEmail.delete(normalizeEmail(account.email));
+    }
+    // Se invalidan todas las sesiones de la cuenta, no solo la actual: si el
+    // usuario tenía otro dispositivo conectado, tampoco debe seguir operando.
+    for (const [sessionToken, sessionUserId] of this.sessions) {
+      if (sessionUserId === userId) {
+        this.sessions.delete(sessionToken);
+      }
+    }
+    return userId;
+  }
+
   private issue(account: Account): Session {
     const token = randomBytes(32).toString('hex');
     this.sessions.set(token, account.userId);
