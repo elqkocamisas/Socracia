@@ -24,6 +24,8 @@ apps/mobile/ios/
 *.key
 *.mobileprovision
 *.orig.*
+play-service-account.json
+credentials.json
 
 # Env & secrets
 .env
