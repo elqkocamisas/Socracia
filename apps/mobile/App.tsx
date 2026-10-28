@@ -1,13 +1,15 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { openDatabaseAsync } from 'expo-sqlite';
 import { inMemoryStorage } from '@socracia/core';
 
 import { ImportScreen } from './src/screens/ImportScreen';
+import { ProgressScreen } from './src/screens/ProgressScreen';
+import { StudyScreen } from './src/screens/StudyScreen';
 import { bootstrap, createServices, type AppServices } from './src/services/appServices';
 import { ExpoDocumentPicker, ExpoFileReader } from './src/services/expoAdapters';
-import { colors, spacing } from './src/theme/tokens';
+import { colors, radius, spacing } from './src/theme/tokens';
 
 /**
  * Arranca los servicios sobre SQLite y cae a memoria si la base no abre.
@@ -33,8 +35,15 @@ type BootState =
   | { readonly kind: 'arrancando' }
   | { readonly kind: 'listo'; readonly services: AppServices; readonly degraded: boolean };
 
+/** Pantalla activa. La navegación del MVP es una máquina de estados explícita. */
+type Route =
+  | { readonly name: 'biblioteca' }
+  | { readonly name: 'estudio'; readonly documentId: string }
+  | { readonly name: 'progreso' };
+
 export default function App(): React.JSX.Element {
   const [boot, setBoot] = useState<BootState>({ kind: 'arrancando' });
+  const [route, setRoute] = useState<Route>({ name: 'biblioteca' });
 
   useEffect(() => {
     let cancelled = false;
@@ -48,6 +57,8 @@ export default function App(): React.JSX.Element {
     };
   }, []);
 
+  const goTo = useCallback((next: Route) => setRoute(next), []);
+
   if (boot.kind === 'arrancando') {
     return (
       <View style={styles.centered}>
@@ -58,22 +69,83 @@ export default function App(): React.JSX.Element {
     );
   }
 
+  const { services, degraded } = boot;
+
   return (
-    <>
+    <View style={styles.root}>
       <StatusBar style="light" />
-      {boot.degraded ? (
+      {degraded ? (
         <View style={styles.banner}>
           <Text style={styles.bannerText}>
             Modo sin guardado: el progreso no se conservará al cerrar la app.
           </Text>
         </View>
       ) : null}
-      <ImportScreen services={boot.services} />
-    </>
+
+      <View style={styles.body}>
+        {route.name === 'biblioteca' ? (
+          <ImportScreen
+            services={services}
+            onStudy={(documentId) => goTo({ name: 'estudio', documentId })}
+          />
+        ) : null}
+        {route.name === 'estudio' ? (
+          <StudyScreen
+            services={services}
+            documentId={route.documentId}
+            onFinish={() => goTo({ name: 'progreso' })}
+          />
+        ) : null}
+        {route.name === 'progreso' ? (
+          <ProgressScreen services={services} onBack={() => goTo({ name: 'biblioteca' })} />
+        ) : null}
+      </View>
+
+      <View style={styles.tabs}>
+        <TabButton
+          label="Biblioteca"
+          active={route.name === 'biblioteca'}
+          onPress={() => goTo({ name: 'biblioteca' })}
+        />
+        <TabButton
+          label="Progreso"
+          active={route.name === 'progreso'}
+          onPress={() => goTo({ name: 'progreso' })}
+        />
+      </View>
+    </View>
+  );
+}
+
+function TabButton({
+  label,
+  active,
+  onPress,
+}: {
+  readonly label: string;
+  readonly active: boolean;
+  readonly onPress: () => void;
+}): React.JSX.Element {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ selected: active }}
+      onPress={onPress}
+      style={styles.tab}
+    >
+      <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>{label}</Text>
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  body: {
+    flex: 1,
+  },
   centered: {
     flex: 1,
     alignItems: 'center',
@@ -93,5 +165,25 @@ const styles = StyleSheet.create({
   bannerText: {
     color: colors.textSecondary,
     fontSize: 13,
+  },
+  tabs: {
+    flexDirection: 'row',
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: spacing.md,
+    alignItems: 'center',
+    borderRadius: radius.sm,
+  },
+  tabLabel: {
+    color: colors.textSecondary,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  tabLabelActive: {
+    color: colors.primary,
   },
 });
