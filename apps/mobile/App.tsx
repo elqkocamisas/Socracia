@@ -7,6 +7,7 @@ import { inMemoryStorage } from '@socracia/core';
 import { ImportScreen } from './src/screens/ImportScreen';
 import { ProgressScreen } from './src/screens/ProgressScreen';
 import { StudyScreen } from './src/screens/StudyScreen';
+import { AccountScreen } from './src/screens/AccountScreen';
 import { bootstrap, createServices, type AppServices } from './src/services/appServices';
 import { ExpoDocumentPicker, ExpoFileReader } from './src/services/expoAdapters';
 import { colors, radius, spacing } from './src/theme/tokens';
@@ -39,7 +40,8 @@ type BootState =
 type Route =
   | { readonly name: 'biblioteca' }
   | { readonly name: 'estudio'; readonly documentId: string }
-  | { readonly name: 'progreso' };
+  | { readonly name: 'progreso' }
+  | { readonly name: 'cuenta' };
 
 export default function App(): React.JSX.Element {
   const [boot, setBoot] = useState<BootState>({ kind: 'arrancando' });
@@ -99,6 +101,7 @@ export default function App(): React.JSX.Element {
         {route.name === 'progreso' ? (
           <ProgressScreen services={services} onBack={() => goTo({ name: 'biblioteca' })} />
         ) : null}
+        {route.name === 'cuenta' ? <AccountScreen services={services} /> : null}
       </View>
 
       <View style={styles.tabs}>
@@ -111,6 +114,11 @@ export default function App(): React.JSX.Element {
           label="Progreso"
           active={route.name === 'progreso'}
           onPress={() => goTo({ name: 'progreso' })}
+        />
+        <TabButton
+          label="Cuenta"
+          active={route.name === 'cuenta'}
+          onPress={() => goTo({ name: 'cuenta' })}
         />
       </View>
     </View>
