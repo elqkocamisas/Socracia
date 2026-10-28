@@ -32,13 +32,26 @@ describe('generateQuestions', () => {
     expect(questions).toHaveLength(3);
   });
 
-  it('no genera más preguntas que plantillas existen', () => {
+  it('no genera más preguntas que plantillas elegibles existen', () => {
+    const questions = generateQuestions(concept, citation, {
+      maxPerConcept: 999,
+      shuffle: false,
+      seed: 1,
+      minLevel: 'recordar',
+    });
+    expect(questions).toHaveLength(QUESTION_TEMPLATES.length);
+  });
+
+  it('excluye el recuerdo puro con el nivel mínimo por defecto', () => {
     const questions = generateQuestions(concept, citation, {
       maxPerConcept: 999,
       shuffle: false,
       seed: 1,
     });
-    expect(questions).toHaveLength(QUESTION_TEMPLATES.length);
+    const recallTemplates = QUESTION_TEMPLATES.filter((t) => t.level === 'recordar').length;
+    expect(recallTemplates).toBeGreaterThan(0);
+    expect(questions).toHaveLength(QUESTION_TEMPLATES.length - recallTemplates);
+    expect(questions.every((q) => q.level !== 'recordar')).toBe(true);
   });
 
   it('adjunta la cita documental a cada pregunta (trazabilidad)', () => {
