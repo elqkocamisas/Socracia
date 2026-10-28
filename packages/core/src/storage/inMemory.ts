@@ -2,6 +2,7 @@ import type {
   AnswerEvaluation,
   GapProfile,
   KnowledgeDocument,
+  KnowledgeChunk,
   ReviewState,
   SocraticQuestion,
   StudySession,
@@ -24,6 +25,7 @@ import type {
 export class InMemoryDocumentRepository implements DocumentRepository {
   private readonly documents = new Map<string, KnowledgeDocument>();
   private readonly curricula = new Map<string, CurriculumRecord>();
+  private readonly chunks = new Map<string, KnowledgeChunk[]>();
 
   public async saveDocument(document: KnowledgeDocument): Promise<void> {
     this.documents.set(document.id, document);
@@ -40,6 +42,7 @@ export class InMemoryDocumentRepository implements DocumentRepository {
   public async deleteDocument(id: string): Promise<void> {
     this.documents.delete(id);
     this.curricula.delete(id);
+    this.chunks.delete(id);
   }
 
   public async saveCurriculum(record: CurriculumRecord): Promise<void> {
@@ -52,6 +55,25 @@ export class InMemoryDocumentRepository implements DocumentRepository {
 
   public async listCurricula(): Promise<readonly CurriculumRecord[]> {
     return [...this.curricula.values()].sort((a, b) => b.createdAt - a.createdAt);
+  }
+
+  public async saveChunks(chunks: readonly KnowledgeChunk[]): Promise<void> {
+    if (chunks.length === 0) {
+      return;
+    }
+    const documentId = chunks[0]!.documentId;
+    this.chunks.set(
+      documentId,
+      [...chunks].sort((a, b) => a.ordinal - b.ordinal),
+    );
+  }
+
+  public async listChunks(documentId: string): Promise<readonly KnowledgeChunk[]> {
+    return [...(this.chunks.get(documentId) ?? [])];
+  }
+
+  public async listAllChunks(): Promise<readonly KnowledgeChunk[]> {
+    return [...this.chunks.values()].flat();
   }
 }
 

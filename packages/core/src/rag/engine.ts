@@ -1,4 +1,10 @@
-import type { Citation, Concept, KnowledgeDocument, SocraticQuestion } from '../domain/types';
+import type {
+  Citation,
+  Concept,
+  KnowledgeChunk,
+  KnowledgeDocument,
+  SocraticQuestion,
+} from '../domain/types';
 import type { Result } from '../result';
 import { chunkText, type ChunkOptions, DEFAULT_CHUNK_OPTIONS } from './chunking';
 import { embedChunks, type SearchHit, type VectorStore } from './vectorStore';
@@ -19,13 +25,56 @@ export class RagEngine {
     private readonly provider: EmbeddingProvider,
   ) {}
 
-  /** Ingesta un documento: trocea, vectoriza e indexa. */
+  /**
+   * Ingesta un documento: trocea, vectoriza e indexa.
+   *
+   * Devuelve el número de fragmentos indexados, por compatibilidad con los
+   * llamantes que solo necesitan el conteo. Quien deba persistirlos para
+   * reconstruir el índice al arrancar usa `indexDocument`.
+   */
   public async ingestDocument(
     document: KnowledgeDocument,
     rawText: string,
     options: ChunkOptions = DEFAULT_CHUNK_OPTIONS,
   ): Promise<Result<number>> {
+    const indexed = await this.indexDocument(document, rawText, options);
+    if (!indexed.ok) {
+      return indexed;
+    }
+    return { ok: true, value: indexed.value.length };
+  }
+
+  /**
+   * Trocea, vectoriza e indexa un documento devolviendo los fragmentos.
+   *
+   * El llamante puede guardarlos para reconstruir el índice en el siguiente
+   * arranque sin releer el archivo original (ver `rehydrate`).
+   */
+  public async indexDocument(
+    document: KnowledgeDocument,
+    rawText: string,
+    options: ChunkOptions = DEFAULT_CHUNK_OPTIONS,
+  ): Promise<Result<readonly KnowledgeChunk[]>> {
     const chunks = chunkText(document.id, rawText, options);
+    if (chunks.length === 0) {
+      return { ok: true, value: [] };
+    }
+    try {
+      const embedded = await embedChunks(chunks, this.provider);
+      this.store.add(embedded);
+      return { ok: true, value: chunks };
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error : new Error(String(error)) };
+    }
+  }
+
+  /**
+   * Reconstruye el índice vectorial a partir de fragmentos ya persistidos.
+   *
+   * Los embeddings no se guardan: se recalculan aquí, en el dispositivo. Así el
+   * texto del usuario nunca sale de la app y el índice sobrevive al reinicio.
+   */
+  public async rehydrate(chunks: readonly KnowledgeChunk[]): Promise<Result<number>> {
     if (chunks.length === 0) {
       return { ok: true, value: 0 };
     }

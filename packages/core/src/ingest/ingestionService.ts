@@ -1,4 +1,4 @@
-import type { KnowledgeDocument, Timestamp } from '../domain/types';
+import type { KnowledgeChunk, KnowledgeDocument, Timestamp } from '../domain/types';
 import type { Result } from '../result';
 import { err, ok } from '../result';
 import type { RagEngine } from '../rag/engine';
@@ -34,6 +34,11 @@ export interface IngestResult {
   /** Texto extraído y normalizado, listo para mostrar o reindexar. */
   readonly text: string;
   readonly chunkCount: number;
+  /**
+   * Fragmentos indexados, para que el llamante los persista y pueda
+   * reconstruir el índice vectorial al arrancar (ver `RagEngine.rehydrate`).
+   */
+  readonly chunks: readonly KnowledgeChunk[];
 }
 
 /** Servicio de ingesta: convierte bytes de un archivo en un documento indexado. */
@@ -69,7 +74,7 @@ export class DocumentIngestionService {
       cloudConsent: options.cloudConsent,
     };
 
-    const indexed = await this.rag.ingestDocument(
+    const indexed = await this.rag.indexDocument(
       document,
       extracted.value,
       options.chunkOptions ?? DEFAULT_CHUNK_OPTIONS,
@@ -84,7 +89,8 @@ export class DocumentIngestionService {
     return ok({
       document,
       text: extracted.value,
-      chunkCount: indexed.value,
+      chunkCount: indexed.value.length,
+      chunks: indexed.value,
     });
   }
 

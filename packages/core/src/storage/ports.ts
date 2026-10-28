@@ -3,6 +3,7 @@ import type {
   Concept,
   GapProfile,
   KnowledgeDocument,
+  KnowledgeChunk,
   ReviewState,
   SocraticQuestion,
   StudySession,
@@ -47,6 +48,19 @@ export interface DocumentRepository {
   getCurriculum(documentId: string): Promise<CurriculumRecord | null>;
   /** Todos los temarios guardados. */
   listCurricula(): Promise<readonly CurriculumRecord[]>;
+
+  /**
+   * Guarda o reemplaza los fragmentos indexados de un documento.
+   *
+   * Se persiste el texto de los fragmentos —no sus vectores— para poder
+   * reconstruir el índice al arrancar sin volver a leer el archivo original y
+   * sin enviar nada fuera del dispositivo. Los embeddings se recalculan.
+   */
+  saveChunks(chunks: readonly KnowledgeChunk[]): Promise<void>;
+  /** Fragmentos de un documento, en orden de aparición. */
+  listChunks(documentId: string): Promise<readonly KnowledgeChunk[]>;
+  /** Todos los fragmentos guardados, para rehidratar el índice completo. */
+  listAllChunks(): Promise<readonly KnowledgeChunk[]>;
 }
 
 /** Repositorio de preguntas generadas. */
