@@ -5,6 +5,7 @@ import type {
   SocraticMove,
   SocraticQuestion,
 } from '../domain/types';
+import { isAtLeast } from './cognitive';
 
 /**
  * Plantilla de pregunta mayéutica.
@@ -95,12 +96,18 @@ export interface GenerateQuestionsOptions {
   readonly shuffle: boolean;
   /** Semilla para reproducibilidad en pruebas. */
   readonly seed: number;
+  /**
+   * Nivel cognitivo mínimo. Excluye las plantillas de puro recuerdo, que el
+   * método mayéutico prohíbe. Por defecto `comprender`.
+   */
+  readonly minLevel?: CognitiveLevel;
 }
 
 export const DEFAULT_GENERATE_OPTIONS: GenerateQuestionsOptions = {
   maxPerConcept: 4,
   shuffle: false,
   seed: 1,
+  minLevel: 'comprender',
 };
 
 /**
@@ -115,9 +122,13 @@ export function generateQuestions(
   citation: Citation,
   options: GenerateQuestionsOptions = DEFAULT_GENERATE_OPTIONS,
 ): SocraticQuestion[] {
-  const templates = options.shuffle
-    ? shuffleWithSeed(QUESTION_TEMPLATES, options.seed)
-    : QUESTION_TEMPLATES;
+  const eligible = QUESTION_TEMPLATES.filter((template) =>
+    isAtLeast(
+      template.level,
+      options.minLevel ?? DEFAULT_GENERATE_OPTIONS.minLevel ?? 'comprender',
+    ),
+  );
+  const templates = options.shuffle ? shuffleWithSeed(eligible, options.seed) : eligible;
 
   return templates.slice(0, Math.max(0, options.maxPerConcept)).map((template, index) => ({
     id: `${concept.id}:q${index}`,
