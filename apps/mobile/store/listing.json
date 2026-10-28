@@ -1,0 +1,47 @@
+{
+  "app": {
+    "nombre": "Socracia",
+    "bundleId": "com.socracia.app",
+    "version": "0.1.0",
+    "idiomaPrincipal": "es-ES",
+    "categoriaAppStore": "Education",
+    "categoriaAppStoreSecundaria": "Productivity",
+    "categoriaPlay": "EDUCATION",
+    "precio": "gratis"
+  },
+  "appStore": {
+    "nombre": "Socracia: estudia preguntando",
+    "subtitulo": "Mayéutica sobre tus apuntes",
+    "textoPromocional": "Sube tu temario y aprende respondiendo. Socracia te pregunta, detecta tus lagunas y te dice qué repasar, sin subir tus documentos a ningún servidor.",
+    "descripcion": "Socracia convierte tu temario en un diálogo.\n\nEn lugar de leer y subrayar, respondes. La aplicación formula preguntas guiadas sobre el material que tú aportas, evalúa tus respuestas, localiza lo que aún no dominas y te propone un itinerario de repaso.\n\nCÓMO FUNCIONA\n1. Adjunta tu temario en PDF, TXT o MD.\n2. Socracia extrae el texto y lo divide en fragmentos, todo en tu dispositivo.\n3. Responde a las preguntas que te formula.\n4. Ve tu perfil de lagunas y repasa solo lo que lo necesita.\n\nPRIVACIDAD POR DISEÑO\nTus documentos no salen del dispositivo. El texto, los fragmentos y el índice de búsqueda se guardan y se procesan localmente. No hay ninguna ruta en la API que acepte tus documentos.\n\nCUENTA OPCIONAL\nPuedes usar Socracia sin cuenta. Si creas una, solo se sincroniza tu progreso (evaluaciones, repaso y lagunas), nunca tus documentos, para que continúes donde lo dejaste en otro dispositivo.\n\nPARA QUÉ SIRVE\nPreparación de oposiciones, PAU y cualquier temario reglado que quieras estudiar de forma activa.\n\nQUÉ NO ES\nNo es un servicio oficial ni garantiza aprobar. Las preguntas se generan de tu propio material: contrasta siempre con el temario oficial.",
+    "palabrasClave": "oposiciones,PAU,estudiar,temario,preguntas,repaso,examen,test,socratico,apuntes",
+    "urlSoporte": "https://socracia.app/soporte",
+    "urlPrivacidad": "https://socracia.app/privacidad",
+    "urlMarketing": "https://socracia.app"
+  },
+  "googlePlay": {
+    "titulo": "Socracia",
+    "descripcionCorta": "Estudia respondiendo: preguntas sobre tu propio temario",
+    "descripcionCompleta": "Socracia convierte tu temario en un diálogo.\n\nEn lugar de leer y subrayar, respondes. La aplicación formula preguntas guiadas sobre el material que tú aportas, evalúa tus respuestas, localiza lo que aún no dominas y te propone un itinerario de repaso.\n\nCÓMO FUNCIONA\n1. Adjunta tu temario en PDF, TXT o MD.\n2. Socracia extrae el texto y lo divide en fragmentos, todo en tu dispositivo.\n3. Responde a las preguntas que te formula.\n4. Ve tu perfil de lagunas y repasa solo lo que lo necesita.\n\nPRIVACIDAD POR DISEÑO\nTus documentos no salen del dispositivo. El texto, los fragmentos y el índice de búsqueda se guardan y se procesan localmente.\n\nCUENTA OPCIONAL\nPuedes usar Socracia sin cuenta. Si creas una, solo se sincroniza tu progreso, nunca tus documentos.\n\nPARA QUÉ SIRVE\nPreparación de oposiciones, PAU y cualquier temario reglado que quieras estudiar de forma activa.",
+    "correoContacto": "soporte@socracia.app",
+    "urlPrivacidad": "https://socracia.app/privacidad",
+    "urlSitioWeb": "https://socracia.app"
+  },
+  "capturas": {
+    "nota": "Capturas reales de la app en producción; no se versionan aquí porque se generan con el build final (ver docs/store-release-checklist.md).",
+    "appStore": [
+      "biblioteca.png",
+      "estudio-pregunta.png",
+      "estudio-feedback.png",
+      "progreso-lagunas.png",
+      "cuenta.png"
+    ],
+    "googlePlay": [
+      "biblioteca.png",
+      "estudio-pregunta.png",
+      "estudio-feedback.png",
+      "progreso-lagunas.png",
+      "cuenta.png"
+    ]
+  }
+}
