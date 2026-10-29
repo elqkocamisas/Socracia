@@ -473,6 +473,57 @@ sprint por una cuestión menor.
   constante. El coste es que, con paráfrasis, el motor generará menos preguntas
   de las posibles; se prefiere eso a atribuir una pregunta a una fuente falsa.
 
+## D-035 — El procesamiento en la nube es un ajuste explícito, nunca el valor por defecto
+
+- **Fecha:** 28 de octubre de 2026
+- **Contexto:** el pliego exige que, si algo se procesa fuera del dispositivo,
+  sea «explícito y configurable». Hasta ahora no había ajuste alguno:
+  `importDocument` pasaba `cloudConsent: false` como constante. La promesa de
+  privacidad dependía de que nadie tocara esa línea, y no había forma de que el
+  usuario eligiera nada, ni de que la app pudiera ofrecer corpus en la nube en el
+  futuro sin reescribir el flujo.
+- **Decisión:** introducir `ProcessingPolicy` en el núcleo, con dos modos
+  (`local-only`, `allow-cloud`) y **`local-only` por defecto**. La comprobación
+  `assertProcessingAllowed` se ejecuta en la capa de aplicación (no en la
+  pantalla) antes de cualquier operación que requiera nube. La política se
+  persiste en `app_meta` y se comparte mediante un `ProcessingPolicyHolder`, de
+  modo que un cambio surte efecto sin reiniciar la app. Cada documento importado
+  registra en `cloudConsent` si el usuario había autorizado la nube.
+- **Alternativas descartadas:** (a) dejar la constante `false` y documentar que
+  el MVP es local: incumple el requisito de «configurable» y no deja camino a la
+  nube; (b) poner el ajuste solo en la UI: una pantalla se salta con un cambio de
+  estado, la garantía tiene que vivir en la capa que decide; (c) leer la política
+  solo al arrancar: si el usuario la activa, la importación siguiente usaría el
+  valor viejo y registraría un consentimiento falso.
+- **Consecuencias:** el modo por defecto sigue siendo el más protector y la
+  comprobación es una garantía de código, no de interfaz. El coste es que el
+  ajuste `allow-cloud` existe en la app antes de que haya backend de corpus en
+  nube: se acepta porque deja el camino preparado y la política ya advierte al
+  usuario. Si se activa en producción, hay que actualizar
+  `store/privacy-declarations.json` y el apartado 2.1 de la política en el mismo
+  envío; la lista de comprobación lo recuerda.
+
+## D-036 — El borrado de un documento arrastra el progreso de sus conceptos
+
+- **Fecha:** 28 de octubre de 2026
+- **Contexto:** el puerto `ProgressRepository` documentaba desde el Sprint 1 que
+  el borrado de un documento limpiaba el progreso asociado, y `deleteDocument`
+  existía, pero no había pantalla que lo invocara ni el progreso se limpiaba:
+  evaluaciones y estados de repaso se guardan por usuario, no por documento.
+- **Decisión:** implementar `ProgressRepository.removeConcepts(userId, ids)` en
+  las dos implementaciones (memoria y SQLite) y llamarlo desde `deleteDocument`
+  en cascada, después de borrar documento, temario, fragmentos e índice. El
+  filtrado de evaluaciones **conserva el `seq` original** en lugar de renumerar.
+- **Alternativas descartadas:** (a) borrar por documento: el modelo no guarda el
+  documento en cada evaluación, solo el concepto, así que exigiría una migración
+  de esquema mayor; (b) dejar el progreso huérfano: la pantalla de progreso
+  mostraría repasos pendientes de conceptos que ya no existen, que es un fallo
+  visible para el usuario; (c) renumerar `seq`: cambia el orden del historial.
+- **Consecuencias:** borrar es limpio y el usuario recupera el espacio. La
+  decisión se apoya en que un concepto pertenece a un solo temario en este
+  dominio; si en el futuro un concepto pudiera compartirse entre documentos, el
+  borrado tendría que comprobar antes si otro documento lo referencia.
+
 ## Ambigüedades pendientes (no bloqueantes)
 
 - **Vertical inicial (oposiciones vs PAU):** resuelto en el Sprint 1: el corpus

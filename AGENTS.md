@@ -30,7 +30,15 @@ npm run format         # Prettier
 npm run start          # Expo
 npm start --workspace @socracia/api   # backend en :8787
 npm run package:source # entrega .tar.gz sin Git (dist/)
+npm run generate:legal # regenera el texto legal de la app desde docs/
+npm run generate:assets # regenera iconos y capturas base
 ```
+
+> Tras editar `docs/privacy-policy.md` o `docs/terms-of-use.md`, ejecute
+> `npm run generate:legal`: la app muestra el texto generado y una prueba falla
+> si divergen. Las notas internas van entre `<!-- dev:nota-interna -->` y
+> `<!-- /dev:nota-interna -->`; el generador falla si quedan mal cerradas, para
+> no publicarlas.
 
 ## Convenciones
 
