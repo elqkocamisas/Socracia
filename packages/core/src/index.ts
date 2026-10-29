@@ -27,6 +27,7 @@ export * from './mayeu/gaps';
 export * from './mayeu/itinerary';
 export * from './mayeu/scaffolding';
 export * from './mayeu/session';
+export * from './privacy/processingPolicy';
 export * from './storage/ports';
 export * from './storage/inMemory';
 export * from './sync/contracts';
