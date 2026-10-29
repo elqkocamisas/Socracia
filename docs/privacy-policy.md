@@ -19,8 +19,12 @@ una cuenta y pulsa sincronizar.
 - **Identificador de paquete:** `com.socracia.app`
 - **Contacto de privacidad:** privacidad@socracia.app
 
+<!-- dev:nota-interna -->
+
 Antes de publicar en las tiendas, sustituya la dirección de contacto por un buzón
 real y operativo. Un contacto que no responde es motivo de rechazo en App Store.
+
+<!-- /dev:nota-interna -->
 
 ## 2. Qué datos trata la app
 

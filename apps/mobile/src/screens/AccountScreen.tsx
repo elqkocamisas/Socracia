@@ -10,6 +10,12 @@ import {
 } from 'react-native';
 
 import { ErrorNotice } from '../components/States';
+import {
+  describeCurrentPolicy,
+  readPrivacySettings,
+  setProcessingPolicy,
+  type PrivacySettings,
+} from '../services/privacySettings';
 import type { AppServices } from '../services/appServices';
 import type { AccountSession } from '../services/httpSyncClient';
 import { colors, radius, spacing } from '../theme/tokens';
@@ -19,6 +25,8 @@ export interface AccountScreenProps {
   readonly services: AppServices;
   /** Reloj inyectable para pruebas deterministas. */
   readonly now?: () => number;
+  /** Abre un documento legal dentro de la app (`privacidad` o `terminos`). */
+  readonly onOpenLegal?: (documentId: string) => void;
 }
 
 type ScreenState =
@@ -36,13 +44,19 @@ type Notice = { readonly tone: 'ok' | 'error'; readonly message: string } | null
  * dispositivo. Aquí el usuario decide si crea una cuenta para llevar su
  * progreso a otro dispositivo; al hacerlo se sincroniza de inmediato.
  */
-export function AccountScreen({ services, now = Date.now }: AccountScreenProps): React.JSX.Element {
+export function AccountScreen({
+  services,
+  now = Date.now,
+  onOpenLegal,
+}: AccountScreenProps): React.JSX.Element {
   const [state, setState] = useState<ScreenState>({ kind: 'cargando' });
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [notice, setNotice] = useState<Notice>(null);
   /** Confirmación en dos pasos del borrado de cuenta (acción irreversible). */
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [privacy, setPrivacy] = useState<PrivacySettings>(() => readPrivacySettings(services));
+  const [privacyBusy, setPrivacyBusy] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -55,6 +69,21 @@ export function AccountScreen({ services, now = Date.now }: AccountScreenProps):
       cancelled = true;
     };
   }, [services]);
+
+  const onToggleCloud = useCallback(
+    async (mode: 'local-only' | 'allow-cloud') => {
+      setPrivacyBusy(true);
+      try {
+        await setProcessingPolicy(services, mode);
+      } finally {
+        // Se relee el ajuste guardado, no el que se creía haber pedido: si el
+        // guardado falla, la pantalla debe mostrar el estado real.
+        setPrivacy(readPrivacySettings(services));
+        setPrivacyBusy(false);
+      }
+    },
+    [services],
+  );
 
   const withAuth = useCallback(
     async (action: 'login' | 'register') => {
@@ -143,6 +172,7 @@ export function AccountScreen({ services, now = Date.now }: AccountScreenProps):
   }
 
   const busy = state.kind === 'enviando';
+  const privacyDescription = describeCurrentPolicy(privacy.policy);
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -260,6 +290,56 @@ export function AccountScreen({ services, now = Date.now }: AccountScreenProps):
           Solo tu progreso: respuestas evaluadas, repaso y lagunas. Tus documentos y su texto nunca
           salen del dispositivo.
         </Text>
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Privacidad</Text>
+        <Text style={styles.cardBody}>{privacyDescription}</Text>
+        <Text style={styles.providerLine}>
+          Procesamiento en el dispositivo: {privacy.embedding.onDeviceModel ? 'modelo local' : 'modo básico'} ({privacy.embedding.id})
+        </Text>
+        {privacy.embedding.degradedReason ? (
+          <Text style={styles.providerWarn}>
+            Modelo local no disponible: {privacy.embedding.degradedReason}
+          </Text>
+        ) : null}
+        <Pressable
+          accessibilityRole="switch"
+          accessibilityLabel="Permitir procesamiento en la nube"
+          accessibilityState={{ checked: privacy.policy.mode === 'allow-cloud' }}
+          disabled={privacyBusy}
+          onPress={() =>
+            void onToggleCloud(privacy.policy.mode === 'allow-cloud' ? 'local-only' : 'allow-cloud')
+          }
+          style={styles.legalLink}
+        >
+          <Text style={styles.legalLinkLabel}>
+            {privacy.policy.mode === 'allow-cloud'
+              ? 'Desactivar procesamiento en la nube'
+              : 'Permitir procesamiento en la nube'}
+          </Text>
+        </Pressable>
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Legal y privacidad</Text>
+        <Text style={styles.cardBody}>
+          Consulta aquí mismo qué datos trata la app. No hace falta conexión.
+        </Text>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => onOpenLegal?.('privacidad')}
+          style={styles.legalLink}
+        >
+          <Text style={styles.legalLinkLabel}>Política de privacidad</Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => onOpenLegal?.('terminos')}
+          style={styles.legalLink}
+        >
+          <Text style={styles.legalLinkLabel}>Términos de uso</Text>
+        </Pressable>
       </View>
     </ScrollView>
   );
@@ -397,5 +477,23 @@ const styles = StyleSheet.create({
     color: colors.background,
     fontSize: 16,
     fontWeight: '700',
+  },
+  legalLink: {
+    paddingVertical: spacing.sm,
+  },
+  legalLinkLabel: {
+    color: colors.primary,
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  providerLine: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    marginTop: spacing.sm,
+  },
+  providerWarn: {
+    color: colors.accent,
+    fontSize: 13,
+    marginTop: spacing.xs,
   },
 });

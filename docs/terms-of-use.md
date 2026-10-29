@@ -96,4 +96,8 @@ jurisdicción será la que corresponda conforme a la normativa de consumo.
 - Cuestiones legales: legal@socracia.app
 - Privacidad: privacidad@socracia.app
 
+<!-- dev:nota-interna -->
+
 Sustituya estos buzones por direcciones reales antes de publicar.
+
+<!-- /dev:nota-interna -->
