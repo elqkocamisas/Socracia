@@ -11,6 +11,25 @@ import { embedChunks, type SearchHit, type VectorStore } from './vectorStore';
 import type { EmbeddingProvider } from './embeddings';
 import { generateQuestions, type GenerateQuestionsOptions } from '../mayeu/questionGenerator';
 
+/** Opciones de recuperación con umbral de relevancia. */
+export interface RelevanceOptions {
+  /** Número máximo de fragmentos a devolver. */
+  readonly topK: number;
+  /** Similitud coseno mínima para aceptar un fragmento como fuente. */
+  readonly minScore: number;
+}
+
+/**
+ * Umbral por defecto, fijado con datos del corpus de ejemplo.
+ *
+ * Medido con `HashingEmbeddingProvider`: las recuperaciones correctas con
+ * vocabulario compartido puntúan 0.26–0.55, mientras que las paráfrasis sin
+ * vocabulario común caen a 0.08–0.18. Un umbral de 0.2 separa ambos grupos.
+ * Con un proveedor semántico real habrá que recalibrarlo; por eso es un
+ * parámetro y no una constante escondida.
+ */
+export const DEFAULT_RELEVANCE: RelevanceOptions = { topK: 4, minScore: 0.2 };
+
 /**
  * Motor RAG del MVP.
  *
@@ -105,12 +124,15 @@ export class RagEngine {
     documents: readonly KnowledgeDocument[],
     options: GenerateQuestionsOptions,
     topK = 1,
+    minScore = DEFAULT_RELEVANCE.minScore,
   ): Promise<Result<SocraticQuestion[]>> {
     const query = `${concept.label} ${concept.definition} ${concept.keywords.join(' ')}`.trim();
-    const hits = await this.retrieve(query, topK);
+    const hits = await this.retrieveRelevant(query, { topK, minScore });
     if (!hits.ok) {
       return hits;
     }
+    // Sin fragmento suficientemente relevante no se inventa la pregunta: es
+    // preferible devolver cero que citar una fuente que no respalda el contenido.
     const hit = hits.value[0];
     if (!hit) {
       return { ok: true, value: [] };
@@ -134,6 +156,26 @@ export class RagEngine {
   /** Número de fragmentos indexados. */
   public indexedChunks(): number {
     return this.store.size();
+  }
+
+  /**
+   * Recupera solo fragmentos con relevancia suficiente.
+   *
+   * Existe porque una búsqueda devuelve siempre `topK` resultados aunque no se
+   * parezcan en nada a la consulta: medido con paráfrasis sin vocabulario común,
+   * la similitud baja a 0.08–0.16, que es ruido. Sin este umbral, el motor
+   * citaría como fuente un fragmento irrelevante y el alumno recibiría una
+   * pregunta atribuida a un texto que no la respalda.
+   */
+  public async retrieveRelevant(
+    query: string,
+    options: RelevanceOptions = DEFAULT_RELEVANCE,
+  ): Promise<Result<SearchHit[]>> {
+    const hits = await this.retrieve(query, options.topK);
+    if (!hits.ok) {
+      return hits;
+    }
+    return { ok: true, value: hits.value.filter((hit) => hit.score >= options.minScore) };
   }
 
   /** Elimina del índice todos los fragmentos de un documento. */

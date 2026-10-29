@@ -437,6 +437,42 @@ sprint por una cuestión menor.
   protección de rama con CI (D-029), así que la comprobación es local: quien
   olvide ejecutarla no queda bloqueado, pero el PR lo deja visible.
 
+## D-034 — Proveedor de embeddings real, con sondeo y umbral de relevancia
+
+- **Contexto:** `docs/rag-strategy.md` dejaba el modelo on-device como
+  «sustitución de una línea en `createServices`». Al intentar hacerla se
+  comprobaron tres cosas, todas verificadas sobre el paquete real
+  (`npm pack edge-llm@0.1.4`):
+  1. **El módulo no entrega el vector.** `embedTest` devuelve
+     `{ length, sample }` y el código nativo hace `vector.take(5)`: son 5 valores
+     de 384. El vector completo se calcula y se descarta.
+  2. **En iOS el módulo no existe.** `ios/MediapipeModule.swift` (48 líneas) es
+     la plantilla de Expo: solo expone `hello` y `setValueAsync`. No hay
+     embeddings ni RAG.
+  3. **La recuperación léxica falla en paráfrasis.** Medido con el corpus de
+     ejemplo: 6/6 aciertos top-1 cuando la consulta comparte vocabulario
+     (similitud 0.26–0.55), pero **1/6** con paráfrasis sin vocabulario común
+     (similitud 0.08–0.18). Se probó además una mejora léxica con IDF y
+     n-gramas de caracteres: subió de 1/6 a 2/6, insuficiente para justificar
+     su complejidad, así que se descartó.
+- **Decisión:** (a) construir `DelegatingEmbeddingProvider`, que adapta
+  cualquier motor externo —nativo o remoto— a `EmbeddingProvider`, validando
+  dimensión y convirtiendo excepciones en `Result`; (b) añadir
+  `createEdgeLlmProvider`, que **sondea el módulo** y falla con un motivo
+  explícito en lugar de generar vectores inservibles; (c) añadir
+  `FallbackEmbeddingProvider`, que degrada al proveedor léxico y no reintenta el
+  principal, para no mezclar dimensiones en un mismo índice; (d) introducir un
+  **umbral de relevancia** (`DEFAULT_RELEVANCE.minScore = 0.2`) y aplicarlo en
+  `generateConceptQuestions`, que ahora devuelve cero preguntas antes que citar
+  un fragmento que no respalda el contenido.
+- **Consecuencias:** la app no puede usar hoy el RAG semántico de `edge-llm`
+  porque el paquete no lo ofrece; el día que exponga un `embed` completo, basta
+  cambiar qué proveedor se inyecta en `createServices`, sin tocar el motor
+  mayéutico ni la UI. El umbral de 0.2 está calibrado para el proveedor léxico:
+  con uno semántico real habrá que recalibrarlo, y por eso es parámetro y no
+  constante. El coste es que, con paráfrasis, el motor generará menos preguntas
+  de las posibles; se prefiere eso a atribuir una pregunta a una fuente falsa.
+
 ## Ambigüedades pendientes (no bloqueantes)
 
 - **Vertical inicial (oposiciones vs PAU):** resuelto en el Sprint 1: el corpus
