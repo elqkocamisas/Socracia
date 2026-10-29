@@ -3,7 +3,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 
 import type { KnowledgeDocument } from '@socracia/core';
 
-import { importDocument, type AppServices } from '../services/appServices';
+import { deleteDocument, importDocument, type AppServices } from '../services/appServices';
 import { UNSUPPORTED_MESSAGE } from '../services/documentImport';
 import { colors, radius, spacing } from '../theme/tokens';
 
@@ -36,6 +36,7 @@ export function ImportScreen({
   onStudy,
 }: ImportScreenProps): React.JSX.Element {
   const [state, setState] = useState<ScreenState>({ kind: 'cargando' });
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     const documents = await services.storage.documents.listDocuments();
@@ -63,6 +64,20 @@ export function ImportScreen({
     }
     await refresh();
   }, [services, refresh, now]);
+
+  const onConfirmDelete = useCallback(
+    async (documentId: string) => {
+      setState({ kind: 'importando' });
+      const result = await deleteDocument(services, documentId);
+      setPendingDeleteId(null);
+      if (!result.ok) {
+        setState({ kind: 'error', message: result.error.message });
+        return;
+      }
+      await refresh();
+    },
+    [services, refresh],
+  );
 
   if (state.kind === 'cargando') {
     return (
@@ -123,6 +138,41 @@ export function ImportScreen({
                 <Text style={styles.studyLabel}>Estudiar</Text>
               </Pressable>
             ) : null}
+
+            {pendingDeleteId === document.id ? (
+              <View style={styles.confirmRow}>
+                <Text style={styles.confirmText}>
+                  Se borrarán su texto, su progreso y sus lagunas. No se puede deshacer.
+                </Text>
+                <View style={styles.confirmButtons}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Confirmar borrado de ${document.title}`}
+                    onPress={() => void onConfirmDelete(document.id)}
+                    disabled={busy}
+                    style={[styles.dangerButton, busy && styles.buttonDisabled]}
+                  >
+                    <Text style={styles.dangerLabel}>Sí, eliminar</Text>
+                  </Pressable>
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => setPendingDeleteId(null)}
+                    style={styles.cancelButton}
+                  >
+                    <Text style={styles.cancelLabel}>Cancelar</Text>
+                  </Pressable>
+                </View>
+              </View>
+            ) : (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Eliminar ${document.title}`}
+                onPress={() => setPendingDeleteId(document.id)}
+                style={styles.deleteButton}
+              >
+                <Text style={styles.deleteLabel}>Eliminar</Text>
+              </Pressable>
+            )}
           </View>
         ))
       )}
@@ -230,6 +280,51 @@ const styles = StyleSheet.create({
   studyLabel: {
     color: colors.primaryContrast,
     fontSize: 15,
+    fontWeight: '600',
+  },
+  deleteButton: {
+    paddingVertical: spacing.sm,
+    alignItems: 'center',
+  },
+  deleteLabel: {
+    color: colors.danger,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  confirmRow: {
+    marginTop: spacing.sm,
+    gap: spacing.sm,
+  },
+  confirmText: {
+    color: colors.textSecondary,
+    fontSize: 13,
+  },
+  confirmButtons: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  dangerButton: {
+    flex: 1,
+    paddingVertical: spacing.sm,
+    alignItems: 'center',
+    borderRadius: radius.sm,
+    backgroundColor: colors.danger,
+  },
+  dangerLabel: {
+    color: colors.background,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  cancelButton: {
+    flex: 1,
+    paddingVertical: spacing.sm,
+    alignItems: 'center',
+    borderRadius: radius.sm,
+    backgroundColor: colors.surface,
+  },
+  cancelLabel: {
+    color: colors.textPrimary,
+    fontSize: 14,
     fontWeight: '600',
   },
 });

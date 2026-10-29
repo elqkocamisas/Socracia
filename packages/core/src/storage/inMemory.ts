@@ -1,6 +1,7 @@
 import type {
   AnswerEvaluation,
   GapProfile,
+  Id,
   KnowledgeDocument,
   KnowledgeChunk,
   ReviewState,
@@ -151,6 +152,33 @@ export class InMemoryProgressRepository implements ProgressRepository {
 
   public async getGapProfile(userId: string): Promise<GapProfile | null> {
     return this.gapProfiles.get(userId) ?? null;
+  }
+
+  public async removeConcepts(userId: string, conceptIds: readonly Id[]): Promise<void> {
+    if (conceptIds.length === 0) {
+      return;
+    }
+    const removed = new Set(conceptIds);
+    this.evaluations.set(
+      userId,
+      (this.evaluations.get(userId) ?? []).filter(
+        (evaluation) => !removed.has(evaluation.conceptId),
+      ),
+    );
+    this.reviews.set(
+      userId,
+      (this.reviews.get(userId) ?? []).filter((state) => !removed.has(state.conceptId)),
+    );
+    // Las sesiones guardan los identificadores de pregunta, no de concepto: se
+    // conservan para no perder el historial de estudio del resto del temario.
+    const profile = this.gapProfiles.get(userId);
+    if (profile) {
+      this.gapProfiles.set(userId, {
+        ...profile,
+        gaps: profile.gaps.filter((gap) => !removed.has(gap.conceptId)),
+        recommendedReview: profile.recommendedReview.filter((id) => !removed.has(id)),
+      });
+    }
   }
 }
 

@@ -126,4 +126,53 @@ describe('ImportScreen: acceso al estudio', () => {
     await waitFor(() => expect(screen.getByText('temario')).toBeTruthy());
     expect(screen.queryByText('Estudiar')).toBeNull();
   });
+
+  it('elimina un documento tras confirmar y lo quita de la lista', async () => {
+    const app = services(
+      {
+        name: 'temario.txt',
+        mimeType: 'text/plain',
+        uri: 'file:///t.txt',
+        sizeBytes: TEMARIO.length,
+      },
+      encoder.encode(TEMARIO),
+    );
+    await render(<ImportScreen services={app} now={() => NOW} />);
+    await waitFor(() => expect(screen.getByText('Sin documentos')).toBeTruthy());
+    fireEvent.press(screen.getByText('Adjuntar temario'));
+    await waitFor(() => expect(screen.getByText('temario')).toBeTruthy());
+
+    fireEvent.press(screen.getByLabelText('Eliminar temario'));
+    // El borrado pide confirmación: no debe ejecutarse al primer toque.
+    await waitFor(() => expect(screen.getByText(/No se puede deshacer/)).toBeTruthy());
+    expect(await app.storage.documents.listDocuments()).toHaveLength(1);
+
+    fireEvent.press(screen.getByLabelText('Confirmar borrado de temario'));
+
+    await waitFor(() => expect(screen.getByText('Sin documentos')).toBeTruthy());
+    expect(await app.storage.documents.listDocuments()).toHaveLength(0);
+  });
+
+  it('cancelar la confirmación conserva el documento', async () => {
+    const app = services(
+      {
+        name: 'temario.txt',
+        mimeType: 'text/plain',
+        uri: 'file:///t.txt',
+        sizeBytes: TEMARIO.length,
+      },
+      encoder.encode(TEMARIO),
+    );
+    await render(<ImportScreen services={app} now={() => NOW} />);
+    await waitFor(() => expect(screen.getByText('Sin documentos')).toBeTruthy());
+    fireEvent.press(screen.getByText('Adjuntar temario'));
+    await waitFor(() => expect(screen.getByText('temario')).toBeTruthy());
+
+    fireEvent.press(screen.getByLabelText('Eliminar temario'));
+    await waitFor(() => expect(screen.getByText(/No se puede deshacer/)).toBeTruthy());
+    fireEvent.press(screen.getByText('Cancelar'));
+
+    await waitFor(() => expect(screen.getByText('temario')).toBeTruthy());
+    expect(await app.storage.documents.listDocuments()).toHaveLength(1);
+  });
 });

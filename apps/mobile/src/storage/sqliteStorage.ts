@@ -3,6 +3,7 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 import type {
   AnswerEvaluation,
   CurriculumRecord,
+  Id,
   DocumentRepository,
   GapProfile,
   KnowledgeChunk,
@@ -19,6 +20,10 @@ import { migrate } from './schema';
 
 interface PayloadRow {
   readonly payload: string;
+}
+
+interface SeqPayloadRow extends PayloadRow {
+  readonly seq: number;
 }
 
 interface ChunkRow {
@@ -277,6 +282,66 @@ export class SqliteProgressRepository implements ProgressRepository {
       [userId],
     );
     return row ? (JSON.parse(row.payload) as GapProfile) : null;
+  }
+
+  /**
+   * Elimina evaluaciones, repaso y lagunas de los conceptos indicados.
+   *
+   * El `conceptId` vive dentro del JSON, no en una columna, así que se filtran
+   * las filas en memoria. El volumen es el de un temario de oposiciones (miles
+   * de filas como mucho) y esta operación ocurre solo al borrar un documento,
+   * no en el camino caliente de la sesión.
+   */
+  public async removeConcepts(userId: string, conceptIds: readonly Id[]): Promise<void> {
+    if (conceptIds.length === 0) {
+      return;
+    }
+    const removed = new Set<string>(conceptIds);
+
+    await this.db.withTransactionAsync(async () => {
+      const evaluationRows = await this.db.getAllAsync<SeqPayloadRow>(
+        'SELECT seq, payload FROM evaluations WHERE user_id = ? ORDER BY seq ASC;',
+        [userId],
+      );
+      const keptEvaluations = evaluationRows
+        .map((row) => ({ seq: row.seq, value: JSON.parse(row.payload) as AnswerEvaluation }))
+        .filter((entry) => !removed.has(entry.value.conceptId));
+      await this.db.runAsync('DELETE FROM evaluations WHERE user_id = ?;', [userId]);
+      // Se conserva el `seq` original: es el orden del historial, y renumerarlo
+      // cambiaría el orden en que el usuario respondió.
+      for (const entry of keptEvaluations) {
+        await this.db.runAsync(
+          'INSERT INTO evaluations (user_id, seq, payload) VALUES (?, ?, ?);',
+          [userId, entry.seq, JSON.stringify(entry.value)],
+        );
+      }
+
+      for (const conceptId of removed) {
+        await this.db.runAsync(
+          'DELETE FROM review_states WHERE user_id = ? AND concept_id = ?;',
+          [userId, conceptId],
+        );
+      }
+
+      const profileRow = await this.db.getFirstAsync<PayloadRow>(
+        'SELECT payload FROM gap_profiles WHERE user_id = ?;',
+        [userId],
+      );
+      if (profileRow) {
+        const profile = JSON.parse(profileRow.payload) as GapProfile;
+        await this.db.runAsync(
+          'UPDATE gap_profiles SET payload = ? WHERE user_id = ?;',
+          [
+            JSON.stringify({
+              ...profile,
+              gaps: profile.gaps.filter((gap) => !removed.has(gap.conceptId)),
+              recommendedReview: profile.recommendedReview.filter((id) => !removed.has(id)),
+            }),
+            userId,
+          ],
+        );
+      }
+    });
   }
 }
 

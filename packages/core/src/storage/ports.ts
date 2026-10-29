@@ -2,6 +2,7 @@ import type {
   AnswerEvaluation,
   Concept,
   GapProfile,
+  Id,
   KnowledgeDocument,
   KnowledgeChunk,
   ReviewState,
@@ -93,6 +94,16 @@ export interface ProgressRepository {
   saveGapProfile(profile: GapProfile): Promise<void>;
   /** Último perfil de lagunas del usuario, o `null`. */
   getGapProfile(userId: string): Promise<GapProfile | null>;
+
+  /**
+   * Descarta el progreso de conceptos que ya no existen.
+   *
+   * Al eliminar un documento desaparecen sus conceptos, pero sus evaluaciones y
+   * estados de repaso seguirían guardados y la pantalla de progreso mostraría
+   * repasos pendientes de conceptos borrados. Es la contrapartida necesaria de
+   * `DocumentRepository.deleteDocument`.
+   */
+  removeConcepts(userId: string, conceptIds: readonly Id[]): Promise<void>;
 }
 
 /** Conjunto de repositorios que la app inyecta en los servicios. */

@@ -309,3 +309,86 @@ describe('SqliteProgressRepository', () => {
     expect((await storage.progress.getGapProfile('u1'))?.recommendedReview).toEqual(['c1']);
   });
 });
+
+describe('SqliteProgressRepository.removeConcepts', () => {
+  it('elimina evaluaciones y repaso del concepto borrado y conserva el resto', async () => {
+    const { storage } = await openTestStorage();
+    await storage.progress.appendEvaluations('u1', [
+      evaluation,
+      { ...evaluation, questionId: 'c2:q0', conceptId: 'c2' },
+      { ...evaluation, questionId: 'c3:q0', conceptId: 'c3' },
+    ]);
+    await storage.progress.saveReviewStates('u1', [
+      review,
+      { ...review, conceptId: 'c2' },
+      { ...review, conceptId: 'c3' },
+    ]);
+
+    await storage.progress.removeConcepts('u1', ['c2']);
+
+    const evaluations = await storage.progress.listEvaluations('u1');
+    expect(evaluations.map((item) => item.conceptId)).toEqual(['c1', 'c3']);
+    expect((await storage.progress.listReviewStates('u1')).map((s) => s.conceptId)).toEqual([
+      'c1',
+      'c3',
+    ]);
+  });
+
+  it('conserva el orden del historial al filtrar', async () => {
+    const { storage } = await openTestStorage();
+    // Cinco respuestas seguidas: al borrar la del medio, las demás deben seguir
+    // en el mismo orden, que es el de `seq`.
+    for (let index = 0; index < 5; index += 1) {
+      await storage.progress.appendEvaluations('u1', [
+        { ...evaluation, questionId: `q${index}`, conceptId: `c${index}` },
+      ]);
+    }
+
+    await storage.progress.removeConcepts('u1', ['c2']);
+
+    const evaluations = await storage.progress.listEvaluations('u1');
+    expect(evaluations.map((item) => item.conceptId)).toEqual(['c0', 'c1', 'c3', 'c4']);
+  });
+
+  it('no altera nada si la lista de conceptos está vacía', async () => {
+    const { storage } = await openTestStorage();
+    await storage.progress.appendEvaluations('u1', [evaluation]);
+
+    await storage.progress.removeConcepts('u1', []);
+
+    expect(await storage.progress.listEvaluations('u1')).toHaveLength(1);
+  });
+
+  it('limpia lagunas y recomendaciones del perfil guardado', async () => {
+    const { storage } = await openTestStorage();
+    await storage.progress.saveGapProfile({
+      userId: 'u1',
+      generatedAt: NOW,
+      gaps: [
+        {
+          conceptId: 'c1',
+          conceptLabel: 'Uno',
+          severity: 0.8,
+          attempts: 2,
+          lastEvaluatedAt: NOW,
+          rationale: 'falló',
+        },
+        {
+          conceptId: 'c2',
+          conceptLabel: 'Dos',
+          severity: 0.5,
+          attempts: 1,
+          lastEvaluatedAt: NOW,
+          rationale: 'falló',
+        },
+      ],
+      recommendedReview: ['c1', 'c2'],
+    });
+
+    await storage.progress.removeConcepts('u1', ['c1']);
+
+    const profile = await storage.progress.getGapProfile('u1');
+    expect(profile?.gaps.map((gap) => gap.conceptId)).toEqual(['c2']);
+    expect(profile?.recommendedReview).toEqual(['c2']);
+  });
+});

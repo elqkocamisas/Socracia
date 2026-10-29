@@ -1,8 +1,10 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
-import type { StoragePort } from '@socracia/core';
+import type { ProcessingPolicy, StoragePort } from '@socracia/core';
 import {
+  DEFAULT_PROCESSING_POLICY,
   DocumentIngestionService,
+  ProcessingPolicyHolder,
   FallbackEmbeddingProvider,
   HashingEmbeddingProvider,
   InMemoryVectorStore,
@@ -13,6 +15,8 @@ import {
   defaultRegistry,
   extractCurriculum,
   fflateInflate,
+  allowsCloudProcessing,
+  assertProcessingAllowed,
   type EdgeLlmNativeModule,
   type EmbeddingProvider,
   type Result,
@@ -27,6 +31,11 @@ import {
   type CredentialStore,
 } from './credentialStore';
 import { HttpSyncClient } from './httpSyncClient';
+import {
+  InMemoryProcessingPolicyStore,
+  SqliteProcessingPolicyStore,
+  type ProcessingPolicyStore,
+} from './processingPolicyStore';
 import {
   readPickedFile,
   type DocumentPickerPort,
@@ -112,6 +121,10 @@ export interface AppServices {
   readonly account: AccountService;
   /** Diagnóstico del proveedor de embeddings en uso. */
   readonly embedding: ResolvedEmbeddingProvider;
+  /** Política de procesamiento vigente: local o con permiso de nube. */
+  readonly policy: ProcessingPolicyHolder;
+  /** Persistencia de la política, para el ajuste de privacidad. */
+  readonly policyStore: ProcessingPolicyStore;
 }
 
 /** Opciones de creación del runtime. */
@@ -130,6 +143,10 @@ export interface CreateServicesOptions {
   readonly apiBaseUrl?: string;
   /** Diagnóstico del proveedor ya resuelto; lo usa `bootstrap`. */
   readonly embedding?: ResolvedEmbeddingProvider;
+  /** Política de procesamiento; por defecto, solo-dispositivo. */
+  readonly policy?: ProcessingPolicy;
+  /** Persistencia de la política; por defecto, en memoria. */
+  readonly policyStore?: ProcessingPolicyStore;
   /**
    * Módulo nativo `edge-llm` si está disponible en esta compilación.
    * `null` o ausente significa «no hay modelo on-device»: se usa el léxico.
@@ -163,6 +180,7 @@ export function createServices(options: CreateServicesOptions): AppServices {
     new HttpSyncClient({ baseUrl: options.apiBaseUrl ?? DEFAULT_API_BASE_URL });
   const credentials = options.credentials ?? new InMemoryCredentialStore();
   const account = new AccountService(syncClient, credentials, options.storage, LOCAL_USER_ID);
+  const policy = new ProcessingPolicyHolder(options.policy ?? DEFAULT_PROCESSING_POLICY);
 
   return {
     storage: options.storage,
@@ -174,6 +192,8 @@ export function createServices(options: CreateServicesOptions): AppServices {
     reader: options.reader,
     account,
     embedding,
+    policy,
+    policyStore: options.policyStore ?? new InMemoryProcessingPolicyStore(),
   };
 }
 
@@ -208,11 +228,14 @@ export async function bootstrap(
       nativeModule: options.nativeModule ?? null,
       fallback: options.provider ?? new HashingEmbeddingProvider(256),
     }));
+  const policyStore = options.policyStore ?? new SqliteProcessingPolicyStore(db);
   const services = createServices({
     ...options,
     storage,
     credentials: new SqliteCredentialStore(db),
     embedding,
+    policyStore,
+    policy: options.policy ?? (await policyStore.load()),
   });
   await rehydrateIndex(services);
   await services.account.restore();
@@ -243,6 +266,17 @@ export async function importDocument(
     return bytes;
   }
 
+  // En modo solo-dispositivo, la ingesta no puede requerir nube. La comprobación
+  // se hace aquí, en la capa que decide, y no en la pantalla: si mañana alguien
+  // añade un camino que suba el documento, esto lo detiene.
+  const allowed = assertProcessingAllowed(services.policy.current(), {
+    requiresCloud: false,
+    label: 'Importar un documento',
+  });
+  if (!allowed.ok) {
+    return { ok: false, error: { code: 'ingesta-fallida', message: allowed.error.message } };
+  }
+
   const id = `doc-${now}`;
   const ingested = await services.ingestion.ingest(
     {
@@ -253,7 +287,9 @@ export async function importDocument(
     },
     {
       chunkOptions: { maxChars: 900, overlapChars: 150, minChars: 40 },
-      cloudConsent: false,
+      // Queda registrado en el documento si el usuario autorizó la nube, para
+      // poder auditar después qué material se procesó fuera del dispositivo.
+      cloudConsent: allowsCloudProcessing(services.policy.current()),
       id,
       now,
     },
@@ -284,4 +320,40 @@ export async function importDocument(
       conceptCount: curriculum.concepts.length,
     },
   };
+}
+
+/**
+ * Elimina un documento y todo lo derivado de él.
+ *
+ * El usuario es dueño de su material y debe poder retirarlo: la política de
+ * privacidad se lo promete y la app no redistribuye documentos, así que no hay
+ * razón para conservar nada. Borra en cascada documento, temario, fragmentos,
+ * índice vectorial, progreso de sus conceptos y preguntas generadas, en ese
+ * orden: dejar cualquiera de esas piezas produciría datos huérfanos que la
+ * pantalla de progreso mostraría como repasos de conceptos inexistentes.
+ */
+export async function deleteDocument(
+  services: AppServices,
+  documentId: string,
+): Promise<Result<{ readonly deletedConcepts: number }, ImportError>> {
+  const curriculum = await services.storage.documents.getCurriculum(documentId);
+  const conceptIds = (curriculum?.concepts ?? []).map((concept) => concept.id);
+
+  try {
+    await services.storage.progress.removeConcepts(LOCAL_USER_ID, conceptIds);
+    await services.storage.documents.deleteDocument(documentId);
+    services.rag.removeDocument(documentId);
+    return { ok: true, value: { deletedConcepts: conceptIds.length } };
+  } catch (error) {
+    return {
+      ok: false,
+      error: {
+        code: 'borrado-fallido',
+        message:
+          error instanceof Error
+            ? `No se pudo eliminar el documento: ${error.message}`
+            : 'No se pudo eliminar el documento.',
+      },
+    };
+  }
 }
