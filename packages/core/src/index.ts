@@ -10,6 +10,8 @@ export * from './math/vector';
 export * from './domain/types';
 export * from './rag/chunking';
 export * from './rag/embeddings';
+export * from './rag/delegatingProvider';
+export * from './rag/fallbackProvider';
 export * from './rag/vectorStore';
 export * from './rag/engine';
 export * from './ingest/conceptExtractor';
