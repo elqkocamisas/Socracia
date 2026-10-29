@@ -22,6 +22,7 @@ y repetición espaciada. Target: iOS y Android (App Store / Google Play).
 ```bash
 npm install            # instala y compila core (postinstall)
 npm run verify         # lint + typecheck + test  ← antes de commitear
+npm run lint:commits   # valida los mensajes de commit (CONTRIBUTING.md)
 npm test               # Jest en core y api, jest-expo en mobile
 npm run typecheck
 npm run lint
@@ -154,6 +155,9 @@ Trampas conocidas:
 ## Reglas de trabajo
 
 - Una rama por sprint (`sprint-N-<tema>`), PR a `main` al terminar.
+- Commits en Conventional Commits: `tipo(ámbito): asunto` en imperativo, ≤72
+  caracteres, con cuerpo que explique el porqué. Detalles en `CONTRIBUTING.md`;
+  se comprueba con `npm run lint:commits`.
 - Tareas de más de ~100 líneas de cambio se dividen en PRs más pequeños.
 - No tocar CI/CD ni secretos sin indicación expresa.
 - Decisiones ambiguas: documentarlas en `docs/decisions.md` y continuar.
@@ -165,5 +169,6 @@ Trampas conocidas:
 - `docs/rag-strategy.md` — RAG local vs backend, decisión y alternancia.
 - `docs/backend.md` — API de cuentas y sincronización (Sprint 4).
 - `docs/decisions.md` — registro de decisiones (D-001…).
+- `CONTRIBUTING.md` — ramas, commits, pruebas y seguridad.
 - `docs/store-release-checklist.md` — publicación en App Store y Google Play.
 - `docs/no-git-delivery.md` — entrega y arranque sin Git.

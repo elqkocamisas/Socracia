@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Convención de commits y ramas
+    url: https://github.com/elqkocamisas/Socracia/blob/main/CONTRIBUTING.md
+    about: Antes de abrir un PR, revisa cómo se nombran ramas y commits.
+  - name: Decisiones de diseño
+    url: https://github.com/elqkocamisas/Socracia/blob/main/docs/decisions.md
+    about: Registro de decisiones (D-001…). Si algo es ambiguo, se documenta aquí.

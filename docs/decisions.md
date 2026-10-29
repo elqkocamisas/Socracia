@@ -417,6 +417,26 @@ sprint por una cuestión menor.
   `postinstall` tarda unos segundos más al compilar la API, aceptable frente a
   un backend que no arranca.
 
+## D-033 — Conventional Commits, sin reescribir el historial
+
+- **Contexto:** el historial usa el estilo «Sprint N: …», que dice el sprint pero
+  no el tipo de cambio; `git log --oneline` no permite filtrar ni generar notas
+  de versión, y un asunto sin línea en blanco detrás se ve entero como asunto.
+  Había además tres commits sin cuerpo y cuatro asuntos de 74–80 caracteres.
+- **Decisión:** adoptar Conventional Commits
+  (`tipo(ámbito): asunto`) desde ahora, documentado en `CONTRIBUTING.md` con
+  tabla de tipos, ámbitos y ejemplo. **El historial no se reescribe:** el
+  validador acepta el estilo «Sprint N: …» con una advertencia, nunca con un
+  error, y también avisa (no falla) cuando un asunto histórico supera los 72
+  caracteres. Las reglas viven en `scripts/lib/commit-convention.cjs` (CommonJS,
+  para poder probarse) y el CLI en `scripts/check-commits.mjs`, expuesto como
+  `npm run lint:commits`.
+- **Consecuencias:** los commits nuevos son filtrables y generan notas de versión;
+  los antiguos siguen tal cual, sin `rebase` que rompa hashes ya publicados. El
+  pie `Sprint: <n>` conserva la trazabilidad que daba el prefijo. `main` no tiene
+  protección de rama con CI (D-029), así que la comprobación es local: quien
+  olvide ejecutarla no queda bloqueado, pero el PR lo deja visible.
+
 ## Ambigüedades pendientes (no bloqueantes)
 
 - **Vertical inicial (oposiciones vs PAU):** resuelto en el Sprint 1: el corpus
