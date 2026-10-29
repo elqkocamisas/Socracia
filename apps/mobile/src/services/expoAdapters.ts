@@ -1,5 +1,6 @@
 import * as DocumentPicker from 'expo-document-picker';
 import { File } from 'expo-file-system';
+import { Platform } from 'react-native';
 
 import { err, ok, type Result } from '@socracia/core';
 
@@ -49,6 +50,22 @@ export class ExpoFileReader implements FileBytesReader {
     try {
       const file = new File(uri);
       const buffer = await file.arrayBuffer();
+      return ok(toUint8Array(buffer));
+    } catch (error) {
+      // En web `expo-file-system` no está implementado y el selector entrega un
+      // `blob:`. `fetch` sí lo resuelve, así que el flujo de importación
+      // funciona igual en navegador.
+      if (Platform.OS === 'web') {
+        return this.readViaFetch(uri);
+      }
+      return err<Error>(error instanceof Error ? error : new Error('lectura-fallida'));
+    }
+  }
+
+  private async readViaFetch(uri: string): Promise<Result<Uint8Array>> {
+    try {
+      const response = await fetch(uri);
+      const buffer = await response.arrayBuffer();
       return ok(toUint8Array(buffer));
     } catch (error) {
       return err<Error>(error instanceof Error ? error : new Error('lectura-fallida'));

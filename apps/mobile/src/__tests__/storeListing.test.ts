@@ -1,5 +1,7 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+
+import { PNG } from 'pngjs';
 
 /**
  * Comprueba los límites reales de las fichas de tienda.
@@ -27,7 +29,10 @@ interface Listing {
     correoContacto: string;
     urlPrivacidad: string;
   };
-  capturas: { appStore: string[]; googlePlay: string[] };
+  capturas: {
+    appStore: { ancho: number; alto: number; ficheros: string[] };
+    googlePlay: { ancho: number; alto: number; ficheros: string[] };
+  };
 }
 
 interface Declarations {
@@ -113,8 +118,64 @@ describe('Ficha de tienda', () => {
   });
 
   it('se declaran capturas para ambas tiendas', () => {
-    expect(listing.capturas.appStore.length).toBeGreaterThanOrEqual(3);
-    expect(listing.capturas.googlePlay.length).toBeGreaterThanOrEqual(3);
+    expect(listing.capturas.appStore.ficheros.length).toBeGreaterThanOrEqual(3);
+    expect(listing.capturas.googlePlay.ficheros.length).toBeGreaterThanOrEqual(3);
+  });
+});
+
+describe('Capturas de tienda', () => {
+  const SCREENSHOTS = join(STORE, 'screenshots');
+
+  /** Comprueba que una captura existe, mide lo exigido y tiene contenido. */
+  function expectValidScreenshot(relative: string, width: number, height: number): void {
+    const target = join(SCREENSHOTS, relative);
+    // Una captura declarada pero ausente hace que la tienda rechace la ficha;
+    // conviene que falle aquí, no en la revisión.
+    expect(existsSync(target)).toBe(true);
+
+    const png = PNG.sync.read(readFileSync(target));
+    expect(`${relative} ${png.width}x${png.height}`).toBe(`${relative} ${width}x${height}`);
+
+    // Una captura en blanco o de un solo color pasa el control de tamaño y no
+    // sirve para la tienda: se exige variedad de píxeles.
+    const colors = new Set<number>();
+    for (let i = 0; i < png.data.length && colors.size < 500; i += 4) {
+      colors.add(
+        ((png.data[i] ?? 0) << 16) | ((png.data[i + 1] ?? 0) << 8) | (png.data[i + 2] ?? 0),
+      );
+    }
+    expect(colors.size).toBeGreaterThan(50);
+  }
+
+  it('las capturas de App Store existen y miden 1290×2796', () => {
+    const { ancho, alto, ficheros } = listing.capturas.appStore;
+    for (const fichero of ficheros) {
+      expectValidScreenshot(fichero, ancho, alto);
+    }
+  });
+
+  it('las capturas de Google Play existen y miden 1080×1920', () => {
+    const { ancho, alto, ficheros } = listing.capturas.googlePlay;
+    for (const fichero of ficheros) {
+      expectValidScreenshot(fichero, ancho, alto);
+    }
+  });
+
+  it('cada captura muestra una pantalla distinta', () => {
+    // Si el generador fotografiara siempre el mismo estado, las capturas serían
+    // idénticas y la ficha mostraría cinco veces la misma pantalla. Se compara
+    // una muestra de píxeles, no el fichero entero: basta para detectarlo y no
+    // depende del codificador PNG.
+    const { ficheros } = listing.capturas.appStore;
+    const huellas = ficheros.map((fichero) => {
+      const png = PNG.sync.read(readFileSync(join(SCREENSHOTS, fichero)));
+      let huella = `${png.width}x${png.height}`;
+      for (let i = 0; i < png.data.length; i += 4096) {
+        huella += `:${png.data[i]}`;
+      }
+      return huella;
+    });
+    expect(new Set(huellas).size).toBe(ficheros.length);
   });
 });
 

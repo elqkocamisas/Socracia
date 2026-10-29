@@ -28,20 +28,28 @@
     "urlSitioWeb": "https://socracia.app"
   },
   "capturas": {
-    "nota": "Capturas reales de la app en producción; no se versionan aquí porque se generan con el build final (ver docs/store-release-checklist.md).",
-    "appStore": [
-      "biblioteca.png",
-      "estudio-pregunta.png",
-      "estudio-feedback.png",
-      "progreso-lagunas.png",
-      "cuenta.png"
-    ],
-    "googlePlay": [
-      "biblioteca.png",
-      "estudio-pregunta.png",
-      "estudio-feedback.png",
-      "progreso-lagunas.png",
-      "cuenta.png"
-    ]
+    "nota": "Capturas de la app real, generadas con `npm run generate:screenshots` y versionadas en store/screenshots/. La prueba storeListing.test.ts exige que existan y que midan lo que pide cada tienda.",
+    "appStore": {
+      "ancho": 1290,
+      "alto": 2796,
+      "ficheros": [
+        "appStore/biblioteca.png",
+        "appStore/estudio-pregunta.png",
+        "appStore/estudio-feedback.png",
+        "appStore/progreso-lagunas.png",
+        "appStore/cuenta.png"
+      ]
+    },
+    "googlePlay": {
+      "ancho": 1080,
+      "alto": 1920,
+      "ficheros": [
+        "googlePlay/biblioteca.png",
+        "googlePlay/estudio-pregunta.png",
+        "googlePlay/estudio-feedback.png",
+        "googlePlay/progreso-lagunas.png",
+        "googlePlay/cuenta.png"
+      ]
+    }
   }
 }

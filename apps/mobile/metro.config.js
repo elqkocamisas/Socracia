@@ -14,4 +14,8 @@ config.resolver.nodeModulesPaths = [
 ];
 config.resolver.disableHierarchicalLookup = true;
 
+// `expo-sqlite` para web importa su binario `.wasm`; Metro debe tratarlo como
+// asset en lugar de intentar resolverlo como módulo. Solo afecta al bundle web.
+config.resolver.assetExts.push('wasm');
+
 module.exports = config;
