@@ -524,6 +524,55 @@ sprint por una cuestión menor.
   dominio; si en el futuro un concepto pudiera compartirse entre documentos, el
   borrado tendría que comprobar antes si otro documento lo referencia.
 
+## D-037 — Las capturas de tienda se generan desde el código, no a mano
+
+- **Fecha:** 29 de octubre de 2026
+- **Contexto:** `store/listing.json` declaraba cinco capturas por tienda y la
+  lista de comprobación las exigía, pero no existía ningún fichero. La prueba
+  `storeListing.test.ts` solo contaba entradas del JSON, así que pasaba sin que
+  hubiera una sola imagen: verificaba la declaración, no el artefacto.
+- **Decisión:** generar las capturas con `scripts/generate-screenshots.mjs`, que
+  arranca la app **real** (mismo código que se empaqueta, renderizado con
+  `react-native-web`), recorre el flujo completo —importar, preguntar, responder,
+  ver progreso, cuenta— y fotografía cada pantalla a los píxeles exactos de cada
+  tienda (App Store 1290×2796; Play 1080×1920). Se versionan en
+  `apps/mobile/store/screenshots/` y `storeListing.test.ts` ahora exige que
+  existan, midan lo declarado y no sean la misma imagen repetida.
+- **Alternativas descartadas:** (a) maquetas dibujadas: pueden mostrar una
+  interfaz que no existe y no se actualizan solas; (b) capturar solo en
+  simulador/dispositivo: correcto para el envío final, pero no reproducible en
+  cada cambio ni verificable en la suite; (c) no versionar las capturas: la
+  ficha quedaría sin artefacto y la lista de comprobación, incumplida.
+- **Consecuencias:** las capturas siguen al código: si una pantalla cambia, la
+  captura cambia y el `diff` lo enseña. Limitación conocida y documentada: son
+  de render web, no de dispositivo, así que la lista de comprobación pide
+  repetirlas en nativo antes de enviar. Esto exige `react-native-web`,
+  `react-dom`, `@expo/metro-runtime` y `playwright` como dependencias de
+  desarrollo, y `wasm` en `assetExts` de Metro para que `expo-sqlite` exporte a
+  web (cambio que no afecta a los bundles nativos).
+
+## D-038 — La interfaz nombra los conceptos; nunca muestra su identificador
+
+- **Fecha:** 29 de octubre de 2026
+- **Contexto:** al recorrer la app real para las capturas se vio que la pantalla
+  de progreso mostraba `t1:c1` en «Repaso pendiente», y el andamiaje de respuesta
+  correcta decía «…donde se vea «t1:c1» en acción». Son identificadores internos
+  que no significan nada para quien estudia.
+- **Decisión:** `dueReviews` recibe los conceptos y devuelve `DueReview` con
+  `conceptLabel`; si el concepto no está en el dispositivo (el progreso se
+  sincroniza, los documentos no), muestra «Concepto no disponible» en lugar del
+  identificador. `buildScaffold` recibe `conceptLabel` como parámetro
+  **obligatorio**, de modo que el compilador impide volver a pasar un
+  identificador.
+- **Alternativas descartadas:** (a) añadir `conceptLabel` a `SocraticQuestion`:
+  duplicaría un dato que ya vive en `ItineraryStep` y que el motor de preguntas
+  no necesita; (b) resolver el nombre en la pantalla: repartiría la lógica de
+  dominio por la UI, que es justo lo que el proyecto evita.
+- **Consecuencias:** dos pruebas nuevas fijan el comportamiento (una de núcleo y
+  una de interfaz que recorre el flujo y comprueba que ningún identificador
+  aparece en pantalla). El parámetro obligatorio rompe a cualquier llamador
+  futuro que intente pasar el identificador, en tiempo de compilación.
+
 ## Ambigüedades pendientes (no bloqueantes)
 
 - **Vertical inicial (oposiciones vs PAU):** resuelto en el Sprint 1: el corpus

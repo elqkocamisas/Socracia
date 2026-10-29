@@ -31,10 +31,25 @@ impiden la subida.
 - [ ] Icono de Android: adaptativo con primer plano y color de fondo.
 - [ ] Icono de ficha de Play: 512×512, sin transparencia.
 - [ ] Splash: 1024×1024.
-- [ ] Capturas de pantalla: mínimo 3 por plataforma y tamaño. Tome capturas
-      **reales** del build de producción, no maquetas. - App Store: 6,7" (1290×2796) y, si declara iPad, 12,9". - Google Play: teléfono (mínimo 1080×1920) y, opcional, tableta.
+- [ ] Capturas de pantalla: mínimo 3 por plataforma y tamaño. Ya están
+      versionadas en `apps/mobile/store/screenshots/` y las valida
+      `storeListing.test.ts` (existencia, tamaño exacto y que cada una muestre
+      una pantalla distinta). Se generan con
+      `npm run generate:screenshots` a partir del **código real** de la app
+      (mismo flujo: importar → preguntar → responder → progreso → cuenta).
+  - App Store: 6,7" (1290×2796) y, si declara iPad, 12,9".
+  - Google Play: teléfono (mínimo 1080×1920) y, opcional, tableta.
+- [ ] **Limitación conocida de las capturas versionadas:** se obtienen del
+      render web (`react-native-web`), no de un dispositivo. Reproducen la
+      interfaz y la lógica reales, pero el aspecto nativo puede diferir en
+      tipografía y sombras. Repítalas en simulador o dispositivo antes de
+      enviar a revisión:
+      `cd apps/mobile && npx expo start` y captura manual, o añada una variante
+      del script que use un dispositivo real.
 - [ ] Regenerar los assets tras cualquier cambio de marca:
       `node scripts/generate-assets.mjs`.
+- [ ] Regenerar las capturas tras cualquier cambio de interfaz:
+      `npm run generate:screenshots` (requiere `npm run build` previo).
 
 ## 3. Privacidad (bloqueante)
 
@@ -142,6 +157,7 @@ Son los únicos puntos que **no** puede resolver el código por sí solo:
 
 1. Publicar la política de privacidad y los términos en una URL pública.
 2. Direcciones de correo reales y atendidas.
-3. Capturas de pantalla del build final.
+3. Capturas del build nativo (las versionadas salen del render web; ver
+   apartado 2).
 4. Cuentas de desarrollador y ficheros de firma.
 5. Pipeline de CI (decisión D-029: no se incluye a propósito).
