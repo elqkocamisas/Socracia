@@ -39,32 +39,50 @@ function evaluation(
 
 describe('buildScaffold', () => {
   it('orienta cuando no hubo respuesta, sin dar la solución', () => {
-    const scaffold = buildScaffold(question, evaluation('sin-respuesta', ['legalidad']));
+    const scaffold = buildScaffold(
+      question,
+      evaluation('sin-respuesta', ['legalidad']),
+      'legalidad',
+    );
     expect(scaffold.kind).toBe('orientar');
     expect(scaffold.prompt).toContain('legalidad');
     expect(scaffold.prompt).not.toContain('habilitación legal previa');
   });
 
   it('descompone el problema cuando la respuesta es incorrecta', () => {
-    const scaffold = buildScaffold(question, evaluation('incorrecta', ['habilitación']));
+    const scaffold = buildScaffold(
+      question,
+      evaluation('incorrecta', ['habilitación']),
+      'legalidad',
+    );
     expect(scaffold.kind).toBe('descomponer');
     expect(scaffold.hints).toContain('habilitación');
   });
 
   it('acota la repregunta cuando la respuesta es parcial', () => {
-    const scaffold = buildScaffold(question, evaluation('parcial', ['Administración']));
+    const scaffold = buildScaffold(
+      question,
+      evaluation('parcial', ['Administración']),
+      'legalidad',
+    );
     expect(scaffold.kind).toBe('acotar');
     expect(scaffold.hints.length).toBeGreaterThan(0);
   });
 
   it('propone un ejemplo cuando la respuesta es correcta', () => {
-    const scaffold = buildScaffold(question, evaluation('correcta', []));
+    const scaffold = buildScaffold(question, evaluation('correcta', []), 'Principio de legalidad');
     expect(scaffold.kind).toBe('ejemplificar');
+  });
+
+  it('nombra el concepto, nunca su identificador interno', () => {
+    const scaffold = buildScaffold(question, evaluation('correcta', []), 'Principio de legalidad');
+    expect(scaffold.prompt).toContain('Principio de legalidad');
+    expect(scaffold.prompt).not.toContain(question.conceptId);
   });
 
   it('nunca entrega la respuesta de referencia completa', () => {
     for (const verdict of ['sin-respuesta', 'incorrecta', 'parcial'] as const) {
-      const scaffold = buildScaffold(question, evaluation(verdict, ['legalidad']));
+      const scaffold = buildScaffold(question, evaluation(verdict, ['legalidad']), 'legalidad');
       expect(scaffold.prompt).not.toContain(question.expectedAnswer);
     }
   });

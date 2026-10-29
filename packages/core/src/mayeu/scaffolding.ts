@@ -19,8 +19,16 @@ export interface Scaffold {
  * en una pregunta más pequeña, se orienta hacia el término ausente o se pide un
  * ejemplo concreto. La dificultad de la ayuda es proporcional a la magnitud del
  * fallo.
+ *
+ * `conceptLabel` es obligatorio: la pregunta solo lleva el identificador del
+ * concepto, y un identificador interno («t1:c1») no significa nada para quien
+ * lee la repregunta.
  */
-export function buildScaffold(question: SocraticQuestion, evaluation: AnswerEvaluation): Scaffold {
+export function buildScaffold(
+  question: SocraticQuestion,
+  evaluation: AnswerEvaluation,
+  conceptLabel: string,
+): Scaffold {
   const missing = evaluation.missingKeyTerms;
   const focus = missing[0] ?? question.keyTerms[0] ?? 'la idea central';
 
@@ -48,7 +56,7 @@ export function buildScaffold(question: SocraticQuestion, evaluation: AnswerEval
     case 'correcta':
       return {
         kind: 'ejemplificar',
-        prompt: `Correcto. Para consolidar, pon un ejemplo concreto donde se vea «${question.conceptId}» en acción y explica por qué encaja.`,
+        prompt: `Correcto. Para consolidar, pon un ejemplo concreto donde se vea «${conceptLabel}» en acción y explica por qué encaja.`,
         hints: [],
       };
   }

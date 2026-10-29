@@ -36,6 +36,27 @@ describe('ProgressScreen', () => {
     expect(screen.getByText('Repaso pendiente')).toBeTruthy();
   });
 
+  it('el repaso pendiente muestra el nombre del concepto, no su identificador', async () => {
+    const services = makeServices();
+    const documentId = await importTemario(services);
+
+    await render(<StudyScreen services={services} documentId={documentId} now={() => NOW} />);
+    await waitFor(() => expect(screen.getByLabelText('Tu respuesta')).toBeTruthy());
+    await typeAnswer('Una declaración unilateral de la Administración.');
+    await submitAnswer(1);
+
+    await render(<ProgressScreen services={services} now={() => NOW} />);
+    await waitFor(() => expect(screen.getByText('Repaso pendiente')).toBeTruthy());
+
+    // El progreso persistido guarda identificadores por concepto; la pantalla
+    // debe resolver el nombre legible y no pintar «t1:c1».
+    const reviews = await services.storage.progress.listReviewStates('local-user');
+    expect(reviews.length).toBeGreaterThan(0);
+    for (const state of reviews) {
+      expect(screen.queryByText(state.conceptId)).toBeNull();
+    }
+  });
+
   it('el botón de volver está disponible para seguir importando', async () => {
     const services = makeServices();
     let wentBack = false;

@@ -20,6 +20,16 @@ export interface MasterySummary {
   readonly masteredPercent: number;
 }
 
+/**
+ * Estado de repaso vencido, con el nombre legible del concepto.
+ *
+ * La UI pinta este nombre; `ReviewState` solo guarda el identificador, que no
+ * significa nada para el usuario.
+ */
+export interface DueReview extends ReviewState {
+  readonly conceptLabel: string;
+}
+
 /** Vista agregada de progreso que consume la pantalla de progreso. */
 export interface ProgressOverview {
   readonly userId: Id;
@@ -29,8 +39,18 @@ export interface ProgressOverview {
   /** Conceptos ordenados por urgencia de repaso. */
   readonly recommendedReview: readonly Id[];
   /** Estados de repaso cuyo `dueAt` ya ha vencido. */
-  readonly dueForReview: readonly ReviewState[];
+  readonly dueForReview: readonly DueReview[];
 }
+
+/**
+ * Etiqueta para un repaso cuyo concepto no está en este dispositivo.
+ *
+ * El progreso se sincroniza entre dispositivos, pero los documentos no. Si el
+ * usuario creó la cuenta en un dispositivo y estudió allí un temario que aún no
+ * ha importado en este, los repasos llegan sin concepto conocido: se muestra un
+ * aviso en lugar del identificador interno.
+ */
+const UNKNOWN_CONCEPT_LABEL = 'Concepto no disponible';
 
 /**
  * Construye la vista de progreso a partir del historial persistido.
@@ -81,7 +101,7 @@ export function buildProgressOverview(
     },
     gaps: gapProfile.gaps,
     recommendedReview: gapProfile.recommendedReview,
-    dueForReview: dueReviews(reviewStates, now),
+    dueForReview: dueReviews(reviewStates, now, concepts),
   };
 }
 
@@ -90,11 +110,16 @@ export function buildProgressOverview(
  *
  * Un concepto sin repasos previos (`lastReviewedAt === null`) se considera
  * pendiente, de modo que el material recién importado entra en la cola.
+ *
+ * Recibe los conceptos para resolver el nombre legible: `ReviewState` solo
+ * guarda el identificador, y el usuario no debe ver «t1:c1».
  */
 export function dueReviews(
   reviewStates: readonly ReviewState[],
   now: Timestamp,
-): readonly ReviewState[] {
+  concepts: readonly Concept[] = [],
+): readonly DueReview[] {
+  const labelById = new Map(concepts.map((concept) => [concept.id, concept.label]));
   return reviewStates
     .filter((state) => isDue(state, now))
     .sort((a, b) => {
@@ -102,7 +127,11 @@ export function dueReviews(
         return a.dueAt - b.dueAt;
       }
       return a.conceptId.localeCompare(b.conceptId);
-    });
+    })
+    .map((state) => ({
+      ...state,
+      conceptLabel: labelById.get(state.conceptId) ?? UNKNOWN_CONCEPT_LABEL,
+    }));
 }
 
 /** Mensaje accionable para el usuario según su estado de progreso. */

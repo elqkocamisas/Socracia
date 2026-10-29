@@ -118,7 +118,7 @@ export function ProgressScreen({
           ) : (
             dueForReview.map((review) => (
               <View key={review.conceptId} style={styles.row}>
-                <Text style={styles.rowText}>{review.conceptId}</Text>
+                <Text style={styles.rowText}>{review.conceptLabel}</Text>
                 <Text style={styles.rowMeta}>
                   {review.repetitions === 0
                     ? 'primera vez'

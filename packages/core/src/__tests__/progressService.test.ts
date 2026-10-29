@@ -128,6 +128,23 @@ describe('dueReviews', () => {
     const states = [review('cB', NOW - DAY), review('cA', NOW - DAY)];
     expect(dueReviews(states, NOW).map((state) => state.conceptId)).toEqual(['cA', 'cB']);
   });
+
+  it('resuelve el nombre legible del concepto', () => {
+    const states = [review('c1', NOW - DAY), review('c2', NOW - DAY)];
+    const due = dueReviews(states, NOW, concepts);
+    expect(due.map((state) => state.conceptLabel)).toEqual([
+      'Acto administrativo',
+      'Recurso de alzada',
+    ]);
+  });
+
+  it('no muestra el identificador interno si el concepto no está en el dispositivo', () => {
+    // El progreso se sincroniza, los documentos no: un repaso puede llegar sin
+    // concepto conocido. Se avisa en lugar de pintar «c9».
+    const due = dueReviews([review('c9', NOW - DAY)], NOW, concepts);
+    expect(due[0]?.conceptLabel).toBe('Concepto no disponible');
+    expect(due[0]?.conceptLabel).not.toBe('c9');
+  });
 });
 
 describe('nextActionHint', () => {

@@ -116,7 +116,7 @@ export class MayeuticSessionEngine {
     if (shouldRetry) {
       return {
         evaluation,
-        scaffold: buildScaffold(question, evaluation),
+        scaffold: buildScaffold(question, evaluation, step.conceptLabel),
         next: question,
         progress: this.progress(),
       };
@@ -125,7 +125,9 @@ export class MayeuticSessionEngine {
     this.advance();
     return {
       evaluation,
-      scaffold: needsScaffold(evaluation) ? buildScaffold(question, evaluation) : null,
+      scaffold: needsScaffold(evaluation)
+        ? buildScaffold(question, evaluation, step.conceptLabel)
+        : null,
       next: this.currentQuestion(),
       progress: this.progress(),
     };
