@@ -12,6 +12,7 @@ export * from './rag/chunking';
 export * from './rag/embeddings';
 export * from './rag/delegatingProvider';
 export * from './rag/fallbackProvider';
+export * from './rag/edgeLlm';
 export * from './rag/vectorStore';
 export * from './rag/engine';
 export * from './ingest/conceptExtractor';
