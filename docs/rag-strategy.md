@@ -112,14 +112,48 @@ export interface VectorStore {
 referencia a la red ni al dispositivo**. Cambiar de modo es cambiar qué
 implementación se inyecta:
 
-| Modo                    | `EmbeddingProvider`                         | `VectorStore`         |
-| ----------------------- | ------------------------------------------- | --------------------- |
-| MVP (Sprint 0–1)        | `HashingEmbeddingProvider`                  | `InMemoryVectorStore` |
-| Local real (Sprint 2)   | `EdgeLlmEmbeddingProvider` (MediaPipe BERT) | `SqliteVectorStore`   |
-| Nube (Sprint 4, opt-in) | `BackendEmbeddingProvider`                  | `BackendVectorStore`  |
+| Modo                    | `EmbeddingProvider`                            | `VectorStore`         |
+| ----------------------- | ---------------------------------------------- | --------------------- |
+| MVP (Sprint 0–1)        | `HashingEmbeddingProvider`                     | `InMemoryVectorStore` |
+| Local real (Sprint 2)   | `DelegatingEmbeddingProvider` sobre `edge-llm` | `SqliteVectorStore`   |
+| Nube (Sprint 4, opt-in) | `DelegatingEmbeddingProvider` sobre el backend | `BackendVectorStore`  |
 
 Ninguna de esas sustituciones toca el motor mayéutico, la evaluación, la
 detección de lagunas ni la UI.
+
+### Estado real del proveedor on-device (verificado)
+
+`createEdgeLlmProvider` sondea el módulo nativo antes de aceptarlo. El sondeo
+**falla hoy**, y no por un error de integración: el paquete `edge-llm@0.1.4` no
+entrega los vectores que promete.
+
+| Comprobación                   | Resultado                                                                                                |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------- |
+| `embedTest` devuelve el vector | **No.** Devuelve `{ length, sample }`; el código nativo hace `vector.take(5)`. Son 5 de 384 dimensiones. |
+| El módulo existe en iOS        | **No.** `ios/MediapipeModule.swift` es la plantilla de Expo: solo `hello` y `setValueAsync`.             |
+| El módulo existe en Android    | Sí, pero sin `embed` completo; el RAG nativo no expone los vectores.                                     |
+| Latencia y tamaño del modelo   | No medibles: sin vector, no hay nada que medir.                                                          |
+
+Por eso `createEdgeLlmProvider` devuelve un error explícito y la app continúa
+con el proveedor léxico, en lugar de arrancar con un índice de vectores
+inservibles. El día que el paquete exponga un `embed` que devuelva el vector
+completo, el sondeo pasará y el proveedor se activará sin cambios en el motor.
+
+### Calidad medida y umbral de relevancia
+
+Con el corpus de ejemplo, midiendo aciertos top-1:
+
+| Tipo de consulta                              | Aciertos | Similitud observada |
+| --------------------------------------------- | -------- | ------------------- |
+| Comparte vocabulario («recurso de alzada»)    | **6/6**  | 0.26 – 0.55         |
+| Paráfrasis sin vocabulario común              | **1/6**  | 0.08 – 0.18         |
+| Paráfrasis con mejora léxica (IDF + n-gramas) | **2/6**  | — (descartada)      |
+
+Esos datos fijan `DEFAULT_RELEVANCE.minScore = 0.2`: por encima están los
+aciertos, por debajo el ruido. `generateConceptQuestions` aplica el umbral y
+**devuelve cero preguntas antes que citar una fuente que no respalda el
+contenido**. Con un proveedor semántico real habrá que recalibrar el umbral; por
+eso es parámetro y no constante.
 
 ## 5. Consecuencias operativas
 

@@ -64,6 +64,15 @@ npm run package:source # entrega .tar.gz sin Git (dist/)
   necesita historia.
 - **Sin lookbehind en regex.** El código de `core` debe funcionar en Hermes, que
   no soporta lookbehind. Ya se evitó en `splitSentences`.
+- **`edge-llm` no entrega embeddings utilizables (0.1.4).** Su `embedTest`
+  devuelve `{ length, sample }` con 5 de 384 dimensiones (el nativo hace
+  `vector.take(5)`), y el módulo iOS es la plantilla de Expo (solo `hello` y
+  `setValueAsync`). Por eso `createEdgeLlmProvider` sondea y falla con un motivo
+  explícito en vez de generar vectores inservibles. No reintentar «activarlo»
+  sin volver a comprobar el paquete con `npm pack edge-llm`.
+- **Umbral de relevancia del RAG.** `DEFAULT_RELEVANCE.minScore = 0.2` está
+  calibrado para el proveedor léxico (aciertos 0.26–0.55, ruido 0.08–0.18). Un
+  proveedor semántico real exige recalibrarlo; no es una constante universal.
 
 ## Arquitectura del motor mayéutico (Sprint 1)
 
