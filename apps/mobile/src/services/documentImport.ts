@@ -23,7 +23,8 @@ export interface DocumentPickerPort {
 
 /** Error al importar un documento. */
 export interface ImportError {
-  readonly code: 'cancelado' | 'sin-archivo' | 'lectura-fallida' | 'ingesta-fallida' | 'borrado-fallido';
+  readonly code:
+    'cancelado' | 'sin-archivo' | 'lectura-fallida' | 'ingesta-fallida' | 'borrado-fallido';
   readonly message: string;
 }
 

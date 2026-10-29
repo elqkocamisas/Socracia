@@ -50,6 +50,7 @@ cada documento importado registra si se autorizó o no, de modo que el usuario
 puede auditar qué material se procesó fuera.
 
 <!-- dev:nota-interna -->
+
 Cuando se active `allow-cloud` en producción, revise también:
 
 - `apps/mobile/store/privacy-declarations.json` (hoy declara que los documentos
@@ -108,12 +109,12 @@ Google Play.
 
 ## 4. Para qué se usan
 
-| Dato | Finalidad | Base jurídica (RGPD) |
-| --- | --- | --- |
-| Documentos y texto | Generar preguntas y recuperar fragmentos en el dispositivo | No hay tratamiento por nuestra parte: no salen del dispositivo |
-| Progreso agregado | Continuar el estudio en otro dispositivo | Ejecución de un contrato (el servicio solicitado) |
-| Correo y contraseña | Autenticar la cuenta | Ejecución de un contrato |
-| Token de sesión | Mantener la sesión iniciada | Ejecución de un contrato |
+| Dato                | Finalidad                                                  | Base jurídica (RGPD)                                           |
+| ------------------- | ---------------------------------------------------------- | -------------------------------------------------------------- |
+| Documentos y texto  | Generar preguntas y recuperar fragmentos en el dispositivo | No hay tratamiento por nuestra parte: no salen del dispositivo |
+| Progreso agregado   | Continuar el estudio en otro dispositivo                   | Ejecución de un contrato (el servicio solicitado)              |
+| Correo y contraseña | Autenticar la cuenta                                       | Ejecución de un contrato                                       |
+| Token de sesión     | Mantener la sesión iniciada                                | Ejecución de un contrato                                       |
 
 No se usan para elaborar perfiles comerciales ni para publicidad. No hay
 decisiones automatizadas con efectos jurídicos.

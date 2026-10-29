@@ -12,6 +12,7 @@ import {
 import { ErrorNotice } from '../components/States';
 import {
   describeCurrentPolicy,
+  isCloudToggleVisible,
   readPrivacySettings,
   setProcessingPolicy,
   type PrivacySettings,
@@ -173,6 +174,7 @@ export function AccountScreen({
 
   const busy = state.kind === 'enviando';
   const privacyDescription = describeCurrentPolicy(privacy.policy);
+  const cloudToggleVisible = isCloudToggleVisible(services);
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -212,8 +214,8 @@ export function AccountScreen({
           {confirmDelete ? (
             <View style={styles.dangerBox}>
               <Text style={styles.dangerText}>
-                Se eliminará tu cuenta y el progreso guardado en el servidor. Esta acción no se puede
-                deshacer. El progreso de este dispositivo se conserva.
+                Se eliminará tu cuenta y el progreso guardado en el servidor. Esta acción no se
+                puede deshacer. El progreso de este dispositivo se conserva.
               </Text>
               <Pressable
                 accessibilityRole="button"
@@ -296,29 +298,35 @@ export function AccountScreen({
         <Text style={styles.cardTitle}>Privacidad</Text>
         <Text style={styles.cardBody}>{privacyDescription}</Text>
         <Text style={styles.providerLine}>
-          Procesamiento en el dispositivo: {privacy.embedding.onDeviceModel ? 'modelo local' : 'modo básico'} ({privacy.embedding.id})
+          Procesamiento en el dispositivo:{' '}
+          {privacy.embedding.onDeviceModel ? 'modelo local' : 'modo básico'} ({privacy.embedding.id}
+          )
         </Text>
         {privacy.embedding.degradedReason ? (
           <Text style={styles.providerWarn}>
             Modelo local no disponible: {privacy.embedding.degradedReason}
           </Text>
         ) : null}
-        <Pressable
-          accessibilityRole="switch"
-          accessibilityLabel="Permitir procesamiento en la nube"
-          accessibilityState={{ checked: privacy.policy.mode === 'allow-cloud' }}
-          disabled={privacyBusy}
-          onPress={() =>
-            void onToggleCloud(privacy.policy.mode === 'allow-cloud' ? 'local-only' : 'allow-cloud')
-          }
-          style={styles.legalLink}
-        >
-          <Text style={styles.legalLinkLabel}>
-            {privacy.policy.mode === 'allow-cloud'
-              ? 'Desactivar procesamiento en la nube'
-              : 'Permitir procesamiento en la nube'}
-          </Text>
-        </Pressable>
+        {cloudToggleVisible ? (
+          <Pressable
+            accessibilityRole="switch"
+            accessibilityLabel="Permitir procesamiento en la nube"
+            accessibilityState={{ checked: privacy.policy.mode === 'allow-cloud' }}
+            disabled={privacyBusy}
+            onPress={() =>
+              void onToggleCloud(
+                privacy.policy.mode === 'allow-cloud' ? 'local-only' : 'allow-cloud',
+              )
+            }
+            style={styles.legalLink}
+          >
+            <Text style={styles.legalLinkLabel}>
+              {privacy.policy.mode === 'allow-cloud'
+                ? 'Desactivar procesamiento en la nube'
+                : 'Permitir procesamiento en la nube'}
+            </Text>
+          </Pressable>
+        ) : null}
       </View>
 
       <View style={styles.card}>

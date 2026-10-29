@@ -110,10 +110,7 @@ export default function App(): React.JSX.Element {
           />
         ) : null}
         {route.name === 'legal' ? (
-          <LegalScreen
-            documentId={route.documentId}
-            onBack={() => goTo({ name: 'cuenta' })}
-          />
+          <LegalScreen documentId={route.documentId} onBack={() => goTo({ name: 'cuenta' })} />
         ) : null}
       </View>
 

@@ -91,6 +91,18 @@ PORT=8787 DATA_FILE=./datos.json npm start --workspace @socracia/api
 La app apunta al backend con `EXPO_PUBLIC_API_BASE_URL` (por defecto
 `http://localhost:8787`).
 
+### Procesamiento en la nube (opt-in)
+
+Por defecto la app procesa todo en el dispositivo y el ajuste «Cuenta →
+Privacidad» no ofrece la nube: no hay backend de corpus que la ejecute, y
+enseñar un interruptor sin efecto sería un mando muerto. Para un build que sí
+tenga corpus en la nube, defina `EXPO_PUBLIC_CLOUD_PROCESSING=1`; entonces la
+pantalla muestra el ajuste y el usuario puede autorizarlo.
+
+Al activar ese build, actualice en el mismo envío `store/privacy-declarations.json`
+y el apartado 2.1 de `docs/privacy-policy.md`: declarar que los documentos no se
+transmiten con la nube activada sería una declaración falsa ante las tiendas.
+
 ## Pruebas
 
 - `apps/api/src/__tests__/` — unitarias de `AuthService` y `ProgressStore`, e

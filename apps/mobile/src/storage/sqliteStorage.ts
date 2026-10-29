@@ -317,10 +317,10 @@ export class SqliteProgressRepository implements ProgressRepository {
       }
 
       for (const conceptId of removed) {
-        await this.db.runAsync(
-          'DELETE FROM review_states WHERE user_id = ? AND concept_id = ?;',
-          [userId, conceptId],
-        );
+        await this.db.runAsync('DELETE FROM review_states WHERE user_id = ? AND concept_id = ?;', [
+          userId,
+          conceptId,
+        ]);
       }
 
       const profileRow = await this.db.getFirstAsync<PayloadRow>(
@@ -329,17 +329,14 @@ export class SqliteProgressRepository implements ProgressRepository {
       );
       if (profileRow) {
         const profile = JSON.parse(profileRow.payload) as GapProfile;
-        await this.db.runAsync(
-          'UPDATE gap_profiles SET payload = ? WHERE user_id = ?;',
-          [
-            JSON.stringify({
-              ...profile,
-              gaps: profile.gaps.filter((gap) => !removed.has(gap.conceptId)),
-              recommendedReview: profile.recommendedReview.filter((id) => !removed.has(id)),
-            }),
-            userId,
-          ],
-        );
+        await this.db.runAsync('UPDATE gap_profiles SET payload = ? WHERE user_id = ?;', [
+          JSON.stringify({
+            ...profile,
+            gaps: profile.gaps.filter((gap) => !removed.has(gap.conceptId)),
+            recommendedReview: profile.recommendedReview.filter((id) => !removed.has(id)),
+          }),
+          userId,
+        ]);
       }
     });
   }

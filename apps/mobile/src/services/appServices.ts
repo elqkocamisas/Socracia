@@ -109,6 +109,16 @@ export async function resolveEmbeddingProvider(options: {
 /** URL base del backend; configurable por entorno en el build de producción. */
 export const DEFAULT_API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? 'http://localhost:8787';
 
+/**
+ * ¿Existe hoy un camino real de procesamiento en la nube?
+ *
+ * El modo local es siempre el único garantizado. El ajuste de nube se muestra
+ * solo cuando hay backend de corpus desplegado (`EXPO_PUBLIC_CLOUD_PROCESSING`).
+ * Enseñar un interruptor que no cambia nada sería un mando muerto, y en la
+ * revisión de tienda una promesa que el código no cumple.
+ */
+export const CLOUD_PROCESSING_AVAILABLE = process.env.EXPO_PUBLIC_CLOUD_PROCESSING === '1';
+
 /** Servicios que consume la UI. */
 export interface AppServices {
   readonly storage: StoragePort;
@@ -125,6 +135,8 @@ export interface AppServices {
   readonly policy: ProcessingPolicyHolder;
   /** Persistencia de la política, para el ajuste de privacidad. */
   readonly policyStore: ProcessingPolicyStore;
+  /** `true` si este build tiene backend de corpus en la nube. */
+  readonly cloudAvailable: boolean;
 }
 
 /** Opciones de creación del runtime. */
@@ -147,6 +159,8 @@ export interface CreateServicesOptions {
   readonly policy?: ProcessingPolicy;
   /** Persistencia de la política; por defecto, en memoria. */
   readonly policyStore?: ProcessingPolicyStore;
+  /** `true` si este build ofrece procesamiento en la nube. */
+  readonly cloudAvailable?: boolean;
   /**
    * Módulo nativo `edge-llm` si está disponible en esta compilación.
    * `null` o ausente significa «no hay modelo on-device»: se usa el léxico.
@@ -194,6 +208,7 @@ export function createServices(options: CreateServicesOptions): AppServices {
     embedding,
     policy,
     policyStore: options.policyStore ?? new InMemoryProcessingPolicyStore(),
+    cloudAvailable: options.cloudAvailable ?? CLOUD_PROCESSING_AVAILABLE,
   };
 }
 

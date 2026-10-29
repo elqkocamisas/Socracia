@@ -1,6 +1,10 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
-import { DEFAULT_PROCESSING_POLICY, type ProcessingMode, type ProcessingPolicy } from '@socracia/core';
+import {
+  DEFAULT_PROCESSING_POLICY,
+  type ProcessingMode,
+  type ProcessingPolicy,
+} from '@socracia/core';
 
 /**
  * Persistencia de la política de procesamiento.

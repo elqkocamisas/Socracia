@@ -7,6 +7,7 @@ import {
 } from '../services/processingPolicyStore';
 import {
   isCloudEnabled,
+  isCloudToggleVisible,
   readPrivacySettings,
   setProcessingPolicy,
 } from '../services/privacySettings';
@@ -111,12 +112,30 @@ describe('SqliteProcessingPolicyStore', () => {
     const adapter = createNodeSqliteAdapter();
     const db = adapter as unknown as SQLiteDatabase;
     await migrate(db);
-    await db.runAsync(
-      'INSERT INTO app_meta (key, value) VALUES (?, ?);',
-      ['processing-policy', 'valor-inesperado'],
-    );
+    await db.runAsync('INSERT INTO app_meta (key, value) VALUES (?, ?);', [
+      'processing-policy',
+      'valor-inesperado',
+    ]);
     const store = new SqliteProcessingPolicyStore(db);
 
     expect((await store.load()).mode).toBe('local-only');
+  });
+});
+
+describe('Visibilidad del ajuste de nube', () => {
+  it('no se ofrece si el build no tiene backend de corpus', () => {
+    const services = makeServices();
+    expect(services.cloudAvailable).toBe(false);
+    expect(isCloudToggleVisible(services)).toBe(false);
+  });
+
+  it('se ofrece solo cuando hay backend de corpus en la nube', () => {
+    const services = createServices({
+      storage: inMemoryStorage(),
+      picker: NO_PICKER,
+      reader,
+      cloudAvailable: true,
+    });
+    expect(isCloudToggleVisible(services)).toBe(true);
   });
 });

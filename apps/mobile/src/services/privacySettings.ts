@@ -27,6 +27,11 @@ export interface PrivacySettingsPorts {
     readonly onDeviceModel: boolean;
     readonly degradedReason: string | null;
   };
+  /**
+   * `false` cuando no hay backend de corpus: el ajuste de nube no se ofrece
+   * porque no habría nada que activar.
+   */
+  readonly cloudAvailable?: boolean;
 }
 
 /** Lee el ajuste y el diagnóstico actuales. */
@@ -61,6 +66,16 @@ export async function setProcessingPolicy(
 /** `true` si la app está enviando contenido fuera del dispositivo. */
 export function isCloudEnabled(services: PrivacySettingsPorts): boolean {
   return allowsCloudProcessing(services.policy.current());
+}
+
+/**
+ * `true` si debe ofrecerse el ajuste de nube.
+ *
+ * Se exige que la nube esté disponible en este build: si no lo está, el
+ * interruptor no haría nada y la pantalla mostraría una opción vacía.
+ */
+export function isCloudToggleVisible(services: PrivacySettingsPorts): boolean {
+  return services.cloudAvailable === true;
 }
 
 /** Texto que explica la política vigente, para la pantalla. */

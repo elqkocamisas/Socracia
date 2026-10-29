@@ -11,7 +11,9 @@ describe('LegalScreen', () => {
   it('muestra la política de privacidad con su contenido', async () => {
     await render(<LegalScreen documentId="privacidad" onBack={() => undefined} />);
 
-    await waitFor(() => expect(screen.getByText('Política de privacidad de Socracia')).toBeTruthy());
+    await waitFor(() =>
+      expect(screen.getByText('Política de privacidad de Socracia')).toBeTruthy(),
+    );
     expect(screen.getByText(/nunca salen de su dispositivo/i)).toBeTruthy();
   });
 
@@ -24,16 +26,16 @@ describe('LegalScreen', () => {
 
   it('no muestra las notas internas dirigidas al desarrollador', async () => {
     await render(<LegalScreen documentId="privacidad" onBack={() => undefined} />);
-    await waitFor(() => expect(screen.getByText('Política de privacidad de Socracia')).toBeTruthy());
+    await waitFor(() =>
+      expect(screen.getByText('Política de privacidad de Socracia')).toBeTruthy(),
+    );
 
     expect(screen.queryByText(/Sustituya la dirección de contacto/i)).toBeNull();
   });
 
   it('llama a onBack al volver', async () => {
     let back = false;
-    await render(
-      <LegalScreen documentId="privacidad" onBack={() => (back = true)} />,
-    );
+    await render(<LegalScreen documentId="privacidad" onBack={() => (back = true)} />);
     await waitFor(() => expect(screen.getByText('Volver')).toBeTruthy());
 
     fireEvent.press(screen.getByLabelText('Volver'));

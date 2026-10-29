@@ -44,9 +44,7 @@ interface Declarations {
   };
 }
 
-const listing = JSON.parse(
-  readFileSync(join(STORE, 'listing.json'), 'utf8'),
-) as Listing;
+const listing = JSON.parse(readFileSync(join(STORE, 'listing.json'), 'utf8')) as Listing;
 const declarations = JSON.parse(
   readFileSync(join(STORE, 'privacy-declarations.json'), 'utf8'),
 ) as Declarations;
@@ -70,24 +68,20 @@ function longitud(texto: string): number {
 
 describe('Ficha de tienda', () => {
   it('la identidad de la app es coherente con app.json', () => {
-    const appJson = JSON.parse(
-      readFileSync(join(__dirname, '..', '..', 'app.json'), 'utf8'),
-    ) as { expo: { version: string; ios: { bundleIdentifier: string } } };
+    const appJson = JSON.parse(readFileSync(join(__dirname, '..', '..', 'app.json'), 'utf8')) as {
+      expo: { version: string; ios: { bundleIdentifier: string } };
+    };
     expect(listing.app.version).toBe(appJson.expo.version);
     expect(listing.app.bundleId).toBe(appJson.expo.ios.bundleIdentifier);
   });
 
   it('los campos de App Store caben en sus límites', () => {
     expect(longitud(listing.appStore.nombre)).toBeLessThanOrEqual(LIMITES.appStoreNombre);
-    expect(longitud(listing.appStore.subtitulo)).toBeLessThanOrEqual(
-      LIMITES.appStoreSubtitulo,
-    );
+    expect(longitud(listing.appStore.subtitulo)).toBeLessThanOrEqual(LIMITES.appStoreSubtitulo);
     expect(longitud(listing.appStore.textoPromocional)).toBeLessThanOrEqual(
       LIMITES.appStoreTextoPromocional,
     );
-    expect(longitud(listing.appStore.descripcion)).toBeLessThanOrEqual(
-      LIMITES.appStoreDescripcion,
-    );
+    expect(longitud(listing.appStore.descripcion)).toBeLessThanOrEqual(LIMITES.appStoreDescripcion);
     expect(longitud(listing.appStore.palabrasClave)).toBeLessThanOrEqual(
       LIMITES.appStorePalabrasClave,
     );

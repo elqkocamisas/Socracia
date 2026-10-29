@@ -32,9 +32,7 @@ impiden la subida.
 - [ ] Icono de ficha de Play: 512×512, sin transparencia.
 - [ ] Splash: 1024×1024.
 - [ ] Capturas de pantalla: mínimo 3 por plataforma y tamaño. Tome capturas
-      **reales** del build de producción, no maquetas.
-      - App Store: 6,7" (1290×2796) y, si declara iPad, 12,9".
-      - Google Play: teléfono (mínimo 1080×1920) y, opcional, tableta.
+      **reales** del build de producción, no maquetas. - App Store: 6,7" (1290×2796) y, si declara iPad, 12,9". - Google Play: teléfono (mínimo 1080×1920) y, opcional, tableta.
 - [ ] Regenerar los assets tras cualquier cambio de marca:
       `node scripts/generate-assets.mjs`.
 

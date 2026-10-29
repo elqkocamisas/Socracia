@@ -1,7 +1,11 @@
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { LEGAL_DOCUMENTS, type LegalDocument } from '../legal/documents.generated';
-import { findLegalDocument, parseLegalMarkdown, type LegalBlock } from '../legal/parseLegalMarkdown';
+import {
+  findLegalDocument,
+  parseLegalMarkdown,
+  type LegalBlock,
+} from '../legal/parseLegalMarkdown';
 import { colors, radius, spacing } from '../theme/tokens';
 
 /** Propiedades de la pantalla legal. */
@@ -70,9 +74,7 @@ export function LegalScreen({
 
 function LegalBlockView({ block }: { readonly block: LegalBlock }): React.JSX.Element {
   if (block.kind === 'heading') {
-    return (
-      <Text style={block.level === 1 ? styles.heading1 : styles.heading2}>{block.text}</Text>
-    );
+    return <Text style={block.level === 1 ? styles.heading1 : styles.heading2}>{block.text}</Text>;
   }
   if (block.kind === 'bullets') {
     return (

@@ -77,7 +77,9 @@ describe('parseLegalMarkdown', () => {
   });
 
   it('elimina el énfasis y los enlaces para no mostrar asteriscos al usuario', () => {
-    const blocks = parseLegalMarkdown('Esto es **importante** y `código`, ver [la guía](http://x).');
+    const blocks = parseLegalMarkdown(
+      'Esto es **importante** y `código`, ver [la guía](http://x).',
+    );
     expect(blocks).toEqual([
       { kind: 'paragraph', text: 'Esto es importante y código, ver la guía.' },
     ]);
@@ -109,7 +111,9 @@ describe('toDisplayMarkdown', () => {
   };
 
   it('elimina una nota interna bien formada', () => {
-    const result = run('Texto visible.\n\n<!-- dev:nota-interna -->\nNo mostrar.\n<!-- /dev:nota-interna -->\n');
+    const result = run(
+      'Texto visible.\n\n<!-- dev:nota-interna -->\nNo mostrar.\n<!-- /dev:nota-interna -->\n',
+    );
     expect(result.ok).toBe(true);
     expect(result.out.trim()).toBe('Texto visible.');
   });
