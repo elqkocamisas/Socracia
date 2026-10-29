@@ -41,6 +41,25 @@ Estos documentos, su texto, sus fragmentos y sus embeddings **no se envían a
 ningún servidor**, ni siquiera si el usuario inicia sesión. No hay ninguna ruta
 en la API que los acepte.
 
+La app incluye un ajuste de procesamiento en «Cuenta → Privacidad». De fábrica
+está en **solo-dispositivo**, que es el modo descrito aquí. La opción de permitir
+procesamiento en un servidor existe para versiones futuras con corpus en la nube;
+si el usuario la activa, la app deja de prometer que nada sale del dispositivo y
+lo indica en esa misma pantalla. El modo elegido se guarda en el dispositivo y
+cada documento importado registra si se autorizó o no, de modo que el usuario
+puede auditar qué material se procesó fuera.
+
+<!-- dev:nota-interna -->
+Cuando se active `allow-cloud` en producción, revise también:
+
+- `apps/mobile/store/privacy-declarations.json` (hoy declara que los documentos
+  no se transmiten);
+- el texto de `docs/terms-of-use.md` sobre contenido de terceros.
+
+Mientras el ajuste siga en solo-dispositivo, las declaraciones de tienda son
+correctas tal cual.
+<!-- /dev:nota-interna -->
+
 ### 2.2 Progreso de estudio
 
 La app guarda en el dispositivo: preguntas generadas, respuestas del usuario,

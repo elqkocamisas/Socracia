@@ -44,11 +44,22 @@ const INTERNAL_NOTE = /<!--\s*dev:nota-interna\s*-->[\s\S]*?<!--\s*\/dev:nota-in
  * renderiza y verían las vallas de Markdown en crudo.
  */
 export function toDisplayMarkdown(markdown) {
-  return markdown
+  const stripped = markdown
     .replace(INTERNAL_NOTE, '')
     .replace(/```[a-z]*\n([\s\S]*?)```/g, (_, code) => code.trim())
     .replace(/\n{3,}/g, '\n\n')
     .trim();
+
+  // Una nota interna mal cerrada no coincide con el patrón y se colaría hasta el
+  // usuario, que la leería como instrucciones dirigidas a él. Mejor fallar la
+  // generación que publicar el texto interno en la app.
+  if (/dev:nota-interna/.test(stripped) || /<!--\s*\/?dev:/.test(stripped)) {
+    throw new Error(
+      'Hay una nota interna sin cerrar o mal formada. Use el par ' +
+        '«<!-- dev:nota-interna --> ... <!-- /dev:nota-interna -->».',
+    );
+  }
+  return stripped;
 }
 
 /** Extrae el título de nivel 1, que es el encabezado del documento. */

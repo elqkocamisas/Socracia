@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -84,5 +85,38 @@ describe('parseLegalMarkdown', () => {
 
   it('devuelve una lista vacía para un documento vacío', () => {
     expect(parseLegalMarkdown('')).toEqual([]);
+  });
+});
+
+describe('toDisplayMarkdown', () => {
+  // El generador es un módulo ESM que Jest no puede importar directamente, así
+  // que se ejecuta con Node y se comprueba su salida real.
+  const run = (markdown: string): { ok: boolean; out: string } => {
+    const script = [
+      "import { toDisplayMarkdown } from './scripts/generate-legal.mjs';",
+      `process.stdout.write(toDisplayMarkdown(${JSON.stringify(markdown)}));`,
+    ].join('\n');
+    try {
+      const out = execFileSync('node', ['--input-type=module', '-e', script], {
+        cwd: ROOT,
+        encoding: 'utf8',
+      });
+      return { ok: true, out };
+    } catch (error) {
+      const err = error as { stderr?: string; stdout?: string };
+      return { ok: false, out: `${err.stderr ?? ''}${err.stdout ?? ''}` };
+    }
+  };
+
+  it('elimina una nota interna bien formada', () => {
+    const result = run('Texto visible.\n\n<!-- dev:nota-interna -->\nNo mostrar.\n<!-- /dev:nota-interna -->\n');
+    expect(result.ok).toBe(true);
+    expect(result.out.trim()).toBe('Texto visible.');
+  });
+
+  it('falla si una nota interna queda mal cerrada, en lugar de publicarla', () => {
+    const result = run('Texto.\n\n<!-- dev:nota-interna\nNo mostrar.\n');
+    expect(result.ok).toBe(false);
+    expect(result.out).toMatch(/nota interna/i);
   });
 });

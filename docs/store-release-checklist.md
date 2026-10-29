@@ -54,7 +54,14 @@ impiden la subida.
 - [ ] Manifiesto de privacidad de iOS presente en `app.json`
       (`NSPrivacyTracking: false`), con las razones de cada API sensible.
 - [ ] Política de privacidad accesible **desde dentro de la app**, no solo en la
-      ficha de la tienda (lo exige App Store).
+      ficha de la tienda (lo exige App Store). Implementado: «Cuenta → Legal y
+      privacidad», con el texto generado desde `docs/` por
+      `npm run generate:legal`. Verifique que abre **sin conexión**.
+- [ ] El ajuste «Cuenta → Privacidad» está en **solo-dispositivo** en el build
+      que envía (es el valor por defecto). Si lo cambia a procesamiento en la
+      nube, actualice `store/privacy-declarations.json` y el apartado 2.1 de la
+      política **en el mismo envío**: declarar «no se transmiten documentos» con
+      la nube activada es una declaración falsa.
 - [ ] Si despliega la API: documente el proveedor de alojamiento y si implica
       transferencia internacional de datos (sección 6 de la política).
 
@@ -93,6 +100,11 @@ impiden la subida.
 - [ ] El cierre de sesión **no** borra el progreso local (lo prueba
       `accountJourney.e2e.test.tsx`).
 - [ ] Documente en la ficha qué se sincroniza y qué no.
+- [ ] El usuario puede **borrar cualquier documento** desde la biblioteca
+      (botón «Eliminar», con confirmación). Compruebe que tras borrar un
+      documento estudiado, la pantalla de progreso no muestra repasos de sus
+      conceptos: el borrado arrastra evaluaciones y estado de repaso
+      (`ProgressRepository.removeConcepts`).
 
 ## 7. Build y firma
 
