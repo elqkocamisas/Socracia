@@ -3,14 +3,17 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 import type { StoragePort } from '@socracia/core';
 import {
   DocumentIngestionService,
+  FallbackEmbeddingProvider,
   HashingEmbeddingProvider,
   InMemoryVectorStore,
   MayeuticSessionController,
   RagEngine,
   StudyService,
+  createEdgeLlmProvider,
   defaultRegistry,
   extractCurriculum,
   fflateInflate,
+  type EdgeLlmNativeModule,
   type EmbeddingProvider,
   type Result,
   type VectorStore,
@@ -44,6 +47,56 @@ export interface SqliteHandle {
 /** Identificador de usuario local hasta que exista cuenta (Sprint 4). */
 export const LOCAL_USER_ID = 'local-user';
 
+/**
+ * Proveedor de embeddings resuelto, con el motivo de la decisión.
+ *
+ * `degradedReason` se propaga a la UI para poder explicar al usuario por qué la
+ * recuperación es léxica y no semántica; sin ese dato, la degradación sería
+ * invisible y parecería un fallo de la app.
+ */
+export interface ResolvedEmbeddingProvider {
+  readonly provider: EmbeddingProvider;
+  readonly onDeviceModel: boolean;
+  readonly degradedReason: string | null;
+}
+
+/**
+ * Elige el mejor proveedor de embeddings disponible en el dispositivo.
+ *
+ * Intenta el modelo on-device (`edge-llm`) y, si no está utilizable, degrada al
+ * proveedor léxico local. **Nunca lanza**: estudiar con recuperación léxica es
+ * preferible a no poder estudiar. El módulo nativo se inyecta en lugar de
+ * importarse para que la app no dependa de él en las pruebas ni en Node.
+ */
+export async function resolveEmbeddingProvider(options: {
+  readonly nativeModule?: EdgeLlmNativeModule | null;
+  readonly fallback?: EmbeddingProvider;
+}): Promise<ResolvedEmbeddingProvider> {
+  const fallback = options.fallback ?? new HashingEmbeddingProvider(256);
+  if (options.nativeModule === undefined) {
+    return {
+      provider: fallback,
+      onDeviceModel: false,
+      degradedReason: null,
+    };
+  }
+
+  const built = await createEdgeLlmProvider({ nativeModule: options.nativeModule });
+  if (!built.ok) {
+    return {
+      provider: fallback,
+      onDeviceModel: false,
+      degradedReason: built.error.message,
+    };
+  }
+
+  return {
+    provider: new FallbackEmbeddingProvider(built.value, fallback),
+    onDeviceModel: true,
+    degradedReason: null,
+  };
+}
+
 /** URL base del backend; configurable por entorno en el build de producción. */
 export const DEFAULT_API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? 'http://localhost:8787';
 
@@ -57,6 +110,8 @@ export interface AppServices {
   readonly picker: DocumentPickerPort;
   readonly reader: FileBytesReader;
   readonly account: AccountService;
+  /** Diagnóstico del proveedor de embeddings en uso. */
+  readonly embedding: ResolvedEmbeddingProvider;
 }
 
 /** Opciones de creación del runtime. */
@@ -73,6 +128,13 @@ export interface CreateServicesOptions {
   readonly credentials?: CredentialStore;
   /** URL base del backend. */
   readonly apiBaseUrl?: string;
+  /** Diagnóstico del proveedor ya resuelto; lo usa `bootstrap`. */
+  readonly embedding?: ResolvedEmbeddingProvider;
+  /**
+   * Módulo nativo `edge-llm` si está disponible en esta compilación.
+   * `null` o ausente significa «no hay modelo on-device»: se usa el léxico.
+   */
+  readonly nativeModule?: EdgeLlmNativeModule | null;
 }
 
 /**
@@ -84,6 +146,13 @@ export interface CreateServicesOptions {
  */
 export function createServices(options: CreateServicesOptions): AppServices {
   const provider = options.provider ?? new HashingEmbeddingProvider(256);
+  // Sin diagnóstico explícito, el proveedor inyectado es el que manda: solo se
+  // considera «modelo on-device» si no es el léxico por defecto.
+  const embedding: ResolvedEmbeddingProvider = options.embedding ?? {
+    provider,
+    onDeviceModel: provider.isOnDevice && provider.id !== 'hashing-local',
+    degradedReason: null,
+  };
   const store = options.vectorStore ?? new InMemoryVectorStore();
   const rag = new RagEngine(store, provider);
   const ingestion = new DocumentIngestionService(defaultRegistry(fflateInflate), rag);
@@ -104,6 +173,7 @@ export function createServices(options: CreateServicesOptions): AppServices {
     picker: options.picker,
     reader: options.reader,
     account,
+    embedding,
   };
 }
 
@@ -129,10 +199,20 @@ export async function bootstrap(
     options.openDatabase,
     options.databaseName ?? 'socracia.db',
   );
+  // Se resuelve aquí, y no en `createServices`, porque el sondeo del módulo
+  // nativo es asíncrono. Si el modelo on-device no está utilizable, se degrada
+  // al proveedor léxico y el motivo queda visible en `services.embedding`.
+  const embedding =
+    options.embedding ??
+    (await resolveEmbeddingProvider({
+      nativeModule: options.nativeModule ?? null,
+      fallback: options.provider ?? new HashingEmbeddingProvider(256),
+    }));
   const services = createServices({
     ...options,
     storage,
     credentials: new SqliteCredentialStore(db),
+    embedding,
   });
   await rehydrateIndex(services);
   await services.account.restore();
