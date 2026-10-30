@@ -1,7 +1,8 @@
 import type { Citation, SocraticQuestion, UserAnswer } from '../../domain/types';
 import { DEFAULT_THRESHOLDS } from '../../mayeu/evaluate';
-import { LlmAnswerEvaluator, parseEvaluation, type EvaluationPassage } from '../evaluator';
+import { LlmAnswerEvaluator, parseEvaluation } from '../evaluator';
 import { FakeLlmProvider } from '../fakeProvider';
+import type { LlmPassage } from '../types';
 
 const NOW = 1_700_000_000_000;
 
@@ -33,7 +34,7 @@ const answer: UserAnswer = {
   latencyMs: 1200,
 };
 
-const passages: EvaluationPassage[] = [{ citation }];
+const passages: LlmPassage[] = [{ citation }];
 
 describe('LlmAnswerEvaluator', () => {
   it('evalúa con veredicto, puntuación, razonamiento y cita verificable', async () => {

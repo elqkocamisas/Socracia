@@ -14,18 +14,28 @@
  *   aplica el respaldo heurístico.
  */
 
-import type { AnswerEvaluation, AnswerVerdict, Citation, SocraticQuestion, UserAnswer } from '../domain/types';
+import type {
+  AnswerEvaluation,
+  AnswerVerdict,
+  Citation,
+  SocraticQuestion,
+  UserAnswer,
+} from '../domain/types';
 import type { Result } from '../result';
 import { err, ok } from '../result';
 import { DEFAULT_THRESHOLDS, type EvaluationThresholds } from '../mayeu/evaluate';
-import { describeSchemaError, extractJsonObject, numberInRange, oneOf, record, uniqueStrings, type SchemaError } from './json';
+import {
+  describeSchemaError,
+  extractJsonObject,
+  numberInRange,
+  oneOf,
+  record,
+  uniqueStrings,
+  type SchemaError,
+} from './json';
 import { evaluationPrompt } from './prompts';
-import type { LlmError, LlmProvider } from './types';
-
-/** Fragmento candidato a respaldar la evaluación. */
-export interface EvaluationPassage {
-  readonly citation: Citation;
-}
+import type { AnswerEvaluatorPort } from './ports';
+import type { LlmError, LlmPassage, LlmProvider } from './types';
 
 /** Opciones del evaluador semántico. */
 export interface LlmEvaluatorOptions {
@@ -49,11 +59,15 @@ export const DEFAULT_EVALUATOR_OPTIONS: LlmEvaluatorOptions = {
  * una `AnswerEvaluation`. No decide cuándo usarse ni aplica el respaldo; eso es
  * responsabilidad de la sesión, que conoce el consentimiento y el presupuesto.
  */
-export class LlmAnswerEvaluator {
+export class LlmAnswerEvaluator implements AnswerEvaluatorPort {
+  public readonly id: string;
+
   public constructor(
     private readonly provider: LlmProvider,
     private readonly options: LlmEvaluatorOptions = DEFAULT_EVALUATOR_OPTIONS,
-  ) {}
+  ) {
+    this.id = `llm-evaluator:${provider.id}`;
+  }
 
   /**
    * Evalúa una respuesta contra los pasajes recuperados.
@@ -65,7 +79,7 @@ export class LlmAnswerEvaluator {
   public async evaluate(
     question: SocraticQuestion,
     answer: UserAnswer | null,
-    passages: readonly EvaluationPassage[],
+    passages: readonly LlmPassage[],
   ): Promise<Result<AnswerEvaluation, LlmError>> {
     const text = answer?.text.trim() ?? '';
     const sent = passages.slice(0, this.options.maxPassages);
@@ -125,7 +139,7 @@ const VERDICTS = ['correcta', 'parcial', 'incorrecta', 'sin-respuesta'] as const
 export function parseEvaluation(
   raw: string,
   question: SocraticQuestion,
-  passages: readonly EvaluationPassage[],
+  passages: readonly LlmPassage[],
   thresholds: EvaluationThresholds,
 ): Result<AnswerEvaluation, SchemaError> {
   const extracted = extractJsonObject(raw);
@@ -171,7 +185,7 @@ export function parseEvaluation(
 function buildEvaluation(
   raw: RawEvaluation,
   question: SocraticQuestion,
-  passages: readonly EvaluationPassage[],
+  passages: readonly LlmPassage[],
   thresholds: EvaluationThresholds,
 ): AnswerEvaluation {
   // La puntuación manda sobre el veredicto declarado: se reclasifica con los
@@ -211,7 +225,7 @@ function classify(score: number, thresholds: EvaluationThresholds): AnswerVerdic
  */
 function resolveCitation(
   chunkId: string | null,
-  passages: readonly EvaluationPassage[],
+  passages: readonly LlmPassage[],
 ): Citation | null {
   if (chunkId === null) {
     return null;

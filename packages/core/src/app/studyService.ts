@@ -43,11 +43,16 @@ export const DEFAULT_STUDY_OPTIONS: StudyServiceOptions = {
   persistGaps: true,
 };
 
-/** Sesión de estudio lista para consumir desde la UI. */
+/** Servicio de estudio listo para consumir desde la UI. */
 export interface ActiveStudySession {
   readonly session: StudySession;
   readonly engine: MayeuticSessionEngine;
   readonly steps: readonly ItineraryStep[];
+  /**
+   * `true` si esta sesión evaluará con modelo. Lo decide la composición: si no
+   * hay evaluador inyectado, es `false` y todo funciona con la heurística.
+   */
+  readonly usesModel: boolean;
 }
 
 /** Error de dominio del servicio de estudio. */
@@ -118,7 +123,7 @@ export class StudyService {
     );
     await this.storage.progress.saveSession(session);
 
-    return ok({ session, engine, steps });
+    return ok({ session, engine, steps, usesModel: this.options.session.evaluator !== undefined });
   }
 
   /**
@@ -134,7 +139,9 @@ export class StudyService {
     latencyMs: number,
     now: Timestamp,
   ): Promise<SessionTurn> {
-    const turn = active.engine.submit(text, latencyMs, now);
+    const turn = active.usesModel
+      ? await active.engine.submitAsync(text, latencyMs, now)
+      : active.engine.submit(text, latencyMs, now);
     await this.storage.progress.appendEvaluations(userId, [turn.evaluation]);
     await this.storage.progress.saveReviewStates(userId, active.engine.reviewStates());
     // El avance se persiste para poder reanudar o sincronizar la sesión sin

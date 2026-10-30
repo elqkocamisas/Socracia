@@ -1,3 +1,4 @@
+import type { Citation } from '../domain/types';
 import type { Result } from '../result';
 
 /**
@@ -66,4 +67,14 @@ export interface LlmProvider {
   /** Modelo concreto; vacío si el adaptador no lo expone. */
   readonly model: string;
   complete(request: LlmCompletionRequest): Promise<Result<LlmCompletion, LlmError>>;
+}
+
+/**
+ * Fragmento candidato a respaldar una evaluación o una explicación.
+ *
+ * Se declara aquí, junto al puerto, para que quien compone (la sesión, la API)
+ * pueda pasarlos sin depender del evaluador concreto.
+ */
+export interface LlmPassage {
+  readonly citation: Citation;
 }
