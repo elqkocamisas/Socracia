@@ -5,6 +5,7 @@ import type { ProgressSnapshot } from '@socracia/core';
 
 import type { MayeuticAiService } from '../../mayeutic';
 import { AuthService } from '../../auth';
+import type { CorsOptions } from '../../cors';
 import { InMemoryProgressStore } from '../../store';
 import { createApiServer, defaultDependencies } from '../../server';
 
@@ -33,15 +34,23 @@ export async function startApi(server: Server): Promise<RunningApi> {
 }
 
 /** Crea un servidor de pruebas con almacén en memoria. */
-export function testServer(mayeuticAi?: MayeuticAiService): {
+export function testServer(
+  options: { cors?: CorsOptions; mayeuticAi?: MayeuticAiService } | MayeuticAiService = {},
+): {
   server: Server;
   store: InMemoryProgressStore;
 } {
   const store = new InMemoryProgressStore();
+  const cfg =
+    typeof options === 'object' && options !== null && 'generateQuestions' in options
+      ? { mayeuticAi: options as MayeuticAiService }
+      : (options as { cors?: CorsOptions; mayeuticAi?: MayeuticAiService } | undefined) ?? {};
+
   const server = createApiServer({
     auth: new AuthService(),
     store,
-    ...(mayeuticAi ? { mayeuticAi } : {}),
+    ...(cfg.mayeuticAi ? { mayeuticAi: cfg.mayeuticAi } : {}),
+    ...(cfg.cors ? { cors: cfg.cors } : {}),
   });
   return { server, store };
 }

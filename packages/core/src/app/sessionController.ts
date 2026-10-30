@@ -122,17 +122,8 @@ export class MayeuticSessionController {
       return ok(this.view ?? this.buildView(null));
     }
 
-    const answered = await this.study.answer(this.active, this.userId, text, latencyMs, now);
-    if (!answered.ok) {
-      return err<SessionControllerError>({
-        code:
-          answered.error.code === 'evaluacion-fallida'
-            ? 'evaluacion-fallida'
-            : 'preparacion-fallida',
-        message: answered.error.message,
-      });
-    }
-    this.view = this.buildView(answered.value);
+    const turn = await this.study.answer(this.active, this.userId, text, latencyMs, now);
+    this.view = this.buildView(turn);
     return ok(this.view);
   }
 

@@ -8,6 +8,8 @@ import type {
   Timestamp,
 } from '../domain/types';
 import type { ExtractedCurriculum } from '../ingest/conceptExtractor';
+import type { QuestionGeneratorPort } from '../llm/ports';
+import type { LlmPassage } from '../llm/types';
 import type { Result } from '../result';
 import { err, ok } from '../result';
 import { buildItinerary, startSession, type ItineraryStep } from '../mayeu/itinerary';
@@ -22,7 +24,6 @@ import {
   type SessionTurn,
 } from '../mayeu/session';
 import { DEFAULT_THRESHOLDS } from '../mayeu/evaluate';
-import type { MayeuticSemanticProvider } from '../mayeu/semanticProvider';
 import type { RagEngine } from '../rag/engine';
 import type { StoragePort } from '../storage/ports';
 import { buildProgressOverview, nextActionHint, type ProgressOverview } from './progressService';
@@ -35,6 +36,20 @@ export interface StudyServiceOptions {
   readonly questionsPerConcept: number;
   /** Persiste el perfil de lagunas al refrescar el progreso. */
   readonly persistGaps: boolean;
+  /**
+   * Generador de preguntas con modelo. Opcional: si falta, se usa el generador
+   * por plantillas del RAG. El modo principal cuando existe y hay consentimiento;
+   * la plantilla es el respaldo.
+   */
+  readonly questionGenerator?: QuestionGeneratorPort;
+  /**
+   * Recupera los pasajes que respaldan a un concepto, para anclar la generación
+   * y la evaluación. Sin esto, el generador de modelo no se usa.
+   */
+  readonly retrievePassages?: (
+    concept: Concept,
+    documents: readonly KnowledgeDocument[],
+  ) => Promise<readonly LlmPassage[]>;
 }
 
 export const DEFAULT_STUDY_OPTIONS: StudyServiceOptions = {
@@ -44,17 +59,21 @@ export const DEFAULT_STUDY_OPTIONS: StudyServiceOptions = {
   persistGaps: true,
 };
 
-/** Sesión de estudio lista para consumir desde la UI. */
+/** Servicio de estudio listo para consumir desde la UI. */
 export interface ActiveStudySession {
   readonly session: StudySession;
   readonly engine: MayeuticSessionEngine;
   readonly steps: readonly ItineraryStep[];
-  readonly documents: readonly KnowledgeDocument[];
+  /**
+   * `true` si esta sesión evaluará con modelo. Lo decide la composición: si no
+   * hay evaluador inyectado, es `false` y todo funciona con la heurística.
+   */
+  readonly usesModel: boolean;
 }
 
 /** Error de dominio del servicio de estudio. */
 export interface StudyError {
-  readonly code: 'sin-conceptos' | 'generacion-fallida' | 'evaluacion-fallida';
+  readonly code: 'sin-conceptos' | 'generacion-fallida';
   readonly message: string;
 }
 
@@ -70,7 +89,6 @@ export class StudyService {
     private readonly rag: RagEngine,
     private readonly storage: StoragePort,
     private readonly options: StudyServiceOptions = DEFAULT_STUDY_OPTIONS,
-    private readonly semanticProvider?: MayeuticSemanticProvider,
   ) {}
 
   /**
@@ -112,16 +130,22 @@ export class StudyService {
     }
 
     const session = startSession(sessionId, userId, curriculum.topics[0]?.id ?? 'tema', steps, now);
+    // Los pasajes que respaldan cada pregunta son su propia cita: es el único
+    // fragmento que el RAG asoció al concepto, así que es lo único que hace
+    // falta enviar al evaluador. Nunca sale el documento completo.
+    const sessionOptions: SessionEngineOptions = this.options.session.evaluator
+      ? { ...this.options.session, passages: (question) => [{ citation: question.citation }] }
+      : this.options.session;
     const engine = new MayeuticSessionEngine(
       session,
       steps,
       curriculum.concepts,
-      this.options.session,
+      sessionOptions,
       now,
     );
     await this.storage.progress.saveSession(session);
 
-    return ok({ session, engine, steps, documents });
+    return ok({ session, engine, steps, usesModel: this.options.session.evaluator !== undefined });
   }
 
   /**
@@ -136,42 +160,16 @@ export class StudyService {
     text: string,
     latencyMs: number,
     now: Timestamp,
-  ): Promise<Result<SessionTurn, StudyError>> {
-    const question = active.engine.currentQuestion();
-    if (!question) {
-      return err<StudyError>({
-        code: 'evaluacion-fallida',
-        message: 'No hay una pregunta activa para evaluar.',
-      });
-    }
-
-    const document = active.documents.find(
-      (candidate) => candidate.id === question.citation.documentId,
-    );
-    let assessment;
-    if (text.trim().length > 0 && document && this.semanticProvider?.canProcess(document)) {
-      const evaluated = await this.semanticProvider.evaluateAnswer(question, {
-        questionId: question.id,
-        text,
-        answeredAt: now,
-        latencyMs,
-      });
-      if (!evaluated.ok) {
-        return err<StudyError>({
-          code: 'evaluacion-fallida',
-          message: `No se pudo evaluar semánticamente la respuesta: ${evaluated.error.message}`,
-        });
-      }
-      assessment = evaluated.value;
-    }
-
-    const turn = active.engine.submit(text, latencyMs, now, assessment);
+  ): Promise<SessionTurn> {
+    const turn = active.usesModel
+      ? await active.engine.submitAsync(text, latencyMs, now)
+      : active.engine.submit(text, latencyMs, now);
     await this.storage.progress.appendEvaluations(userId, [turn.evaluation]);
     await this.storage.progress.saveReviewStates(userId, active.engine.reviewStates());
     // El avance se persiste para poder reanudar o sincronizar la sesión sin
     // depender del estado en memoria de la UI.
     await this.storage.progress.saveSession(active.engine.snapshot());
-    return ok(turn);
+    return turn;
   }
 
   /**
@@ -215,44 +213,11 @@ export class StudyService {
     const items: Array<{ concept: Concept; questions: SocraticQuestion[] }> = [];
 
     for (const concept of concepts) {
-      const generated = await this.rag.generateConceptQuestions(
-        concept,
-        documents,
-        this.options.questions,
-        this.options.questionsPerConcept,
-      );
+      const generated = await this.generateForConcept(concept, documents);
       if (!generated.ok) {
         return err<StudyError>({ code: 'generacion-fallida', message: generated.error.message });
       }
-      let questions = generated.value;
-      const citation = questions[0]?.citation;
-      const sourceDocument = citation
-        ? documents.find((document) => document.id === citation.documentId)
-        : undefined;
-      if (citation && sourceDocument && this.semanticProvider?.canProcess(sourceDocument)) {
-        const semanticOptions = {
-          ...this.options.questions,
-          maxPerConcept: this.options.questionsPerConcept,
-        };
-        const semantic = await this.semanticProvider.generateQuestions(
-          concept,
-          citation,
-          semanticOptions,
-        );
-        if (!semantic.ok) {
-          return err<StudyError>({
-            code: 'generacion-fallida',
-            message: `No se pudieron generar preguntas semánticas: ${semantic.error.message}`,
-          });
-        }
-        questions = semantic.value.map((draft, index) => ({
-          ...draft,
-          id: `${concept.id}:llm:q${index}`,
-          conceptId: concept.id,
-          citation,
-        }));
-      }
-      const { accepted } = filterNonTrivial(questions);
+      const { accepted } = filterNonTrivial(generated.value);
       if (accepted.length > 0) {
         await this.storage.questions.saveQuestions(accepted);
         items.push({ concept, questions: [...accepted] });
@@ -260,6 +225,47 @@ export class StudyService {
     }
 
     return ok(items);
+  }
+
+  /**
+   * Genera las preguntas de un concepto, con modelo si está disponible.
+   *
+   * Orden de preferencia: si hay generador y forma de recuperar pasajes, se pide
+   * la pregunta al modelo; si no produce ninguna válida (o falla), se usa el
+   * generador por plantillas del RAG. Nunca se queda sin preguntas por un fallo
+   * del modelo.
+   */
+  private async generateForConcept(
+    concept: Concept,
+    documents: readonly KnowledgeDocument[],
+  ): Promise<Result<SocraticQuestion[], Error>> {
+    const generator = this.options.questionGenerator;
+    const retrieve = this.options.retrievePassages;
+
+    if (generator && retrieve) {
+      const passages = await retrieve(concept, documents);
+      if (passages.length > 0) {
+        const generated = await generator.generate(
+          {
+            conceptId: concept.id,
+            conceptLabel: concept.label,
+            conceptDefinition: concept.definition,
+            keyTerms: concept.keywords,
+          },
+          passages,
+        );
+        if (generated.ok && generated.value.length > 0) {
+          return ok(generated.value);
+        }
+      }
+    }
+
+    return this.rag.generateConceptQuestions(
+      concept,
+      documents,
+      this.options.questions,
+      this.options.questionsPerConcept,
+    );
   }
 
   /** Recupera las evaluaciones acumuladas, útil para resúmenes. */

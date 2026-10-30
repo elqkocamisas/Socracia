@@ -3,6 +3,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import type {
   Citation,
   Concept,
+  LlmProvider,
   ProgressSnapshot,
   Result,
   SocraticQuestion,
@@ -10,6 +11,8 @@ import type {
 } from '@socracia/core';
 
 import { AuthService, type AuthResult } from './auth';
+import { corsHeaders, type CorsOptions } from './cors';
+import { routeLlmCompletion } from './llm';
 import { GeminiMayeuticService, type MayeuticAiService } from './mayeutic';
 import { InMemoryProgressStore, type ProgressStore } from './store';
 import { isValidationError, parseSnapshot } from './validation';
@@ -19,6 +22,13 @@ export interface ApiDependencies {
   readonly auth: AuthService;
   readonly store: ProgressStore;
   readonly mayeuticAi?: MayeuticAiService;
+  /**
+   * Proveedor de lenguaje. `null` en el MVP sin clave: la ruta responde 503 y
+   * la app cae a su modo local, que es el comportamiento por defecto.
+   */
+  readonly llm?: LlmProvider | null;
+  /** Orígenes autorizados para el cliente web. Por defecto, cualquiera. */
+  readonly cors?: CorsOptions;
 }
 
 /** Crea las dependencias por defecto del MVP. */
@@ -27,6 +37,7 @@ export function defaultDependencies(): ApiDependencies {
     auth: new AuthService(),
     store: new InMemoryProgressStore(),
     mayeuticAi: new GeminiMayeuticService(),
+    llm: null,
   };
 }
 
@@ -68,6 +79,9 @@ export function createApiServer(deps: ApiDependencies = defaultDependencies()): 
   return createServer(createRequestHandler(deps));
 }
 
+/** CORS por defecto: cualquier origen (ver `cors.ts` para el razonamiento). */
+const DEFAULT_CORS: CorsOptions = { origins: '*' };
+
 async function route(
   deps: ApiDependencies,
   req: IncomingMessage,
@@ -75,6 +89,24 @@ async function route(
 ): Promise<void> {
   const url = new URL(req.url ?? '/', 'http://localhost');
   const method = req.method ?? 'GET';
+
+  // Las cabeceras se fijan antes de responder: `sendJson` usa `writeHead`, que
+  // Node fusiona con lo ya fijado, así que valen para todas las respuestas
+  // (incluido el 404 y el 500) sin tocar cada llamada.
+  for (const [name, value] of Object.entries(
+    corsHeaders(req.headers.origin, deps.cors ?? DEFAULT_CORS),
+  )) {
+    res.setHeader(name, value);
+  }
+
+  // Preflight del cliente web: se responde aquí porque el enrutador no conoce
+  // `OPTIONS` y sin esto toda petición con `Authorization` moría con un 404
+  // antes de salir del navegador.
+  if (method === 'OPTIONS') {
+    res.writeHead(204);
+    res.end();
+    return;
+  }
 
   if (method === 'GET' && url.pathname === '/health') {
     sendJson(res, 200, { status: 'ok' });
@@ -157,6 +189,7 @@ async function route(
     return;
   }
 
+  // Ruta semántica del motor de tutoría: un asistente opcional con Gemini.
   if (
     method === 'POST' &&
     (url.pathname === '/mayeutic/generate' || url.pathname === '/mayeutic/evaluate')
@@ -202,6 +235,25 @@ async function route(
     const result = await deps.mayeuticAi.evaluateAnswer(input.question, input.answer);
     sendAiResult(res, result);
     return;
+  }
+
+  // El asistente con modelo exige sesión: es un recurso con coste y no debe
+  // quedar abierto. La app funciona sin él, así que 401 aquí no rompe nada.
+  if (method === 'POST' && url.pathname === '/llm/complete') {
+    const userId = authenticate(deps, req, res);
+    if (!userId) {
+      return;
+    }
+    const outcome = await routeLlmCompletion(
+      deps.llm ?? null,
+      url.pathname,
+      method,
+      await readJson(req),
+    );
+    if (outcome.handled) {
+      sendJson(res, outcome.status, outcome.payload);
+      return;
+    }
   }
 
   sendJson(res, 404, {

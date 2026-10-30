@@ -75,6 +75,15 @@ impiden la subida.
       nube, actualice `store/privacy-declarations.json` y el apartado 2.1 de la
       política **en el mismo envío**: declarar «no se transmiten documentos» con
       la nube activada es una declaración falsa.
+- [ ] **Asistente con modelo (bloqueante si no coincide).** El motor puede
+      enviar la pregunta, la respuesta del alumno y el fragmento citado al
+      backend. Compruebe que el build que envía tiene el asistente **desactivado
+      por defecto** y que `privacy-declarations.json` declara esa transmisión.
+      La prueba `storeListing.test.ts` falla si el motor existe en el código y la
+      declaración no lo menciona, o al revés.
+- [ ] Si despliega el backend del asistente, documente el proveedor del modelo y
+      la base jurídica del apartado 4 de la política (consentimiento explícito).
+      El servidor no debe registrar ni almacenar el contenido recibido.
 - [ ] Si despliega la API: documente el proveedor de alojamiento y si implica
       transferencia internacional de datos (sección 6 de la política).
 

@@ -1,8 +1,8 @@
 {
-  "declarado": "30 de octubre de 2026",
-  "resumen": "La app no hace seguimiento. El progreso agregado sale al sincronizar una cuenta; fragmentos de documentos y respuestas se envían al backend y Gemini API solo con autorización explícita.",
+  "declarado": "28 de octubre de 2026",
+  "resumen": "La app no hace seguimiento. Con el modo por defecto no sale nada del dispositivo salvo el progreso agregado, y solo si el usuario crea una cuenta y sincroniza. Si el usuario autoriza el asistente con modelo, la pregunta, su respuesta y el fragmento citado se transmiten de forma transitoria para evaluar y redactar.",
   "appStore": {
-    "nota": "Declarar Contact Info y User Content en App Store Connect. El contenido semántico solo se transmite con cuenta y autorizaciones explícitas.",
+    "nota": "Sección «App Privacy» de App Store Connect. «Data Not Collected» se justifica porque los datos del usuario no llegan a nuestros servidores salvo que cree una cuenta o autorice el asistente con modelo.",
     "seguimiento": false,
     "datosVinculadosAlUsuario": [
       {
@@ -15,18 +15,27 @@
         "tipo": "User Content → Other User Content",
         "recogido": true,
         "finalidad": ["App Functionality"],
-        "cuando": "Progreso agregado al sincronizar; fragmentos citados y respuestas al usar el procesamiento semántico autorizado.",
-        "nota": "Los fragmentos y respuestas solo se envían con procesamiento en nube habilitado y consentimiento por documento."
+        "cuando": "Progreso de estudio agregado, solo si el usuario crea una cuenta y sincroniza. No incluye documentos.",
+        "nota": "Se declara porque el progreso se vincula a la cuenta. Los documentos adjuntos NO se declaran: no salen del dispositivo."
+      },
+      {
+        "tipo": "User Content → Other User Content (asistente con modelo)",
+        "recogido": true,
+        "finalidad": ["App Functionality"],
+        "cuando": "Solo si el usuario autoriza el asistente con modelo en «Cuenta → Privacidad».",
+        "nota": "Se envían la pregunta, la respuesta del alumno, la referencia y el fragmento citado del temario. El servidor los trata de forma transitoria y no los almacena. La revocación del permiso es inmediata.",
+        "vinculado": true,
+        "transitorio": true
       }
     ],
     "datosNoVinculadosAlUsuario": [],
     "datosUsadosParaSeguimiento": [],
-    "notaSobreDocumentos": "El documento completo nunca se transmite. Fragmentos citados y respuestas sí se envían a Gemini API únicamente con autorización explícita y deben declararse como contenido del usuario."
+    "notaSobreDocumentos": "Los PDF, TXT y MD que adjunta el usuario se procesan en el dispositivo y el documento completo nunca se transmite. Si el usuario autoriza el asistente con modelo, puede transmitirse el fragmento concreto que respalda una pregunta, junto con esa pregunta; sin esa autorización, no sale ningún fragmento."
   },
   "googlePlay": {
     "nota": "Sección «Data safety» de Play Console.",
     "recogeDatos": true,
-    "comparteConTerceros": true,
+    "comparteConTerceros": false,
     "datosCifradosEnTransito": true,
     "usuarioPuedeSolicitarBorrado": true,
     "tipos": [
@@ -48,13 +57,14 @@
         "finalidad": ["Funcionalidad de la app"]
       },
       {
-        "categoria": "Archivos y documentos",
-        "tipo": "Fragmentos del documento adjunto",
-        "detalle": "Solo fragmentos citados y contexto del concepto; no se envía el documento completo.",
+        "categoria": "Actividad en la app",
+        "tipo": "Otra actividad en la app (asistente con modelo)",
+        "detalle": "Pregunta, respuesta del alumno, referencia y fragmento citado, transmitidos de forma transitoria para evaluar y redactar con modelo. No se almacenan en el servidor.",
         "recogido": true,
-        "compartido": true,
+        "compartido": false,
         "procesamiento": "Opcional",
-        "finalidad": ["Funcionalidad de la app"]
+        "finalidad": ["Funcionalidad de la app"],
+        "nota": "Se recoge solo con consentimiento explícito, revocable en cualquier momento."
       }
     ],
     "noRecogidos": [
@@ -64,14 +74,15 @@
       "Salud y fitness",
       "Mensajes",
       "Fotos y vídeos",
+      "Archivos y documentos",
       "Contactos",
       "Calendario",
       "Actividad web",
       "Diagnóstico y fallos"
     ],
-    "notaArchivos": "El documento completo se lee en el dispositivo. Fragmentos citados se comparten con Gemini API solo si el usuario inicia sesión, habilita nube y autoriza el documento. En la cuota gratuita Google puede usar el contenido para mejorar sus productos.",
+    "notaArchivos": "«Archivos y documentos» se marca como no recogido: los ficheros que adjunta el usuario se leen en el dispositivo y no se suben como fichero. Si el usuario autoriza el asistente con modelo, puede transmitirse un fragmento de texto concreto de ese material, ya declarado arriba como otra actividad en la app.",
     "permisos": {
-      "INTERNET": "Para sincronización opcional y procesamiento semántico en nube, ambos bajo acciones explícitas del usuario.",
+      "INTERNET": "Para la sincronización opcional de la cuenta y para el asistente con modelo, si el usuario lo autoriza. La app funciona completa sin conexión, sin cuenta y con el asistente desactivado.",
       "ACCESS_NETWORK_STATE": "Solo para detectar si hay conexión antes de sincronizar.",
       "bloqueados": [
         "ACCESS_FINE_LOCATION",

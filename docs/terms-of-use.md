@@ -1,6 +1,6 @@
 # Términos de uso de Socracia
 
-**Última actualización:** 30 de octubre de 2026
+**Última actualización:** 28 de octubre de 2026
 
 Estos términos regulan el uso de la aplicación Socracia (`com.socracia.app`). Al
 instalarla y usarla, el usuario acepta lo aquí descrito.
@@ -33,18 +33,32 @@ declara que:
 - no sube contenido ilícito, ni datos personales de terceros sin base para ello,
   ni material protegido por derechos de autor que no esté autorizado a usar.
 
-La aplicación no aloja ni redistribuye esos documentos. De forma predeterminada
-se procesan en el dispositivo. Si el usuario inicia sesión, activa el
-procesamiento en nube y autoriza un documento al importarlo, fragmentos citados
-y respuestas se envían al backend y a Gemini API para generar preguntas y
-evaluarlas; el documento completo no se transmite. En la cuota gratuita Google
-puede usar el contenido enviado para mejorar sus productos; no use esa modalidad
-con material sensible. Cada pregunta muestra el
-fragmento y el documento del que procede, para que el usuario pueda trazar de
-dónde sale cada afirmación.
+La aplicación **no** aloja ni redistribuye esos documentos: se procesan en el
+dispositivo del usuario. Como se explica en la política de privacidad, si el
+usuario autoriza el asistente con modelo, el fragmento concreto que respalda cada
+pregunta —nunca el documento entero— se envía de forma transitoria para redactar
+o evaluar esa pregunta. Cada pregunta muestra el fragmento y el documento del que
+procede, para que el usuario pueda trazar de dónde sale cada afirmación.
 
 Si el usuario cree que un contenido infringe derechos de autor, puede escribir a
 legal@socracia.app.
+
+## 3 bis. Contenido generado con modelo
+
+Cuando el asistente con modelo está autorizado, las preguntas, las repreguntas y
+las explicaciones pueden redactarse con un modelo de lenguaje, y la evaluación de
+la respuesta puede hacerla el modelo en lugar de la lógica del dispositivo. El
+usuario debe saber que:
+
+- el texto puede contener imprecisiones aunque el fragmento citado exista, y debe
+  contrastarlo con las fuentes oficiales del temario;
+- la cita que acompaña a cada afirmación se limita a fragmentos del material del
+  usuario, de modo que la trazabilidad se mantiene;
+- si no autoriza el asistente, la app evalúa y redacta en el dispositivo con
+  plantillas y reglas, sin enviar nada.
+
+La app muestra si el asistente está activo y permite desactivarlo en cualquier
+momento desde «Cuenta → Privacidad».
 
 ## 4. Cuenta
 

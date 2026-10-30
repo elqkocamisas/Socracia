@@ -92,6 +92,19 @@ async function handle(
     send(res, 200, { status: 'eliminada' });
     return;
   }
+  if (url.pathname === '/llm/complete' && req.method === 'POST') {
+    // Reproduce el contrato de la ruta real: 503 si el servidor no tiene
+    // modelo, eco del `purpose` como prueba de que el cuerpo viaja entero.
+    if (process.env.FAKE_API_LLM === 'off') {
+      send(res, 503, { message: 'sin modelo' });
+      return;
+    }
+    send(res, 200, {
+      text: JSON.stringify({ verdict: 'correcta', purpose: String(json.purpose ?? '') }),
+      model: 'fake-1',
+    });
+    return;
+  }
   send(res, 404, { message: 'no encontrado' });
 }
 

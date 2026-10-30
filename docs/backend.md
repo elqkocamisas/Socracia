@@ -32,24 +32,21 @@ implementa `HttpSyncClient`, en las pruebas un servidor en memoria.
 
 ## Endpoints
 
-| Método | Ruta                 | Cuerpo                                                 | Respuesta                          |
-| ------ | -------------------- | ------------------------------------------------------ | ---------------------------------- |
-| GET    | `/health`            | —                                                      | `{ "status": "ok" }`               |
-| POST   | `/auth/register`     | `{ email, password }`                                  | `{ token, userId }`                |
-| POST   | `/auth/login`        | `{ email, password }`                                  | `{ token, userId }`                |
-| POST   | `/auth/logout`       | — (con `Authorization`)                                | `{ "status": "cerrado" }`          |
-| DELETE | `/account`           | — (con `Authorization`)                                | `{ "status": "eliminada" }`        |
-| POST   | `/sync/push`         | `ProgressSnapshot` (con `Authorization`)               | `ProgressSnapshot` fusionada       |
-| GET    | `/sync/pull`         | — (con `Authorization`)                                | `ProgressSnapshot` guardada        |
-| POST   | `/mayeutic/generate` | Concepto y fragmento citado (con `Authorization`)      | Preguntas socráticas estructuradas |
-| POST   | `/mayeutic/evaluate` | Pregunta, referencia y respuesta (con `Authorization`) | Evaluación semántica estructurada  |
+| Método  | Ruta             | Cuerpo                                   | Respuesta                    |
+| ------- | ---------------- | ---------------------------------------- | ---------------------------- |
+| GET     | `/health`        | —                                        | `{ "status": "ok" }`         |
+| POST    | `/auth/register` | `{ email, password }`                    | `{ token, userId }`          |
+| POST    | `/auth/login`    | `{ email, password }`                    | `{ token, userId }`          |
+| POST    | `/auth/logout`   | — (con `Authorization`)                  | `{ "status": "cerrado" }`    |
+| DELETE  | `/account`       | — (con `Authorization`)                  | `{ "status": "eliminada" }`  |
+| POST    | `/sync/push`     | `ProgressSnapshot` (con `Authorization`) | `ProgressSnapshot` fusionada |
+| GET     | `/sync/pull`     | — (con `Authorization`)                  | `ProgressSnapshot` guardada  |
+| OPTIONS | cualquiera       | —                                        | `204` sin cuerpo (preflight) |
 
 Autenticación por `Authorization: Bearer <token>`. Códigos de error:
 
 - `400 datos-invalidos` — falta un campo o la instantánea no es válida.
 - `401 no-autorizado` — token ausente o caducado; también credenciales inválidas.
-- `502 proveedor-semantico` — Gemini no pudo completar una solicitud o devolvió un resultado inválido.
-- `503 proveedor-no-configurado` — no hay un proveedor semántico inyectado en el backend.
 - `409 email-en-uso` / `409 datos-invalidos` — registro rechazado.
 - `404` — ruta desconocida.
 
@@ -61,11 +58,34 @@ Autenticación por `Authorization: Bearer <token>`. Códigos de error:
 - **Contraseñas con `scrypt`** y sal por cuenta, comparadas en tiempo constante.
   Los tokens son aleatorios de 32 bytes y viven en memoria: al reiniciar el
   proceso las sesiones caducan.
-- **Sincronización aislada del contenido.** La sincronización de cuenta solo
-  intercambia progreso. La excepción son las solicitudes mayéuticas autorizadas:
-  llevan fragmentos citados y respuestas al backend y al proveedor LLM, nunca el
-  documento completo. Requieren sesión, nube habilitada y consentimiento
-  registrado en el dispositivo para el documento.
+- **Solo se sincroniza el progreso.** Los documentos y sus fragmentos nunca se
+  envían al servidor.
+
+### CORS (cliente web)
+
+El móvil nativo no necesita CORS: `fetch` desde iOS o Android no aplica la
+política de origen. Pero la app también se compila para **web**, y ahí el
+navegador sí la aplica: sin las cabeceras, el cliente web no puede llamar a la
+API. Antes de D-048, el preflight devolvía `404` y cualquier petición con
+`Authorization` moría antes de salir del navegador.
+
+La API responde al preflight (`OPTIONS`, `204`) y añade las cabeceras a **todas**
+las respuestas, incluidos el `404` y el `500`: si el error no las lleva, el
+navegador oculta el motivo y el cliente solo ve «error de red».
+
+Por defecto se autoriza cualquier origen. La sesión viaja en la cabecera
+`Authorization`, no en cookies, así que el navegador no adjunta credenciales por
+sí solo y una página ajena no puede leer la respuesta autenticada de nadie sin
+poseer ya el token. Nunca se envía `Access-Control-Allow-Credentials`.
+
+Para restringirlo, defina `CORS_ORIGINS` con los orígenes separados por comas:
+
+```bash
+CORS_ORIGINS="https://app.socracia.es,https://staging.socracia.es" node apps/api/dist/index.js
+```
+
+Solo se autoriza un origen que coincida exactamente. `CORS_ORIGINS=,,` (solo
+comas) no autoriza ninguno: un valor mal escrito **cierra** la API, no la abre.
 
 ## Sincronización
 
@@ -98,39 +118,87 @@ PORT=8787 DATA_FILE=./datos.json npm start --workspace @socracia/api
 La app apunta al backend con `EXPO_PUBLIC_API_BASE_URL` (por defecto
 `http://localhost:8787`).
 
-### LLM mayéutico y procesamiento en la nube (opt-in)
+## Despliegue en Render
 
-El backend usa [Gemini API](https://aistudio.google.com/apikey) mediante su interfaz compatible con OpenAI para
-redactar preguntas no triviales a partir de evidencia recuperada y evaluar
-respuestas aceptando paráfrasis. El modelo predeterminado es
-`gemini-3.8-flash`, disponible con cuota gratuita en Google AI Studio sujeta a
-límites variables. El veredicto se calcula en el núcleo a partir de la
-puntuación semántica devuelta; el andamiaje existente sigue sin revelar la
-respuesta.
+### Por qué el servicio servía la app web
 
-Configure `GEMINI_API_KEY` solo en el entorno del backend. `GEMINI_MODEL` permite
-cambiar el modelo compatible; por defecto es `gemini-3.8-flash`. Las rutas
-protegidas `/mayeutic/generate` y `/mayeutic/evaluate` requieren una sesión
-autenticada. Sin clave configurada, el backend devuelve un error explícito; no
-finge una evaluación semántica.
-La cuota gratuita puede agotarse o cambiar; las solicitudes excedentes pueden
-requerir habilitar facturación. En la modalidad gratuita Google puede usar el
-contenido enviado para mejorar sus productos. No envíe material sensible y
-revise las [condiciones vigentes de Gemini API](https://ai.google.dev/gemini-api/terms)
-y sus [límites de uso](https://ai.google.dev/gemini-api/docs/rate-limits) antes
-de desplegar.
+El servicio `socracia` de `socracia.onrender.com` devolvía el cliente web en
+todas las rutas, incluidas `/health` y `/auth/login`. La causa no estaba en el
+repositorio, sino en el **comando de arranque** del servicio. La cadena es:
 
-La app conserva el modo local como predeterminado. Para mostrar el ajuste de
-nube en una compilación, defina `EXPO_PUBLIC_CLOUD_PROCESSING=1`; además, el
-usuario debe iniciar sesión, activar el ajuste y luego importar el documento.
-Solo entonces se envían fragmentos citados, datos del concepto y respuestas a
-la API y a Gemini. El documento completo y los embeddings no se envían. Si una
-sesión remota falla, la app informa del error y no sustituye silenciosamente la
-evaluación por una heurística local.
+```
+Render (sin Start Command)  →  npm start           (raíz del monorepo)
+  →  npm run start --workspace @socracia/mobile
+    →  expo start                                   ← servidor de desarrollo
+```
+
+`npm start` en la raíz arranca Expo, que es lo correcto para desarrollar la app,
+pero no para un servicio web. La prueba está en el propio HTML servido: pedía
+`index.ts.bundle?platform=web&dev=true`, que solo lo genera `expo start`.
+
+**Un `push` no arregla esto.** El comando de arranque vive en la configuración
+del servicio, no en el repositorio, así que ningún commit lo cambia.
+
+Para comprobar qué está sirviendo un servicio:
+
+```bash
+curl -s https://<servicio>.onrender.com/health
+```
+
+Debe responder `{"status":"ok"}` con `content-type: application/json`. Si
+devuelve HTML con `<title>Socracia</title>`, ahí está la app web, no la API.
+
+### Arreglarlo
+
+**Opción A — corregir el servicio actual (conserva la URL).** En el panel de
+Render, _Settings → Build & Deploy_:
+
+| Campo             | Valor                                                                                                                |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Build Command     | `npm ci --no-audit --no-fund && npm run build --workspace @socracia/core && npm run build --workspace @socracia/api` |
+| Start Command     | `node apps/api/dist/index.js`                                                                                        |
+| Health Check Path | `/health`                                                                                                            |
+
+El `npm ci` ya ejecuta el `postinstall`, que compila todos los workspaces, pero
+se listan los dos `build` de forma explícita para que el arranque no dependa de
+un script implícito. Tras guardar, _Manual Deploy → Deploy latest commit_.
+
+**Opción B — crear el servicio desde `render.yaml`.** En Render,
+_New → Blueprint_, apunte al repositorio y confirme el servicio `socracia-api`.
+Render lee `render.yaml` y aplica el comando correcto. Ojo: `render.yaml` **no**
+modifica servicios creados a mano; solo lo leen los servicios de tipo Blueprint.
+Si el nombre del Blueprint cambia, la URL cambia con él.
+
+### Conectar la app
+
+Con la URL del servicio en la mano, regístrela en EAS para que el build de
+tienda la lleve embebida:
+
+```bash
+cd apps/mobile
+eas env:create --environment production \
+  --name EXPO_PUBLIC_API_BASE_URL \
+  --value https://<servicio>.onrender.com --visibility plaintext
+```
+
+Sin este paso la app usa `localhost`, que en un teléfono es el propio teléfono.
+
+**Persistencia.** Con el plan gratuito, `DATA_FILE` vive en un sistema de
+archivos efímero y el servicio se suspende sin tráfico. Sirve para verificar el
+despliegue, no para producción. Para conservar el progreso: suba el plan a
+`starter` y descomente el bloque `disk` de `render.yaml`.
+
+### Procesamiento en la nube (opt-in)
+
+Por defecto la app procesa todo en el dispositivo y el ajuste «Cuenta →
+Privacidad» no ofrece la nube: no hay backend de corpus que la ejecute, y
+enseñar un interruptor sin efecto sería un mando muerto. Para un build que sí
+tenga corpus en la nube, defina `EXPO_PUBLIC_CLOUD_PROCESSING=1`; entonces la
+pantalla muestra el ajuste y el usuario puede autorizarlo.
 
 Al activar ese build, actualice en el mismo envío `store/privacy-declarations.json`
-y los textos de `docs/privacy-policy.md` y `docs/terms-of-use.md`. La clave del
-proveedor nunca debe incluirse en la app móvil.
+y el apartado 2.1 de `docs/privacy-policy.md`: declarar que los documentos no se
+transmiten con la nube activada sería una declaración falsa ante las tiendas.
 
 ## Pruebas
 

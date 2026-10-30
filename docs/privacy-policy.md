@@ -1,6 +1,6 @@
 # Política de privacidad de Socracia
 
-**Última actualización:** 30 de octubre de 2026
+**Última actualización:** 28 de octubre de 2026
 
 Socracia es una aplicación de autoaprendizaje basada en la mayéutica. Esta
 política describe qué datos trata la aplicación y con qué finalidad. Está
@@ -9,11 +9,11 @@ cambia, este documento debe cambiar en el mismo pull request.
 
 ## Resumen en una frase
 
-Por defecto, los documentos y las respuestas permanecen en el dispositivo. Si
-el usuario inicia sesión, activa el procesamiento en nube y autoriza un documento,
-se envían fragmentos citados y respuestas al backend y al proveedor Gemini para
-generar preguntas y evaluar respuestas. La sincronización de progreso es una
-acción separada y opcional.
+Los documentos que el usuario adjunta **no se suben** a nuestros servidores: se
+procesan en el dispositivo. Si el usuario lo autoriza expresamente, algunos
+fragmentos del temario y sus respuestas pueden enviarse para que un modelo
+redacte y evalúe las preguntas. Sin esa autorización, no sale nada del
+dispositivo salvo el progreso agregado, y solo si hay cuenta y sincronización.
 
 ## 1. Responsable
 
@@ -30,7 +30,7 @@ real y operativo. Un contacto que no responde es motivo de rechazo en App Store.
 
 ## 2. Qué datos trata la app
 
-### 2.1 Documentos que el usuario adjunta
+### 2.1 Documentos que el usuario adjunta (solo en el dispositivo)
 
 El usuario puede adjuntar ficheros PDF, TXT o MD como temario. La aplicación:
 
@@ -39,32 +39,32 @@ El usuario puede adjuntar ficheros PDF, TXT o MD como temario. La aplicación:
 - guarda los fragmentos y el índice vectorial en una base de datos SQLite local
   (`expo-sqlite`).
 
-En modo **solo-dispositivo**, ningún contenido del documento sale del teléfono.
-El documento completo y sus embeddings nunca se envían. Para usar la generación
-y evaluación semántica, el usuario debe iniciar sesión, activar el ajuste de
-nube y autorizar el documento al importarlo. En ese caso, la app envía al backend
-solo el fragmento citado, la definición y términos del concepto asociado, la
-pregunta y la respuesta escrita por el usuario. El backend los remite a Gemini
-API; la clave de Gemini permanece en el servidor.
+Estos documentos, su texto, sus fragmentos y sus embeddings **no se suben a
+ningún servidor**: no hay ninguna ruta en la API que acepte un documento. Su
+procesamiento —extracción, fragmentación, embeddings e índice— ocurre entero en
+el dispositivo.
 
-El modo predeterminado es **solo-dispositivo**. La autorización se guarda por
-documento al importarlo y no se aplica retroactivamente a documentos anteriores.
-Desactivar el ajuste impide nuevos envíos. El proveedor puede tratar o conservar
-los datos conforme a sus condiciones de API; borrar el documento local no borra
-datos que el proveedor ya haya recibido. La cuota gratuita de Gemini API puede
-usar el contenido enviado para mejorar los productos de Google; no use esta
-modalidad con material sensible. La cuota, los límites y las condiciones pueden
-cambiar, y superar la cuota gratuita puede requerir facturación.
+La única excepción es la del punto 2.3: si el usuario autoriza el asistente con
+modelo, el **fragmento concreto** que respalda cada pregunta viaja junto a esa
+pregunta para que el modelo la redacte o la evalúe. Nunca viaja el documento
+completo. Sin esa autorización, ni siquiera los fragmentos salen del dispositivo.
+
+La app incluye un ajuste de procesamiento en «Cuenta → Privacidad». De fábrica
+está en **solo-dispositivo**, que es el modo descrito aquí. El modo elegido se
+guarda en el dispositivo y cada documento importado registra si se autorizó o no,
+de modo que el usuario puede auditar qué material se procesó fuera.
 
 <!-- dev:nota-interna -->
 
-Antes de habilitar `allow-cloud` en una publicación, revise también:
+El asistente con modelo (punto 2.3) ya existe en el código y es la ruta real por
+la que puede salir contenido. Cuando cambie el modo por defecto, revise también:
 
-- `apps/mobile/store/privacy-declarations.json`;
-- el texto de `docs/terms-of-use.md` sobre contenido de terceros.
+- `apps/mobile/store/privacy-declarations.json` (hoy declara la transmisión
+  transitoria del asistente como recogida solo con consentimiento);
+- el texto de `docs/terms-of-use.md` sobre contenido generado con modelo.
 
-Las declaraciones de tienda deben reflejar la transmisión de fragmentos,
-respuestas y demás contenido del usuario al backend y a Gemini.
+Mientras el ajuste siga en solo-dispositivo por defecto, las declaraciones de
+tienda son correctas tal cual.
 <!-- /dev:nota-interna -->
 
 ### 2.2 Progreso de estudio
@@ -74,10 +74,42 @@ evaluaciones, perfil de lagunas, estado de repaso espaciado y sesiones de estudi
 
 Si el usuario crea una cuenta y pulsa «Sincronizar», se envía a la API
 únicamente el **progreso agregado**: evaluaciones, estado de repaso, sesiones y
-perfil de lagunas, junto con marcas temporales para resolver conflictos. Esto es
-independiente del uso del LLM descrito en 2.1.
+perfil de lagunas, junto con marcas temporales para resolver conflictos. El
+paquete no incluye los documentos ni su texto.
 
-### 2.3 Cuenta (opcional)
+### 2.3 Asistente con modelo (opcional y bajo consentimiento)
+
+La app puede apoyarse en un modelo de lenguaje para evaluar respuestas y redactar
+las preguntas y las repreguntas. Cuando está activo, deja de evaluarse todo en el
+dispositivo y algunas peticiones van a un servidor. Para que eso ocurra hacen
+falta **dos** condiciones a la vez:
+
+1. que la versión instalada tenga habilitado el asistente con modelo, y
+2. que el usuario lo autorice en **«Cuenta → Privacidad»**, que de fábrica está en
+   **solo-dispositivo**.
+
+Cuando el usuario lo autoriza, con cada pregunta que responde se envían al
+servidor:
+
+- el **enunciado de la pregunta** y la **respuesta del alumno**;
+- la **respuesta de referencia** y los **términos clave** del concepto, derivados
+  del temario;
+- el **fragmento del temario** que respalda la pregunta (no el documento
+  completo), para que el modelo no invente y se pueda citar la fuente.
+
+El servidor reenvía esos datos al proveedor del modelo, que devuelve el texto.
+**El servidor no los almacena ni los escribe en ningún registro**: los atiende en
+memoria y los descarta al responder. No se usan para entrenar modelos ni para
+perfiles comerciales. La clave del proveedor vive solo en el servidor; la
+aplicación nunca la lleva incorporada y no habla con el proveedor directamente.
+
+El usuario revoca este permiso en cualquier momento desde la misma pantalla. La
+revocación es inmediata: a partir de ese momento la evaluación vuelve a hacerse
+en el dispositivo y no se envía ninguna petición más. Esta autorización es
+distinta de la de procesar documentos: son ajustes separados y se auditan por
+separado.
+
+### 2.4 Cuenta (opcional)
 
 Crear una cuenta es opcional. La app funciona completa sin cuenta; en ese caso no
 se envía nada a ningún servidor.
@@ -90,7 +122,7 @@ Si el usuario crea una cuenta, se tratan:
 - **Token de sesión:** aleatorio de 32 bytes, para autenticar las peticiones.
 - **Progreso agregado:** lo descrito en el punto 2.2.
 
-### 2.4 Qué NO recoge la app
+### 2.5 Qué NO recoge la app
 
 La aplicación **no** recoge ni transmite:
 
@@ -109,21 +141,22 @@ Google Play.
 ## 3. Dónde se tratan los datos
 
 - **En el dispositivo:** los documentos, su texto, los fragmentos, los embeddings
-  y el progreso, tanto si el usuario tiene cuenta como si no.
-- **En el servidor y Gemini:** fragmentos, conceptos, preguntas y respuestas
-  únicamente cuando están habilitados los controles de autorización.
-- **En el servidor de Socracia:** correo, derivación de contraseña y progreso
-  agregado si el usuario crea una cuenta y sincroniza.
+  y —si no hay cuenta ni asistente con modelo— todo el progreso.
+- **En el servidor:** solo si el usuario crea una cuenta y sincroniza. Se tratan
+  el correo, la derivación de la contraseña y el progreso agregado. Además, si el
+  usuario autoriza el asistente con modelo, se tratan de forma **transitoria** los
+  datos del punto 2.3 (pregunta, respuesta, referencia y fragmento citado), sin
+  almacenarlos.
 
 ## 4. Para qué se usan
 
-| Dato                                | Finalidad                                                  | Base jurídica (RGPD)                                                        |
-| ----------------------------------- | ---------------------------------------------------------- | --------------------------------------------------------------------------- |
-| Documentos y texto                  | Generar preguntas y recuperar fragmentos en el dispositivo | No salen del dispositivo salvo autorización descrita en 2.1                 |
-| Fragmentos y respuestas autorizados | Generación y evaluación semántica                          | Consentimiento explícito mediante el ajuste y la autorización por documento |
-| Progreso agregado                   | Continuar el estudio en otro dispositivo                   | Ejecución de un contrato (el servicio solicitado)                           |
-| Correo y contraseña                 | Autenticar la cuenta                                       | Ejecución de un contrato                                                    |
-| Token de sesión                     | Mantener la sesión iniciada                                | Ejecución de un contrato                                                    |
+| Dato                         | Finalidad                                                  | Base jurídica (RGPD)                                           |
+| ---------------------------- | ---------------------------------------------------------- | -------------------------------------------------------------- |
+| Documentos y texto           | Generar preguntas y recuperar fragmentos en el dispositivo | No hay tratamiento por nuestra parte: no salen del dispositivo |
+| Progreso agregado            | Continuar el estudio en otro dispositivo                   | Ejecución de un contrato (el servicio solicitado)              |
+| Correo y contraseña          | Autenticar la cuenta                                       | Ejecución de un contrato                                       |
+| Token de sesión              | Mantener la sesión iniciada                                | Ejecución de un contrato                                       |
+| Pregunta, respuesta y pasaje | Evaluar y redactar con modelo (asistente con modelo)       | Consentimiento explícito, revocable en cualquier momento       |
 
 No se usan para elaborar perfiles comerciales ni para publicidad. No hay
 decisiones automatizadas con efectos jurídicos.
@@ -137,13 +170,10 @@ decisiones automatizadas con efectos jurídicos.
 
 ## 6. Cesiones y encargados
 
-Los fragmentos y respuestas autorizados se comparten con Google como proveedor
-de procesamiento mediante Gemini API. En su cuota gratuita, Google puede usar
-ese contenido para mejorar productos; la modalidad de pago declara que no lo
-hace según las condiciones vigentes. La ubicación, conservación, uso y límites
-dependen de las condiciones del proveedor y deben revisarse antes de publicar.
-El proveedor de alojamiento de la API también debe documentarse en la lista de
-comprobación de publicación.
+No se venden ni se ceden datos personales a terceros. No hay transferencias
+internacionales más allá del proveedor de alojamiento donde se despliegue la API,
+que debe documentarse antes de publicar (ver la lista de comprobación de
+publicación).
 
 ## 7. Derechos del usuario
 

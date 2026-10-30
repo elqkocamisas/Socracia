@@ -3,6 +3,7 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 import type { ProcessingPolicy, StoragePort } from '@socracia/core';
 import {
   DEFAULT_PROCESSING_POLICY,
+  DEFAULT_STUDY_OPTIONS,
   DocumentIngestionService,
   ProcessingPolicyHolder,
   FallbackEmbeddingProvider,
@@ -20,9 +21,10 @@ import {
   type EdgeLlmNativeModule,
   type EmbeddingProvider,
   type Result,
-  type MayeuticSemanticProvider,
   type VectorStore,
 } from '@socracia/core';
+
+import { buildLlmEngine, withLlmEngine, type LlmEngineBundle } from './llmEngine';
 
 import { openLocalDatabase } from '../storage/sqliteStorage';
 import { AccountService } from './accountService';
@@ -111,10 +113,10 @@ export async function resolveEmbeddingProvider(options: {
 export const DEFAULT_API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? 'http://localhost:8787';
 
 /**
- * ¿Existe hoy un camino real de procesamiento semántico en la nube?
+ * ¿Existe hoy un camino real de procesamiento en la nube?
  *
  * El modo local es siempre el único garantizado. El ajuste de nube se muestra
- * solo cuando hay un backend de IA desplegado (`EXPO_PUBLIC_CLOUD_PROCESSING`).
+ * solo cuando hay backend de corpus desplegado (`EXPO_PUBLIC_CLOUD_PROCESSING`).
  * Enseñar un interruptor que no cambia nada sería un mando muerto, y en la
  * revisión de tienda una promesa que el código no cumple.
  */
@@ -136,10 +138,8 @@ export interface AppServices {
   readonly policy: ProcessingPolicyHolder;
   /** Persistencia de la política, para el ajuste de privacidad. */
   readonly policyStore: ProcessingPolicyStore;
-  /** `true` si este build ofrece procesamiento semántico en la nube. */
+  /** `true` si este build tiene backend de corpus en la nube. */
   readonly cloudAvailable: boolean;
-  /** Comprueba en tiempo real todos los requisitos de procesamiento remoto. */
-  readonly cloudProcessingEnabled: () => boolean;
 }
 
 /** Opciones de creación del runtime. */
@@ -165,10 +165,18 @@ export interface CreateServicesOptions {
   /** `true` si este build ofrece procesamiento en la nube. */
   readonly cloudAvailable?: boolean;
   /**
+   * Paquete de puertos del modelo. Si se aporta, el modelo pasa a ser el motor
+   * principal de la sesión (evaluación, generación, seguimiento y explicación),
+   * con la heurística como respaldo. Ausente en los builds sin backend.
+   */
+  readonly llm?: LlmEngineBundle | null;
+  /**
    * Módulo nativo `edge-llm` si está disponible en esta compilación.
    * `null` o ausente significa «no hay modelo on-device»: se usa el léxico.
    */
   readonly nativeModule?: EdgeLlmNativeModule | null;
+  /** `fetch` inyectable; lo usa el motor con modelo en las pruebas. */
+  readonly fetchImpl?: typeof fetch;
 }
 
 /**
@@ -190,28 +198,19 @@ export function createServices(options: CreateServicesOptions): AppServices {
   const store = options.vectorStore ?? new InMemoryVectorStore();
   const rag = new RagEngine(store, provider);
   const ingestion = new DocumentIngestionService(defaultRegistry(fflateInflate), rag);
+  // Con paquete de modelo, el estudio lo usa como motor principal; sin él, queda
+  // el camino heurístico. No se cambia ninguna firma pública: solo las opciones.
+  const studyOptions = options.llm
+    ? withLlmEngine(DEFAULT_STUDY_OPTIONS, options.llm, rag)
+    : DEFAULT_STUDY_OPTIONS;
+  const study = new StudyService(rag, options.storage, studyOptions);
+  const session = new MayeuticSessionController(study, options.storage, LOCAL_USER_ID);
   const syncClient =
     options.syncClient ??
     new HttpSyncClient({ baseUrl: options.apiBaseUrl ?? DEFAULT_API_BASE_URL });
   const credentials = options.credentials ?? new InMemoryCredentialStore();
   const account = new AccountService(syncClient, credentials, options.storage, LOCAL_USER_ID);
   const policy = new ProcessingPolicyHolder(options.policy ?? DEFAULT_PROCESSING_POLICY);
-  const cloudAvailable = options.cloudAvailable ?? CLOUD_PROCESSING_AVAILABLE;
-  const cloudProcessingEnabled = (): boolean =>
-    cloudAvailable && syncClient.hasSession() && allowsCloudProcessing(policy.current());
-  const semanticProvider: MayeuticSemanticProvider = {
-    canProcess: (document) => document.cloudConsent && cloudProcessingEnabled(),
-    generateQuestions: async (concept, citation, questionOptions) => {
-      const result = await syncClient.generateQuestions(concept, citation, questionOptions);
-      return result.ok ? result : { ok: false, error: new Error(result.error.message) };
-    },
-    evaluateAnswer: async (question, answer) => {
-      const result = await syncClient.evaluateAnswer(question, answer);
-      return result.ok ? result : { ok: false, error: new Error(result.error.message) };
-    },
-  };
-  const study = new StudyService(rag, options.storage, undefined, semanticProvider);
-  const session = new MayeuticSessionController(study, options.storage, LOCAL_USER_ID);
 
   return {
     storage: options.storage,
@@ -225,8 +224,7 @@ export function createServices(options: CreateServicesOptions): AppServices {
     embedding,
     policy,
     policyStore: options.policyStore ?? new InMemoryProcessingPolicyStore(),
-    cloudAvailable,
-    cloudProcessingEnabled,
+    cloudAvailable: options.cloudAvailable ?? CLOUD_PROCESSING_AVAILABLE,
   };
 }
 
@@ -262,13 +260,33 @@ export async function bootstrap(
       fallback: options.provider ?? new HashingEmbeddingProvider(256),
     }));
   const policyStore = options.policyStore ?? new SqliteProcessingPolicyStore(db);
+  const credentials = new SqliteCredentialStore(db);
+  const initialPolicy = options.policy ?? (await policyStore.load());
+  const policy = new ProcessingPolicyHolder(initialPolicy);
+  // El motor con modelo se monta aquí, y solo si este build tiene backend de
+  // corpus. Comparte el almacén de credenciales para leer el token en cada
+  // llamada: así el motor entra en juego en cuanto el usuario inicia sesión,
+  // sin reconstruir los servicios. Sin backend, `llm` queda en `null` y el
+  // estudio usa su camino heurístico.
+  const llm =
+    options.llm !== undefined
+      ? options.llm
+      : (options.cloudAvailable ?? CLOUD_PROCESSING_AVAILABLE)
+        ? buildLlmEngine({
+            baseUrl: options.apiBaseUrl ?? DEFAULT_API_BASE_URL,
+            policy,
+            loadToken: async () => (await credentials.load())?.token ?? null,
+            fetchImpl: options.fetchImpl,
+          })
+        : null;
   const services = createServices({
     ...options,
     storage,
-    credentials: new SqliteCredentialStore(db),
+    credentials,
     embedding,
     policyStore,
-    policy: options.policy ?? (await policyStore.load()),
+    policy: initialPolicy,
+    llm,
   });
   await rehydrateIndex(services);
   await services.account.restore();
@@ -322,7 +340,7 @@ export async function importDocument(
       chunkOptions: { maxChars: 900, overlapChars: 150, minChars: 40 },
       // Queda registrado en el documento si el usuario autorizó la nube, para
       // poder auditar después qué material se procesó fuera del dispositivo.
-      cloudConsent: services.cloudProcessingEnabled(),
+      cloudConsent: allowsCloudProcessing(services.policy.current()),
       id,
       now,
     },

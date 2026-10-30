@@ -1,6 +1,6 @@
 import { readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
 import { InMemoryProgressStore, JsonFileProgressStore } from '../store';
 import { emptySnapshot } from './helpers/apiHarness';
@@ -61,5 +61,19 @@ describe('JsonFileProgressStore', () => {
 
     const raw = JSON.parse(await readFile(path, 'utf8')) as Record<string, unknown>;
     expect(Object.keys(raw).sort()).toEqual(['u1', 'u2', 'u3']);
+  });
+
+  it('crea el directorio del fichero si no existe', async () => {
+    // Es el caso de un despliegue: `DATA_FILE` apunta a un volumen que se
+    // monta vacío, así que el directorio puede no estar. Antes fallaba con
+    // ENOENT en la primera sincronización.
+    const nested = join(tmpdir(), `socracia-nested-${process.pid}-${Date.now()}`, 'datos', 'progreso.json');
+    const store = new JsonFileProgressStore(nested);
+
+    await store.merge(USER, emptySnapshot(USER, 7));
+
+    const raw = JSON.parse(await readFile(nested, 'utf8')) as Record<string, unknown>;
+    expect(Object.keys(raw)).toEqual([USER]);
+    await rm(dirname(dirname(nested)), { recursive: true, force: true });
   });
 });
