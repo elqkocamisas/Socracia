@@ -3,6 +3,7 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 import type { ProcessingPolicy, StoragePort } from '@socracia/core';
 import {
   DEFAULT_PROCESSING_POLICY,
+  DEFAULT_STUDY_OPTIONS,
   DocumentIngestionService,
   ProcessingPolicyHolder,
   FallbackEmbeddingProvider,
@@ -22,6 +23,8 @@ import {
   type Result,
   type VectorStore,
 } from '@socracia/core';
+
+import { buildLlmEngine, withLlmEngine, type LlmEngineBundle } from './llmEngine';
 
 import { openLocalDatabase } from '../storage/sqliteStorage';
 import { AccountService } from './accountService';
@@ -162,10 +165,18 @@ export interface CreateServicesOptions {
   /** `true` si este build ofrece procesamiento en la nube. */
   readonly cloudAvailable?: boolean;
   /**
+   * Paquete de puertos del modelo. Si se aporta, el modelo pasa a ser el motor
+   * principal de la sesión (evaluación, generación, seguimiento y explicación),
+   * con la heurística como respaldo. Ausente en los builds sin backend.
+   */
+  readonly llm?: LlmEngineBundle | null;
+  /**
    * Módulo nativo `edge-llm` si está disponible en esta compilación.
    * `null` o ausente significa «no hay modelo on-device»: se usa el léxico.
    */
   readonly nativeModule?: EdgeLlmNativeModule | null;
+  /** `fetch` inyectable; lo usa el motor con modelo en las pruebas. */
+  readonly fetchImpl?: typeof fetch;
 }
 
 /**
@@ -187,7 +198,12 @@ export function createServices(options: CreateServicesOptions): AppServices {
   const store = options.vectorStore ?? new InMemoryVectorStore();
   const rag = new RagEngine(store, provider);
   const ingestion = new DocumentIngestionService(defaultRegistry(fflateInflate), rag);
-  const study = new StudyService(rag, options.storage);
+  // Con paquete de modelo, el estudio lo usa como motor principal; sin él, queda
+  // el camino heurístico. No se cambia ninguna firma pública: solo las opciones.
+  const studyOptions = options.llm
+    ? withLlmEngine(DEFAULT_STUDY_OPTIONS, options.llm, rag)
+    : DEFAULT_STUDY_OPTIONS;
+  const study = new StudyService(rag, options.storage, studyOptions);
   const session = new MayeuticSessionController(study, options.storage, LOCAL_USER_ID);
   const syncClient =
     options.syncClient ??
@@ -244,13 +260,33 @@ export async function bootstrap(
       fallback: options.provider ?? new HashingEmbeddingProvider(256),
     }));
   const policyStore = options.policyStore ?? new SqliteProcessingPolicyStore(db);
+  const credentials = new SqliteCredentialStore(db);
+  const initialPolicy = options.policy ?? (await policyStore.load());
+  const policy = new ProcessingPolicyHolder(initialPolicy);
+  // El motor con modelo se monta aquí, y solo si este build tiene backend de
+  // corpus. Comparte el almacén de credenciales para leer el token en cada
+  // llamada: así el motor entra en juego en cuanto el usuario inicia sesión,
+  // sin reconstruir los servicios. Sin backend, `llm` queda en `null` y el
+  // estudio usa su camino heurístico.
+  const llm =
+    options.llm !== undefined
+      ? options.llm
+      : (options.cloudAvailable ?? CLOUD_PROCESSING_AVAILABLE)
+        ? buildLlmEngine({
+            baseUrl: options.apiBaseUrl ?? DEFAULT_API_BASE_URL,
+            policy,
+            loadToken: async () => (await credentials.load())?.token ?? null,
+            fetchImpl: options.fetchImpl,
+          })
+        : null;
   const services = createServices({
     ...options,
     storage,
-    credentials: new SqliteCredentialStore(db),
+    credentials,
     embedding,
     policyStore,
-    policy: options.policy ?? (await policyStore.load()),
+    policy: initialPolicy,
+    llm,
   });
   await rehydrateIndex(services);
   await services.account.restore();

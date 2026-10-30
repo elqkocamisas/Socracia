@@ -23,6 +23,12 @@ export interface LlmHttpProviderOptions {
   readonly baseUrl: string;
   /** Token de la sesión activa; `null` si no hay sesión. */
   readonly token?: string | null;
+  /**
+   * Fuente del token, leída en cada llamada. Existe porque la sesión se inicia
+   * o se cierra después de construir los servicios: sin esto, el motor seguiría
+   * con el token del arranque y fallaría tras un `login`.
+   */
+  readonly loadToken?: () => Promise<string | null>;
   /** `fetch` inyectable para pruebas sin red. */
   readonly fetchImpl?: typeof fetch;
 }
@@ -33,11 +39,13 @@ export class LlmHttpProvider implements LlmProvider {
 
   private readonly baseUrl: string;
   private readonly fetchImpl: typeof fetch;
+  private readonly loadToken: (() => Promise<string | null>) | null;
   private token: string | null;
 
   public constructor(options: LlmHttpProviderOptions) {
     this.baseUrl = options.baseUrl.replace(/\/$/, '');
     this.fetchImpl = options.fetchImpl ?? fetch;
+    this.loadToken = options.loadToken ?? null;
     this.token = options.token ?? null;
   }
 
@@ -46,10 +54,19 @@ export class LlmHttpProvider implements LlmProvider {
     this.token = token;
   }
 
+  /** Resuelve el token vigente: la fuente asíncrona manda sobre el valor fijado. */
+  private async resolveToken(): Promise<string | null> {
+    if (this.loadToken) {
+      return this.loadToken();
+    }
+    return this.token;
+  }
+
   public async complete(
     request: LlmCompletionRequest,
   ): Promise<Result<LlmCompletion, LlmError>> {
-    if (!this.token) {
+    const token = await this.resolveToken();
+    if (!token) {
       return {
         ok: false,
         error: { code: 'no-configurado', message: 'Inicia sesión para usar el asistente con modelo.' },
@@ -62,7 +79,7 @@ export class LlmHttpProvider implements LlmProvider {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
-          authorization: `Bearer ${this.token}`,
+          authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(request),
       });

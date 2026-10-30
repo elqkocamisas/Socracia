@@ -101,7 +101,7 @@ describe('LlmHttpProvider', () => {
         id: 'q1',
         conceptId: 'c1',
         prompt: '¿Qué es la legalidad?',
-        move: 'definicion',
+        move: 'definir',
         level: 'recordar',
         expectedAnswer: 'La sujeción de la Administración a la ley.',
         keyTerms: ['legalidad'],
