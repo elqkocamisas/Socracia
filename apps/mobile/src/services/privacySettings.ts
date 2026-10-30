@@ -28,7 +28,7 @@ export interface PrivacySettingsPorts {
     readonly degradedReason: string | null;
   };
   /**
-   * `false` cuando no hay backend de corpus: el ajuste de nube no se ofrece
+   * `false` cuando no hay backend semántico: el ajuste de nube no se ofrece
    * porque no habría nada que activar.
    */
   readonly cloudAvailable?: boolean;

@@ -23,6 +23,7 @@ export * from './mayeu/cognitive';
 export * from './mayeu/questionGenerator';
 export * from './mayeu/questionQuality';
 export * from './mayeu/evaluate';
+export * from './mayeu/semanticProvider';
 export * from './mayeu/gaps';
 export * from './mayeu/itinerary';
 export * from './mayeu/scaffolding';

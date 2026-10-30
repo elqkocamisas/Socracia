@@ -30,7 +30,8 @@ export interface StudyViewState {
 
 /** Error del controlador de sesión. */
 export interface SessionControllerError {
-  readonly code: 'sin-temario' | 'sesion-no-iniciada' | 'preparacion-fallida';
+  readonly code:
+    'sin-temario' | 'sesion-no-iniciada' | 'preparacion-fallida' | 'evaluacion-fallida';
   readonly message: string;
 }
 

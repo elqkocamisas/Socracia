@@ -5,21 +5,37 @@ import { RagEngine } from '../rag/engine';
 import { InMemoryVectorStore } from '../rag/vectorStore';
 import { inMemoryStorage } from '../storage/inMemory';
 import { StudyService, DEFAULT_STUDY_OPTIONS } from '../app/studyService';
+import type { SessionTurn } from '../mayeu/session';
+import type { MayeuticSemanticProvider } from '../mayeu/semanticProvider';
+import { err, ok } from '../result';
 
 const NOW = 1_700_000_000_000;
 const USER = 'u1';
 const encoder = new TextEncoder();
 
-function makeService() {
+function makeService(semanticProvider?: MayeuticSemanticProvider) {
   const storage = inMemoryStorage();
   const rag = new RagEngine(new InMemoryVectorStore(), new HashingEmbeddingProvider(256));
-  const service = new StudyService(rag, storage, DEFAULT_STUDY_OPTIONS);
+  const service = new StudyService(rag, storage, DEFAULT_STUDY_OPTIONS, semanticProvider);
   return { service, rag, storage };
 }
 
 async function ingestSample(rag: RagEngine): Promise<ReturnType<typeof extractCurriculum>> {
   await rag.ingestDocument(SAMPLE_DOCUMENT, SAMPLE_CURRICULUM_TEXT);
   return extractCurriculum(SAMPLE_CURRICULUM_TEXT);
+}
+
+async function answer(
+  service: StudyService,
+  active: Parameters<StudyService['answer']>[0],
+  text: string,
+  now: number,
+): Promise<SessionTurn> {
+  const result = await service.answer(active, USER, text, 900, now);
+  if (!result.ok) {
+    throw new Error(result.error.message);
+  }
+  return result.value;
 }
 
 describe('StudyService.prepareSession', () => {
@@ -59,6 +75,99 @@ describe('StudyService.prepareSession', () => {
       expect(result.error.code).toBe('sin-conceptos');
     }
   });
+
+  it('usa generación y evaluación semánticas solo para documentos autorizados', async () => {
+    const semanticProvider: MayeuticSemanticProvider = {
+      canProcess: (document) => document.cloudConsent,
+      generateQuestions: async () =>
+        ok([
+          {
+            prompt: '¿Cómo aplicarías este principio a un caso que no aparece en el texto?',
+            move: 'aplicar-caso',
+            level: 'aplicar',
+            expectedAnswer:
+              'La respuesta debe aplicar el principio al caso y justificarlo con la evidencia.',
+            keyTerms: ['Administración'],
+            difficulty: 0.7,
+          },
+        ]),
+      evaluateAnswer: async () =>
+        ok({
+          score: 0.9,
+          matchedKeyTerms: ['Administración'],
+          feedback: 'Has explicado la idea con tus propias palabras.',
+        }),
+    };
+    const { service, rag } = makeService(semanticProvider);
+    const curriculum = await ingestSample(rag);
+    const authorizedDocument = { ...SAMPLE_DOCUMENT, cloudConsent: true };
+    const prepared = await service.prepareSession(
+      USER,
+      curriculum,
+      [authorizedDocument],
+      NOW,
+      'semantic-session',
+    );
+
+    expect(prepared.ok).toBe(true);
+    if (!prepared.ok) {
+      return;
+    }
+    expect(prepared.value.steps[0]?.question.id).toContain(':llm:q');
+    const result = await service.answer(
+      prepared.value,
+      USER,
+      'La Administración aplica el principio al caso.',
+      900,
+      NOW,
+    );
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.evaluation.score).toBe(0.9);
+      expect(result.value.evaluation.verdict).toBe('correcta');
+      expect(result.value.evaluation.feedback).toContain('tus propias palabras');
+    }
+  });
+
+  it('no avanza la sesión si falla la evaluación semántica', async () => {
+    const semanticProvider: MayeuticSemanticProvider = {
+      canProcess: (document) => document.cloudConsent,
+      generateQuestions: async () =>
+        ok([
+          {
+            prompt: '¿Cómo aplicarías este principio a un caso que no aparece en el texto?',
+            move: 'aplicar-caso',
+            level: 'aplicar',
+            expectedAnswer:
+              'La respuesta debe aplicar el principio al caso y justificarlo con la evidencia.',
+            keyTerms: ['Administración'],
+            difficulty: 0.7,
+          },
+        ]),
+      evaluateAnswer: async () => err(new Error('servicio no disponible')),
+    };
+    const { service, rag } = makeService(semanticProvider);
+    const curriculum = await ingestSample(rag);
+    const prepared = await service.prepareSession(
+      USER,
+      curriculum,
+      [{ ...SAMPLE_DOCUMENT, cloudConsent: true }],
+      NOW,
+      'semantic-error-session',
+    );
+    if (!prepared.ok) {
+      throw new Error(prepared.error.message);
+    }
+
+    const result = await service.answer(prepared.value, USER, 'respuesta', 500, NOW);
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe('evaluacion-fallida');
+    }
+    expect(prepared.value.engine.progress().answered).toBe(0);
+  });
 });
 
 describe('StudyService.answer y progreso', () => {
@@ -84,7 +193,7 @@ describe('StudyService.answer y progreso', () => {
     const definition =
       curriculum.concepts.find((c) => c.id === question?.conceptId)?.definition ?? '';
 
-    await service.answer(active, USER, definition, 900, NOW);
+    await answer(service, active, definition, NOW);
 
     const evaluations = await storage.progress.listEvaluations(USER);
     expect(evaluations.length).toBeGreaterThan(0);
@@ -95,7 +204,7 @@ describe('StudyService.answer y progreso', () => {
   it('refresca y persiste el perfil de lagunas', async () => {
     const { service, storage, active } = await prepare();
     // Fuerza un fallo para que haya al menos una laguna.
-    await service.answer(active, USER, 'No lo recuerdo en absoluto.', 900, NOW);
+    await answer(service, active, 'No lo recuerdo en absoluto.', NOW);
     const profile = await service.refreshProgress(active, NOW);
     expect(profile.gaps.length).toBeGreaterThan(0);
 
@@ -131,7 +240,7 @@ describe('StudyService.answer y progreso', () => {
         conceptIndex <= Math.ceil(curriculum.concepts.length / 2)
           ? definition
           : 'No estoy seguro, no lo recuerdo.';
-      await service.answer(active, USER, text, 1000, NOW);
+      await answer(service, active, text, NOW);
       guard += 1;
     }
 
@@ -201,7 +310,7 @@ describe('StudyService con TXT adjuntado por el usuario', () => {
       return;
     }
 
-    const turn = await service.answer(prepared.value, USER, 'Una respuesta breve.', 500, NOW);
+    const turn = await answer(service, prepared.value, 'Una respuesta breve.', NOW);
     expect(turn.progress.answered).toBe(1);
 
     const documents = await storage.documents.listDocuments();
@@ -219,8 +328,8 @@ describe('StudyService: persistencia de sesión y vista de progreso', () => {
       return;
     }
 
-    await service.answer(prepared.value, USER, 'Primera respuesta con contenido.', 400, NOW);
-    await service.answer(prepared.value, USER, 'Segunda respuesta distinta.', 400, NOW + 1);
+    await answer(service, prepared.value, 'Primera respuesta con contenido.', NOW);
+    await answer(service, prepared.value, 'Segunda respuesta distinta.', NOW + 1);
 
     const saved = await storage.progress.getSession('sess-1');
     expect(saved).not.toBeNull();
@@ -236,10 +345,10 @@ describe('StudyService: persistencia de sesión y vista de progreso', () => {
       throw new Error('sesión no preparada');
     }
 
-    let turn = await service.answer(prepared.value, USER, 'respuesta', 100, NOW);
+    let turn = await answer(service, prepared.value, 'respuesta', NOW);
     let guard = 0;
     while (!turn.progress.finished && guard < 200) {
-      turn = await service.answer(prepared.value, USER, 'respuesta', 100, NOW + guard);
+      turn = await answer(service, prepared.value, 'respuesta', NOW + guard);
       guard += 1;
     }
 
@@ -260,7 +369,7 @@ describe('StudyService: persistencia de sesión y vista de progreso', () => {
     expect(empty.mastery.conceptsNotEvaluated).toBe(curriculum.concepts.length);
     expect(empty.hint).toContain('sesión guiada');
 
-    await service.answer(prepared.value, USER, 'respuesta', 100, NOW);
+    await answer(service, prepared.value, 'respuesta', NOW);
 
     const after = await service.overview(USER, curriculum.concepts, NOW + 1);
     expect(after.mastery.conceptsNotEvaluated).toBeLessThan(curriculum.concepts.length);

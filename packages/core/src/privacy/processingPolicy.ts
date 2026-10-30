@@ -6,8 +6,8 @@ import { err, ok } from '../result';
  *
  * `local-only` es el valor por defecto y el único que el MVP ofrece sin que el
  * usuario lo cambie a propósito: el material que adjunta es suyo y, a menudo,
- * material de estudio con derechos de terceros. `allow-cloud` existe para que
- * una versión con backend pueda ofrecer corpus en la nube, pero nunca se activa
+ * material de estudio con derechos de terceros. `allow-cloud` habilita los
+ * servicios semánticos remotos, pero nunca se activa
  * solo: exige una acción explícita del usuario.
  */
 export type ProcessingMode = 'local-only' | 'allow-cloud';

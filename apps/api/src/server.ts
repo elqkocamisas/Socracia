@@ -1,10 +1,19 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 
-import type { LlmProvider, ProgressSnapshot } from '@socracia/core';
+import type {
+  Citation,
+  Concept,
+  LlmProvider,
+  ProgressSnapshot,
+  Result,
+  SocraticQuestion,
+  UserAnswer,
+} from '@socracia/core';
 
 import { AuthService, type AuthResult } from './auth';
 import { corsHeaders, type CorsOptions } from './cors';
 import { routeLlmCompletion } from './llm';
+import { GeminiMayeuticService, type MayeuticAiService } from './mayeutic';
 import { InMemoryProgressStore, type ProgressStore } from './store';
 import { isValidationError, parseSnapshot } from './validation';
 
@@ -12,6 +21,7 @@ import { isValidationError, parseSnapshot } from './validation';
 export interface ApiDependencies {
   readonly auth: AuthService;
   readonly store: ProgressStore;
+  readonly mayeuticAi?: MayeuticAiService;
   /**
    * Proveedor de lenguaje. `null` en el MVP sin clave: la ruta responde 503 y
    * la app cae a su modo local, que es el comportamiento por defecto.
@@ -23,7 +33,12 @@ export interface ApiDependencies {
 
 /** Crea las dependencias por defecto del MVP. */
 export function defaultDependencies(): ApiDependencies {
-  return { auth: new AuthService(), store: new InMemoryProgressStore(), llm: null };
+  return {
+    auth: new AuthService(),
+    store: new InMemoryProgressStore(),
+    mayeuticAi: new GeminiMayeuticService(),
+    llm: null,
+  };
 }
 
 const MAX_BODY_BYTES = 5 * 1024 * 1024;
@@ -174,6 +189,54 @@ async function route(
     return;
   }
 
+  // Ruta semántica del motor de tutoría: un asistente opcional con Gemini.
+  if (
+    method === 'POST' &&
+    (url.pathname === '/mayeutic/generate' || url.pathname === '/mayeutic/evaluate')
+  ) {
+    if (!authenticate(deps, req, res)) {
+      return;
+    }
+    if (!deps.mayeuticAi) {
+      sendJson(res, 503, {
+        error: 'proveedor-no-configurado',
+        message: 'El proveedor semántico no está configurado en el servidor.',
+      });
+      return;
+    }
+
+    const body = await readJson(req);
+    if (url.pathname === '/mayeutic/generate') {
+      const input = readGenerationInput(body);
+      if (!input) {
+        sendJson(res, 400, {
+          error: 'datos-invalidos',
+          message: 'El concepto, la cita y el número de preguntas no son válidos.',
+        });
+        return;
+      }
+      const result = await deps.mayeuticAi.generateQuestions(
+        input.concept,
+        input.citation,
+        input.maxQuestions,
+      );
+      sendAiResult(res, result);
+      return;
+    }
+
+    const input = readEvaluationInput(body);
+    if (!input) {
+      sendJson(res, 400, {
+        error: 'datos-invalidos',
+        message: 'La pregunta o la respuesta no son válidas.',
+      });
+      return;
+    }
+    const result = await deps.mayeuticAi.evaluateAnswer(input.question, input.answer);
+    sendAiResult(res, result);
+    return;
+  }
+
   // El asistente con modelo exige sesión: es un recurso con coste y no debe
   // quedar abierto. La app funciona sin él, así que 401 aquí no rompe nada.
   if (method === 'POST' && url.pathname === '/llm/complete') {
@@ -181,7 +244,12 @@ async function route(
     if (!userId) {
       return;
     }
-    const outcome = await routeLlmCompletion(deps.llm ?? null, url.pathname, method, await readJson(req));
+    const outcome = await routeLlmCompletion(
+      deps.llm ?? null,
+      url.pathname,
+      method,
+      await readJson(req),
+    );
     if (outcome.handled) {
       sendJson(res, outcome.status, outcome.payload);
       return;
@@ -192,6 +260,163 @@ async function route(
     error: 'no-encontrado',
     message: `Ruta desconocida: ${method} ${url.pathname}`,
   });
+}
+
+function sendAiResult<T>(res: ServerResponse, result: Result<T, Error>): void {
+  if (result.ok) {
+    sendJson(res, 200, result.value);
+    return;
+  }
+  sendJson(res, 502, {
+    error: 'proveedor-semantico',
+    message: result.error.message,
+  });
+}
+
+function readGenerationInput(
+  value: unknown,
+): { concept: Concept; citation: Citation; maxQuestions: number } | null {
+  if (!isRecord(value) || !isRecord(value.concept) || !isRecord(value.citation)) {
+    return null;
+  }
+  const { concept, citation } = value;
+  if (
+    typeof concept.id !== 'string' ||
+    typeof concept.topicId !== 'string' ||
+    typeof concept.label !== 'string' ||
+    concept.label.length > 200 ||
+    typeof concept.definition !== 'string' ||
+    concept.definition.length > 2_000 ||
+    !isStringArray(concept.keywords) ||
+    concept.keywords.length > 30 ||
+    concept.keywords.some((keyword) => keyword.length > 80) ||
+    typeof citation.documentId !== 'string' ||
+    typeof citation.documentTitle !== 'string' ||
+    citation.documentTitle.length > 300 ||
+    typeof citation.chunkId !== 'string' ||
+    citation.chunkId.length > 300 ||
+    typeof citation.excerpt !== 'string' ||
+    citation.excerpt.length === 0 ||
+    citation.excerpt.length > 12_000 ||
+    typeof citation.charStart !== 'number' ||
+    !Number.isFinite(citation.charStart) ||
+    citation.charStart < 0 ||
+    typeof citation.charEnd !== 'number' ||
+    !Number.isFinite(citation.charEnd) ||
+    citation.charEnd < citation.charStart ||
+    typeof value.maxQuestions !== 'number' ||
+    !Number.isInteger(value.maxQuestions) ||
+    value.maxQuestions < 1 ||
+    value.maxQuestions > 8
+  ) {
+    return null;
+  }
+  return {
+    concept: {
+      id: concept.id,
+      topicId: concept.topicId,
+      label: concept.label,
+      definition: concept.definition,
+      keywords: concept.keywords,
+    },
+    citation: {
+      documentId: citation.documentId,
+      documentTitle: citation.documentTitle,
+      chunkId: citation.chunkId,
+      excerpt: citation.excerpt,
+      charStart: citation.charStart,
+      charEnd: citation.charEnd,
+    },
+    maxQuestions: value.maxQuestions,
+  };
+}
+
+function readEvaluationInput(
+  value: unknown,
+): { question: SocraticQuestion; answer: UserAnswer } | null {
+  if (!isRecord(value) || !isRecord(value.question) || !isRecord(value.answer)) {
+    return null;
+  }
+  const { question, answer } = value;
+  const citation = question.citation;
+  if (
+    typeof question.id !== 'string' ||
+    typeof question.conceptId !== 'string' ||
+    typeof question.prompt !== 'string' ||
+    question.prompt.length > 500 ||
+    !isOneOf(question.move, [
+      'definir',
+      'problematizar',
+      'contraejemplo',
+      'causa',
+      'consecuencia',
+      'comparar',
+      'justificar',
+      'aplicar-caso',
+    ]) ||
+    !isOneOf(question.level, ['recordar', 'comprender', 'aplicar', 'analizar', 'evaluar']) ||
+    typeof question.expectedAnswer !== 'string' ||
+    question.expectedAnswer.length > 1_500 ||
+    !isStringArray(question.keyTerms) ||
+    question.keyTerms.length > 12 ||
+    question.keyTerms.some((term) => term.length > 80) ||
+    !isRecord(citation) ||
+    typeof citation.documentId !== 'string' ||
+    typeof citation.documentTitle !== 'string' ||
+    citation.documentTitle.length > 300 ||
+    typeof citation.chunkId !== 'string' ||
+    citation.chunkId.length > 300 ||
+    typeof citation.excerpt !== 'string' ||
+    citation.excerpt.length > 12_000 ||
+    typeof citation.charStart !== 'number' ||
+    !Number.isFinite(citation.charStart) ||
+    citation.charStart < 0 ||
+    typeof citation.charEnd !== 'number' ||
+    !Number.isFinite(citation.charEnd) ||
+    citation.charEnd < citation.charStart ||
+    typeof question.difficulty !== 'number' ||
+    !Number.isFinite(question.difficulty) ||
+    question.difficulty < 0 ||
+    question.difficulty > 1 ||
+    typeof answer.questionId !== 'string' ||
+    answer.questionId !== question.id ||
+    typeof answer.text !== 'string' ||
+    answer.text.trim().length === 0 ||
+    answer.text.length > 6_000 ||
+    typeof answer.answeredAt !== 'number' ||
+    !Number.isFinite(answer.answeredAt) ||
+    typeof answer.latencyMs !== 'number' ||
+    !Number.isFinite(answer.latencyMs) ||
+    answer.latencyMs < 0
+  ) {
+    return null;
+  }
+  return {
+    question: {
+      id: question.id,
+      conceptId: question.conceptId,
+      prompt: question.prompt,
+      move: question.move,
+      level: question.level,
+      expectedAnswer: question.expectedAnswer,
+      keyTerms: question.keyTerms,
+      citation: {
+        documentId: citation.documentId,
+        documentTitle: citation.documentTitle,
+        chunkId: citation.chunkId,
+        excerpt: citation.excerpt,
+        charStart: citation.charStart,
+        charEnd: citation.charEnd,
+      },
+      difficulty: question.difficulty,
+    },
+    answer: {
+      questionId: answer.questionId,
+      text: answer.text,
+      answeredAt: answer.answeredAt,
+      latencyMs: answer.latencyMs,
+    },
+  };
 }
 
 /** Comprueba el token y responde 401 si falta o no es válido. */
@@ -269,4 +494,15 @@ function emptySnapshot(userId: string): ProgressSnapshot {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === 'string');
+}
+
+function isOneOf<const T extends readonly string[]>(
+  value: unknown,
+  choices: T,
+): value is T[number] {
+  return typeof value === 'string' && choices.includes(value);
 }

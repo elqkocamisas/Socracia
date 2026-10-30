@@ -1,5 +1,5 @@
 import type { SocraticQuestion, UserAnswer } from '../domain/types';
-import { evaluateAnswer } from '../mayeu/evaluate';
+import { evaluateAnswer, evaluateSemanticAssessment } from '../mayeu/evaluate';
 
 const question: SocraticQuestion = {
   id: 'c1:q0',
@@ -31,6 +31,22 @@ describe('evaluateAnswer', () => {
     expect(evaluation.verdict).toBe('sin-respuesta');
     expect(evaluation.score).toBe(0);
     expect(evaluation.missingKeyTerms).toEqual(question.keyTerms);
+  });
+
+  describe('evaluateSemanticAssessment', () => {
+    it('acepta paráfrasis y conserva términos únicamente del concepto', () => {
+      const evaluation = evaluateSemanticAssessment(question, {
+        score: 0.88,
+        matchedKeyTerms: ['legalidad', 'término-inventado'],
+        feedback: 'La paráfrasis expresa correctamente el fundamento.',
+      });
+
+      expect(evaluation.verdict).toBe('correcta');
+      expect(evaluation.score).toBe(0.88);
+      expect(evaluation.matchedKeyTerms).toEqual(['legalidad']);
+      expect(evaluation.missingKeyTerms).toEqual(['habilitación', 'Administración']);
+      expect(evaluation.feedback).toContain('paráfrasis');
+    });
   });
 
   it('marca sin-respuesta para texto en blanco', () => {

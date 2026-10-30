@@ -81,10 +81,12 @@ describe('AccountScreen', () => {
     expect(screen.getByText('Iniciar sesión o crear cuenta')).toBeTruthy();
   });
 
-  it('avisa de que los documentos no salen del dispositivo', async () => {
+  it('explica el envío condicionado de fragmentos para el procesamiento semántico', async () => {
     await render(<AccountScreen services={servicesWithAccount()} now={() => 1000} />);
 
     await waitFor(() => expect(screen.getByText('Qué se sincroniza')).toBeTruthy());
-    expect(screen.getByText(/nunca salen del dispositivo/i)).toBeTruthy();
+    expect(screen.getByText(/a Gemini API/i)).toBeTruthy();
+    expect(screen.getByText(/mejorar sus productos/i)).toBeTruthy();
+    expect(screen.getByText(/el documento completo no se envía/i)).toBeTruthy();
   });
 });
