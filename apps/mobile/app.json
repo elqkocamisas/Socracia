@@ -6,7 +6,6 @@
     "orientation": "portrait",
     "scheme": "socracia",
     "userInterfaceStyle": "dark",
-    "newArchEnabled": true,
     "icon": "./assets/icon.png",
     "assetBundlePatterns": ["**/*"],
     "ios": {
@@ -44,7 +43,6 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0F1222"
       },
-      "edgeToEdgeEnabled": true,
       "permissions": [],
       "blockedPermissions": [
         "android.permission.ACCESS_FINE_LOCATION",
