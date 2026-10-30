@@ -716,6 +716,53 @@ sprint por una cuestión menor.
   checklist de publicación ya exige el AAB firmado; esta decisión no la cambia,
   solo documenta por qué el artefacto local no vale para subir.
 
+## D-046 — El servicio de Render debe ser la API, no la app web
+
+- **Contexto:** al preparar el build de tienda se pidió la URL del backend y se
+  recibió `https://socracia.onrender.com`. Al sondearla, **todas** las rutas
+  devolvían `text/html` con el documento de `react-native-web`
+  (`<title>Socracia</title>`, `#root`, `expo-reset`), incluida `POST /auth/login`
+  y `GET /health`. Es decir: el servicio desplegado era la **app Expo en modo
+  web**, no `apps/api`. Un móvil apuntado ahí no habría sincronizado nunca: cada
+  petición habría recibido HTML en lugar de JSON.
+- **Decisión:** declarar el backend en `render.yaml` como servicio propio
+  (`socracia-api`), construido desde la raíz del monorepo y arrancado con
+  `node apps/api/dist/index.js`. La URL de la app se configura con
+  `EXPO_PUBLIC_API_BASE_URL` apuntando a ese servicio.
+- **Motivos:** el repositorio no contenía ninguna configuración de Render, así
+  que el servicio existente se creó a mano en el panel. Sin un fichero en el
+  repositorio, el error (desplegar el cliente en lugar del servidor) se repite
+  en cada intento y nadie lo ve hasta que un usuario no puede iniciar sesión.
+- **Alternativas descartadas:** (a) desplegar la API en el mismo servicio que la
+  app web: mezcla dos procesos con requisitos distintos y el enrutado se vuelve
+  frágil; (b) usar el plan gratuito con disco: el gratuito no admite discos, así
+  que el progreso se perdería en cada reinicio; (c) dejar el backend sin
+  desplegar: la app funciona en local, pero se pierde la sincronización entre
+  dispositivos que el Sprint 4 ya implementó.
+- **Consecuencias:** el progreso persiste en `DATA_FILE`. Con el plan gratuito el
+  fichero vive en un sistema de archivos efímero: sirve para verificar el
+  servicio, **no** para producción. Para persistencia real hay que subir a un
+  plan de pago y descomentar el disco (queda anotado en `render.yaml`). El plan
+  gratuito además suspende el servicio sin tráfico, así que el primer acceso
+  tarda.
+
+## D-047 — El fichero de progreso crea su directorio
+
+- **Contexto:** `JsonFileProgressStore.flush()` escribía con `writeFile` sin
+  asegurar el directorio. En un despliegue, `DATA_FILE` apunta a un volumen que
+  se monta vacío, así que la primera sincronización fallaba con `ENOENT`.
+- **Decisión:** crear el directorio con `mkdir(…, { recursive: true })` antes de
+  escribir, y cubrirlo con una prueba que reproduce el fallo.
+- **Motivos:** el fallo solo aparece en el despliegue, es decir, en producción y
+  con el usuario delante. Reproducirlo en una prueba es más barato que
+  descubrirlo en el panel de Render.
+- **Alternativas descartadas:** (a) documentar «cree el directorio antes de
+  arrancar»: traslada a quien despliega un fallo del código y el plan gratuito
+  no permite crear directorios a mano; (b) usar el directorio actual si falta:
+  escribe donde no debe.
+- **Consecuencias:** la prueba nueva falla con `ENOENT` si se retira el arreglo
+  (verificado). Sin efecto en el modo en memoria.
+
 ## Ambigüedades pendientes (no bloqueantes)
 
 - **Vertical inicial (oposiciones vs PAU):** resuelto en el Sprint 1: el corpus

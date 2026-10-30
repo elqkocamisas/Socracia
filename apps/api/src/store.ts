@@ -1,5 +1,6 @@
 import { mergeSnapshots, type ProgressSnapshot } from '@socracia/core';
-import { readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { dirname } from 'node:path';
 
 /**
  * Almacén de progreso sincronizado.
@@ -94,6 +95,10 @@ export class JsonFileProgressStore implements ProgressStore {
   private flush(): Promise<void> {
     this.writeChain = this.writeChain.then(async () => {
       const payload = JSON.stringify(Object.fromEntries(this.byUser));
+      // El directorio puede no existir: en un despliegue el fichero suele
+      // apuntar a un volumen que se monta vacío. Sin esto la primera
+      // sincronización falla con ENOENT.
+      await mkdir(dirname(this.path), { recursive: true });
       await writeFile(this.path, payload, 'utf8');
     });
     return this.writeChain;
