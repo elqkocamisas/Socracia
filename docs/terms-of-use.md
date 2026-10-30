@@ -1,6 +1,6 @@
 # Términos de uso de Socracia
 
-**Última actualización:** 28 de octubre de 2026
+**Última actualización:** 30 de octubre de 2026
 
 Estos términos regulan el uso de la aplicación Socracia (`com.socracia.app`). Al
 instalarla y usarla, el usuario acepta lo aquí descrito.
@@ -33,10 +33,15 @@ declara que:
 - no sube contenido ilícito, ni datos personales de terceros sin base para ello,
   ni material protegido por derechos de autor que no esté autorizado a usar.
 
-La aplicación **no** aloja ni redistribuye esos documentos: se procesan en el
-dispositivo del usuario y no se envían a nuestros servidores. Cada pregunta
-muestra el fragmento y el documento del que procede, para que el usuario pueda
-trazar de dónde sale cada afirmación.
+La aplicación no aloja ni redistribuye esos documentos. De forma predeterminada
+se procesan en el dispositivo. Si el usuario inicia sesión, activa el
+procesamiento en nube y autoriza un documento al importarlo, fragmentos citados
+y respuestas se envían al backend y a Gemini API para generar preguntas y
+evaluarlas; el documento completo no se transmite. En la cuota gratuita Google
+puede usar el contenido enviado para mejorar sus productos; no use esa modalidad
+con material sensible. Cada pregunta muestra el
+fragmento y el documento del que procede, para que el usuario pueda trazar de
+dónde sale cada afirmación.
 
 Si el usuario cree que un contenido infringe derechos de autor, puede escribir a
 legal@socracia.app.

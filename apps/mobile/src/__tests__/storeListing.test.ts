@@ -44,7 +44,12 @@ interface Declarations {
   googlePlay: {
     comparteConTerceros: boolean;
     datosCifradosEnTransito: boolean;
-    tipos: Array<{ recogido: boolean; compartido: boolean }>;
+    tipos: Array<{
+      categoria: string;
+      recogido: boolean;
+      compartido: boolean;
+      procesamiento?: string;
+    }>;
     noRecogidos: string[];
   };
 }
@@ -192,13 +197,20 @@ describe('Declaraciones de privacidad', () => {
     expect(tipos.some((t) => /Document/i.test(t))).toBe(false);
   });
 
-  it('en Play declara el correo y el progreso, y nada compartido con terceros', () => {
-    expect(declarations.googlePlay.comparteConTerceros).toBe(false);
+  it('en Play declara el contenido semántico que se comparte con Gemini', () => {
+    expect(declarations.googlePlay.comparteConTerceros).toBe(true);
     expect(declarations.googlePlay.datosCifradosEnTransito).toBe(true);
     for (const tipo of declarations.googlePlay.tipos) {
       expect(tipo.recogido).toBe(true);
-      expect(tipo.compartido).toBe(false);
     }
+    expect(
+      declarations.googlePlay.tipos.find((tipo) => tipo.categoria === 'Archivos y documentos'),
+    ).toMatchObject({ compartido: true, procesamiento: 'Opcional' });
+    expect(
+      declarations.googlePlay.tipos
+        .filter((tipo) => tipo.categoria !== 'Archivos y documentos')
+        .every((tipo) => tipo.compartido === false),
+    ).toBe(true);
     expect(declarations.googlePlay.tipos.length).toBeGreaterThanOrEqual(2);
   });
 

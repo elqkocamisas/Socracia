@@ -92,34 +92,43 @@ Socracia/
 
 ```mermaid
 flowchart TD
-    A[Usuario adjunta documento<br/>PDF / TXT / MD] --> B[Extracción de texto]
-    B --> C[normalizeText + chunkText<br/>fragmentos con trazabilidad]
-    C --> D[EmbeddingProvider<br/>on-device o backend]
-    D --> E[(VectorStore local<br/>SQLite / memoria)]
+    U[Usuario importa PDF / TXT / MD] --> X[Extraer texto en el móvil]
+    X --> C[Normalizar y dividir en fragmentos]
+    C --> E[Calcular embeddings localmente]
+    E --> V[(Índice RAG local)]
+    X --> T[Extraer temario: temas y conceptos]
 
-    E --> F{Concepto del temario<br/>a trabajar}
-    F --> G[Retrieval: búsqueda<br/>semántica top-K]
-    G --> H[Generación de preguntas<br/>mayéuticas + cita de fuente]
+    T --> F[Concepto que toca estudiar]
+    F --> G[Buscar evidencia top-K en el RAG local]
+    G -->|Fragmento + cita| H[Generador local de preguntas]
+    H --> P{¿Build con nube, sesión,<br/>ajuste activo y documento autorizado?}
+    P -->|No| Q[Usar preguntas locales]
+    P -->|Sí| R[HttpSyncClient<br/>POST /mayeutic/generate]
+    R -->|Concepto + fragmento citado<br/>sin documento ni embeddings| S[API autenticada]
+    S --> L[Adaptador Gemini API<br/>en apps/api]
+    L -->|SemanticQuestionDraft validado| Q
 
-    H --> I[Pregunta guiada<br/>al usuario]
+    Q --> I[Mostrar pregunta con cita]
     I --> J[Respuesta del usuario]
-    J --> K[evaluateAnswer:<br/>términos clave + solapamiento]
-    K --> L{Veredicto}
-    L -->|correcta| M[Refuerzo +<br/>sube dificultad]
-    L -->|parcial| N[Pista socrática +<br/>repregunta]
-    L -->|incorrecta /<br/>sin-respuesta| O[Repregunta guiada<br/>con andamiaje]
-
-    M --> P[scheduleReview<br/>repetición espaciada]
-    N --> P
-    O --> P
-    P --> Q[detectGaps:<br/>perfil de lagunas]
-    Q --> R[Pantalla de progreso:<br/>lagunas + repaso recomendado]
-    R --> F
+    J --> A{¿Respuesta no vacía<br/>y misma autorización vigente?}
+    A -->|No| K[Evaluación determinista local]
+    A -->|Sí| B[POST /mayeutic/evaluate<br/>pregunta + cita + respuesta]
+    B --> L
+    L -->|Puntuación, términos y feedback| M[MayeuticSessionEngine<br/>decide veredicto y andamiaje]
+    K --> M
+    M --> N[Persistir evaluación y repaso]
+    N --> O[Actualizar lagunas y progreso]
+    O --> W[Pantalla de progreso]
+    W --> F
 ```
 
-El bucle se cierra sobre el temario: cada respuesta actualiza el estado de
-repaso y el perfil de lagunas, y el sistema elige el siguiente concepto con
-mayor urgencia de asimilación.
+El LLM solo reemplaza generación y evaluación en el punto de extensión
+`MayeuticSemanticProvider`; la extracción, el RAG, la cita, el veredicto final,
+el andamiaje y la persistencia siguen en el móvil/core. El envío exige
+simultáneamente build habilitado, sesión, ajuste de nube activo y consentimiento
+registrado en ese documento. La API solo recibe el fragmento recuperado y los
+datos estrictamente necesarios; nunca el documento completo ni sus embeddings.
+Sin autorización se conserva íntegro el recorrido local.
 
 ## 4. Contratos del dominio
 

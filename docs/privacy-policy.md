@@ -1,6 +1,6 @@
 # Política de privacidad de Socracia
 
-**Última actualización:** 28 de octubre de 2026
+**Última actualización:** 30 de octubre de 2026
 
 Socracia es una aplicación de autoaprendizaje basada en la mayéutica. Esta
 política describe qué datos trata la aplicación y con qué finalidad. Está
@@ -9,9 +9,11 @@ cambia, este documento debe cambiar en el mismo pull request.
 
 ## Resumen en una frase
 
-Los documentos que el usuario adjunta **nunca salen de su dispositivo**. Lo único
-que puede viajar a un servidor es el progreso agregado, y solo si el usuario crea
-una cuenta y pulsa sincronizar.
+Por defecto, los documentos y las respuestas permanecen en el dispositivo. Si
+el usuario inicia sesión, activa el procesamiento en nube y autoriza un documento,
+se envían fragmentos citados y respuestas al backend y al proveedor Gemini para
+generar preguntas y evaluar respuestas. La sincronización de progreso es una
+acción separada y opcional.
 
 ## 1. Responsable
 
@@ -28,7 +30,7 @@ real y operativo. Un contacto que no responde es motivo de rechazo en App Store.
 
 ## 2. Qué datos trata la app
 
-### 2.1 Documentos que el usuario adjunta (solo en el dispositivo)
+### 2.1 Documentos que el usuario adjunta
 
 El usuario puede adjuntar ficheros PDF, TXT o MD como temario. La aplicación:
 
@@ -37,28 +39,32 @@ El usuario puede adjuntar ficheros PDF, TXT o MD como temario. La aplicación:
 - guarda los fragmentos y el índice vectorial en una base de datos SQLite local
   (`expo-sqlite`).
 
-Estos documentos, su texto, sus fragmentos y sus embeddings **no se envían a
-ningún servidor**, ni siquiera si el usuario inicia sesión. No hay ninguna ruta
-en la API que los acepte.
+En modo **solo-dispositivo**, ningún contenido del documento sale del teléfono.
+El documento completo y sus embeddings nunca se envían. Para usar la generación
+y evaluación semántica, el usuario debe iniciar sesión, activar el ajuste de
+nube y autorizar el documento al importarlo. En ese caso, la app envía al backend
+solo el fragmento citado, la definición y términos del concepto asociado, la
+pregunta y la respuesta escrita por el usuario. El backend los remite a Gemini
+API; la clave de Gemini permanece en el servidor.
 
-La app incluye un ajuste de procesamiento en «Cuenta → Privacidad». De fábrica
-está en **solo-dispositivo**, que es el modo descrito aquí. La opción de permitir
-procesamiento en un servidor existe para versiones futuras con corpus en la nube;
-si el usuario la activa, la app deja de prometer que nada sale del dispositivo y
-lo indica en esa misma pantalla. El modo elegido se guarda en el dispositivo y
-cada documento importado registra si se autorizó o no, de modo que el usuario
-puede auditar qué material se procesó fuera.
+El modo predeterminado es **solo-dispositivo**. La autorización se guarda por
+documento al importarlo y no se aplica retroactivamente a documentos anteriores.
+Desactivar el ajuste impide nuevos envíos. El proveedor puede tratar o conservar
+los datos conforme a sus condiciones de API; borrar el documento local no borra
+datos que el proveedor ya haya recibido. La cuota gratuita de Gemini API puede
+usar el contenido enviado para mejorar los productos de Google; no use esta
+modalidad con material sensible. La cuota, los límites y las condiciones pueden
+cambiar, y superar la cuota gratuita puede requerir facturación.
 
 <!-- dev:nota-interna -->
 
-Cuando se active `allow-cloud` en producción, revise también:
+Antes de habilitar `allow-cloud` en una publicación, revise también:
 
-- `apps/mobile/store/privacy-declarations.json` (hoy declara que los documentos
-  no se transmiten);
+- `apps/mobile/store/privacy-declarations.json`;
 - el texto de `docs/terms-of-use.md` sobre contenido de terceros.
 
-Mientras el ajuste siga en solo-dispositivo, las declaraciones de tienda son
-correctas tal cual.
+Las declaraciones de tienda deben reflejar la transmisión de fragmentos,
+respuestas y demás contenido del usuario al backend y a Gemini.
 <!-- /dev:nota-interna -->
 
 ### 2.2 Progreso de estudio
@@ -68,8 +74,8 @@ evaluaciones, perfil de lagunas, estado de repaso espaciado y sesiones de estudi
 
 Si el usuario crea una cuenta y pulsa «Sincronizar», se envía a la API
 únicamente el **progreso agregado**: evaluaciones, estado de repaso, sesiones y
-perfil de lagunas, junto con marcas temporales para resolver conflictos. El
-paquete no incluye los documentos ni su texto.
+perfil de lagunas, junto con marcas temporales para resolver conflictos. Esto es
+independiente del uso del LLM descrito en 2.1.
 
 ### 2.3 Cuenta (opcional)
 
@@ -103,18 +109,21 @@ Google Play.
 ## 3. Dónde se tratan los datos
 
 - **En el dispositivo:** los documentos, su texto, los fragmentos, los embeddings
-  y —si no hay cuenta— todo el progreso.
-- **En el servidor:** solo si el usuario crea una cuenta y sincroniza. Se tratan
-  el correo, la derivación de la contraseña y el progreso agregado.
+  y el progreso, tanto si el usuario tiene cuenta como si no.
+- **En el servidor y Gemini:** fragmentos, conceptos, preguntas y respuestas
+  únicamente cuando están habilitados los controles de autorización.
+- **En el servidor de Socracia:** correo, derivación de contraseña y progreso
+  agregado si el usuario crea una cuenta y sincroniza.
 
 ## 4. Para qué se usan
 
-| Dato                | Finalidad                                                  | Base jurídica (RGPD)                                           |
-| ------------------- | ---------------------------------------------------------- | -------------------------------------------------------------- |
-| Documentos y texto  | Generar preguntas y recuperar fragmentos en el dispositivo | No hay tratamiento por nuestra parte: no salen del dispositivo |
-| Progreso agregado   | Continuar el estudio en otro dispositivo                   | Ejecución de un contrato (el servicio solicitado)              |
-| Correo y contraseña | Autenticar la cuenta                                       | Ejecución de un contrato                                       |
-| Token de sesión     | Mantener la sesión iniciada                                | Ejecución de un contrato                                       |
+| Dato                                | Finalidad                                                  | Base jurídica (RGPD)                                                        |
+| ----------------------------------- | ---------------------------------------------------------- | --------------------------------------------------------------------------- |
+| Documentos y texto                  | Generar preguntas y recuperar fragmentos en el dispositivo | No salen del dispositivo salvo autorización descrita en 2.1                 |
+| Fragmentos y respuestas autorizados | Generación y evaluación semántica                          | Consentimiento explícito mediante el ajuste y la autorización por documento |
+| Progreso agregado                   | Continuar el estudio en otro dispositivo                   | Ejecución de un contrato (el servicio solicitado)                           |
+| Correo y contraseña                 | Autenticar la cuenta                                       | Ejecución de un contrato                                                    |
+| Token de sesión                     | Mantener la sesión iniciada                                | Ejecución de un contrato                                                    |
 
 No se usan para elaborar perfiles comerciales ni para publicidad. No hay
 decisiones automatizadas con efectos jurídicos.
@@ -128,10 +137,13 @@ decisiones automatizadas con efectos jurídicos.
 
 ## 6. Cesiones y encargados
 
-No se venden ni se ceden datos personales a terceros. No hay transferencias
-internacionales más allá del proveedor de alojamiento donde se despliegue la API,
-que debe documentarse antes de publicar (ver la lista de comprobación de
-publicación).
+Los fragmentos y respuestas autorizados se comparten con Google como proveedor
+de procesamiento mediante Gemini API. En su cuota gratuita, Google puede usar
+ese contenido para mejorar productos; la modalidad de pago declara que no lo
+hace según las condiciones vigentes. La ubicación, conservación, uso y límites
+dependen de las condiciones del proveedor y deben revisarse antes de publicar.
+El proveedor de alojamiento de la API también debe documentarse en la lista de
+comprobación de publicación.
 
 ## 7. Derechos del usuario
 

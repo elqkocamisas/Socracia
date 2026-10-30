@@ -14,7 +14,9 @@ describe('LegalScreen', () => {
     await waitFor(() =>
       expect(screen.getByText('Política de privacidad de Socracia')).toBeTruthy(),
     );
-    expect(screen.getByText(/nunca salen de su dispositivo/i)).toBeTruthy();
+    expect(
+      screen.getByText(/por defecto, los documentos y las respuestas permanecen/i),
+    ).toBeTruthy();
   });
 
   it('muestra los términos de uso', async () => {

@@ -32,20 +32,24 @@ implementa `HttpSyncClient`, en las pruebas un servidor en memoria.
 
 ## Endpoints
 
-| Método | Ruta             | Cuerpo                                   | Respuesta                    |
-| ------ | ---------------- | ---------------------------------------- | ---------------------------- |
-| GET    | `/health`        | —                                        | `{ "status": "ok" }`         |
-| POST   | `/auth/register` | `{ email, password }`                    | `{ token, userId }`          |
-| POST   | `/auth/login`    | `{ email, password }`                    | `{ token, userId }`          |
-| POST   | `/auth/logout`   | — (con `Authorization`)                  | `{ "status": "cerrado" }`    |
-| DELETE | `/account`       | — (con `Authorization`)                  | `{ "status": "eliminada" }`  |
-| POST   | `/sync/push`     | `ProgressSnapshot` (con `Authorization`) | `ProgressSnapshot` fusionada |
-| GET    | `/sync/pull`     | — (con `Authorization`)                  | `ProgressSnapshot` guardada  |
+| Método | Ruta                 | Cuerpo                                                 | Respuesta                          |
+| ------ | -------------------- | ------------------------------------------------------ | ---------------------------------- |
+| GET    | `/health`            | —                                                      | `{ "status": "ok" }`               |
+| POST   | `/auth/register`     | `{ email, password }`                                  | `{ token, userId }`                |
+| POST   | `/auth/login`        | `{ email, password }`                                  | `{ token, userId }`                |
+| POST   | `/auth/logout`       | — (con `Authorization`)                                | `{ "status": "cerrado" }`          |
+| DELETE | `/account`           | — (con `Authorization`)                                | `{ "status": "eliminada" }`        |
+| POST   | `/sync/push`         | `ProgressSnapshot` (con `Authorization`)               | `ProgressSnapshot` fusionada       |
+| GET    | `/sync/pull`         | — (con `Authorization`)                                | `ProgressSnapshot` guardada        |
+| POST   | `/mayeutic/generate` | Concepto y fragmento citado (con `Authorization`)      | Preguntas socráticas estructuradas |
+| POST   | `/mayeutic/evaluate` | Pregunta, referencia y respuesta (con `Authorization`) | Evaluación semántica estructurada  |
 
 Autenticación por `Authorization: Bearer <token>`. Códigos de error:
 
 - `400 datos-invalidos` — falta un campo o la instantánea no es válida.
 - `401 no-autorizado` — token ausente o caducado; también credenciales inválidas.
+- `502 proveedor-semantico` — Gemini no pudo completar una solicitud o devolvió un resultado inválido.
+- `503 proveedor-no-configurado` — no hay un proveedor semántico inyectado en el backend.
 - `409 email-en-uso` / `409 datos-invalidos` — registro rechazado.
 - `404` — ruta desconocida.
 
@@ -57,8 +61,11 @@ Autenticación por `Authorization: Bearer <token>`. Códigos de error:
 - **Contraseñas con `scrypt`** y sal por cuenta, comparadas en tiempo constante.
   Los tokens son aleatorios de 32 bytes y viven en memoria: al reiniciar el
   proceso las sesiones caducan.
-- **Solo se sincroniza el progreso.** Los documentos y sus fragmentos nunca se
-  envían al servidor.
+- **Sincronización aislada del contenido.** La sincronización de cuenta solo
+  intercambia progreso. La excepción son las solicitudes mayéuticas autorizadas:
+  llevan fragmentos citados y respuestas al backend y al proveedor LLM, nunca el
+  documento completo. Requieren sesión, nube habilitada y consentimiento
+  registrado en el dispositivo para el documento.
 
 ## Sincronización
 
@@ -91,17 +98,39 @@ PORT=8787 DATA_FILE=./datos.json npm start --workspace @socracia/api
 La app apunta al backend con `EXPO_PUBLIC_API_BASE_URL` (por defecto
 `http://localhost:8787`).
 
-### Procesamiento en la nube (opt-in)
+### LLM mayéutico y procesamiento en la nube (opt-in)
 
-Por defecto la app procesa todo en el dispositivo y el ajuste «Cuenta →
-Privacidad» no ofrece la nube: no hay backend de corpus que la ejecute, y
-enseñar un interruptor sin efecto sería un mando muerto. Para un build que sí
-tenga corpus en la nube, defina `EXPO_PUBLIC_CLOUD_PROCESSING=1`; entonces la
-pantalla muestra el ajuste y el usuario puede autorizarlo.
+El backend usa [Gemini API](https://aistudio.google.com/apikey) mediante su interfaz compatible con OpenAI para
+redactar preguntas no triviales a partir de evidencia recuperada y evaluar
+respuestas aceptando paráfrasis. El modelo predeterminado es
+`gemini-3.8-flash`, disponible con cuota gratuita en Google AI Studio sujeta a
+límites variables. El veredicto se calcula en el núcleo a partir de la
+puntuación semántica devuelta; el andamiaje existente sigue sin revelar la
+respuesta.
+
+Configure `GEMINI_API_KEY` solo en el entorno del backend. `GEMINI_MODEL` permite
+cambiar el modelo compatible; por defecto es `gemini-3.8-flash`. Las rutas
+protegidas `/mayeutic/generate` y `/mayeutic/evaluate` requieren una sesión
+autenticada. Sin clave configurada, el backend devuelve un error explícito; no
+finge una evaluación semántica.
+La cuota gratuita puede agotarse o cambiar; las solicitudes excedentes pueden
+requerir habilitar facturación. En la modalidad gratuita Google puede usar el
+contenido enviado para mejorar sus productos. No envíe material sensible y
+revise las [condiciones vigentes de Gemini API](https://ai.google.dev/gemini-api/terms)
+y sus [límites de uso](https://ai.google.dev/gemini-api/docs/rate-limits) antes
+de desplegar.
+
+La app conserva el modo local como predeterminado. Para mostrar el ajuste de
+nube en una compilación, defina `EXPO_PUBLIC_CLOUD_PROCESSING=1`; además, el
+usuario debe iniciar sesión, activar el ajuste y luego importar el documento.
+Solo entonces se envían fragmentos citados, datos del concepto y respuestas a
+la API y a Gemini. El documento completo y los embeddings no se envían. Si una
+sesión remota falla, la app informa del error y no sustituye silenciosamente la
+evaluación por una heurística local.
 
 Al activar ese build, actualice en el mismo envío `store/privacy-declarations.json`
-y el apartado 2.1 de `docs/privacy-policy.md`: declarar que los documentos no se
-transmiten con la nube activada sería una declaración falsa ante las tiendas.
+y los textos de `docs/privacy-policy.md` y `docs/terms-of-use.md`. La clave del
+proveedor nunca debe incluirse en la app móvil.
 
 ## Pruebas
 

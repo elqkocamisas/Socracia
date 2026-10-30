@@ -1,5 +1,6 @@
 import type { ProgressSnapshot } from '@socracia/core';
 
+import type { MayeuticAiService } from '../mayeutic';
 import { emptySnapshot, register, startApi, testServer } from './helpers/apiHarness';
 
 /**
@@ -14,7 +15,29 @@ describe('API de sincronización', () => {
   let close: () => Promise<void>;
 
   beforeEach(async () => {
-    const { server } = testServer();
+    const { server } = testServer({
+      generateQuestions: async () => ({
+        ok: true,
+        value: [
+          {
+            prompt: '¿Cómo cambiaría este principio si se aplicara a un caso concreto?',
+            move: 'aplicar-caso',
+            level: 'aplicar',
+            expectedAnswer: 'Una respuesta fundamentada en el fragmento.',
+            keyTerms: ['principio'],
+            difficulty: 0.7,
+          },
+        ],
+      }),
+      evaluateAnswer: async () => ({
+        ok: true,
+        value: {
+          score: 0.85,
+          matchedKeyTerms: ['principio'],
+          feedback: 'La paráfrasis expresa correctamente la idea.',
+        },
+      }),
+    } satisfies MayeuticAiService);
     const running = await startApi(server);
     baseUrl = running.baseUrl;
     close = running.close;
@@ -115,6 +138,89 @@ describe('API de sincronización', () => {
     });
 
     expect(response.status).toBe(401);
+  });
+
+  it('protege y valida las rutas de generación y evaluación semántica', async () => {
+    const body = {
+      concept: {
+        id: 'c1',
+        topicId: 't1',
+        label: 'principio',
+        definition: 'Regla que fundamenta una decisión.',
+        keywords: ['principio'],
+      },
+      citation: {
+        documentId: 'd1',
+        documentTitle: 'Tema 1',
+        chunkId: 'd1:0',
+        excerpt: 'El principio fundamenta la decisión.',
+        charStart: 0,
+        charEnd: 37,
+      },
+      maxQuestions: 1,
+    };
+    const unauthorized = await fetch(`${baseUrl}/mayeutic/generate`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    expect(unauthorized.status).toBe(401);
+
+    const { token } = await register(baseUrl, 'llm@ejemplo.com');
+    const generated = await fetch(`${baseUrl}/mayeutic/generate`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(body),
+    });
+    expect(generated.status).toBe(200);
+    expect(await generated.json()).toMatchObject({
+      0: { level: 'aplicar', move: 'aplicar-caso' },
+    });
+
+    const evaluated = await fetch(`${baseUrl}/mayeutic/evaluate`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        question: {
+          id: 'c1:llm:q0',
+          conceptId: 'c1',
+          prompt: '¿Cómo aplicarías este principio?',
+          move: 'aplicar-caso',
+          level: 'aplicar',
+          expectedAnswer: 'Una respuesta fundamentada en el fragmento.',
+          keyTerms: ['principio'],
+          citation: body.citation,
+          difficulty: 0.7,
+        },
+        answer: {
+          questionId: 'c1:llm:q0',
+          text: 'Una paráfrasis correcta.',
+          answeredAt: 1000,
+          latencyMs: 2000,
+        },
+      }),
+    });
+    expect(evaluated.status).toBe(200);
+    expect(await evaluated.json()).toMatchObject({
+      score: 0.85,
+      matchedKeyTerms: ['principio'],
+    });
+
+    const invalid = await fetch(`${baseUrl}/mayeutic/generate`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ ...body, maxQuestions: 100 }),
+    });
+    expect(invalid.status).toBe(400);
   });
 
   it('rechaza una instantánea mal formada', async () => {

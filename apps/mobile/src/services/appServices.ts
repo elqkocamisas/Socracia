@@ -20,6 +20,7 @@ import {
   type EdgeLlmNativeModule,
   type EmbeddingProvider,
   type Result,
+  type MayeuticSemanticProvider,
   type VectorStore,
 } from '@socracia/core';
 
@@ -110,10 +111,10 @@ export async function resolveEmbeddingProvider(options: {
 export const DEFAULT_API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? 'http://localhost:8787';
 
 /**
- * ¿Existe hoy un camino real de procesamiento en la nube?
+ * ¿Existe hoy un camino real de procesamiento semántico en la nube?
  *
  * El modo local es siempre el único garantizado. El ajuste de nube se muestra
- * solo cuando hay backend de corpus desplegado (`EXPO_PUBLIC_CLOUD_PROCESSING`).
+ * solo cuando hay un backend de IA desplegado (`EXPO_PUBLIC_CLOUD_PROCESSING`).
  * Enseñar un interruptor que no cambia nada sería un mando muerto, y en la
  * revisión de tienda una promesa que el código no cumple.
  */
@@ -135,8 +136,10 @@ export interface AppServices {
   readonly policy: ProcessingPolicyHolder;
   /** Persistencia de la política, para el ajuste de privacidad. */
   readonly policyStore: ProcessingPolicyStore;
-  /** `true` si este build tiene backend de corpus en la nube. */
+  /** `true` si este build ofrece procesamiento semántico en la nube. */
   readonly cloudAvailable: boolean;
+  /** Comprueba en tiempo real todos los requisitos de procesamiento remoto. */
+  readonly cloudProcessingEnabled: () => boolean;
 }
 
 /** Opciones de creación del runtime. */
@@ -187,14 +190,28 @@ export function createServices(options: CreateServicesOptions): AppServices {
   const store = options.vectorStore ?? new InMemoryVectorStore();
   const rag = new RagEngine(store, provider);
   const ingestion = new DocumentIngestionService(defaultRegistry(fflateInflate), rag);
-  const study = new StudyService(rag, options.storage);
-  const session = new MayeuticSessionController(study, options.storage, LOCAL_USER_ID);
   const syncClient =
     options.syncClient ??
     new HttpSyncClient({ baseUrl: options.apiBaseUrl ?? DEFAULT_API_BASE_URL });
   const credentials = options.credentials ?? new InMemoryCredentialStore();
   const account = new AccountService(syncClient, credentials, options.storage, LOCAL_USER_ID);
   const policy = new ProcessingPolicyHolder(options.policy ?? DEFAULT_PROCESSING_POLICY);
+  const cloudAvailable = options.cloudAvailable ?? CLOUD_PROCESSING_AVAILABLE;
+  const cloudProcessingEnabled = (): boolean =>
+    cloudAvailable && syncClient.hasSession() && allowsCloudProcessing(policy.current());
+  const semanticProvider: MayeuticSemanticProvider = {
+    canProcess: (document) => document.cloudConsent && cloudProcessingEnabled(),
+    generateQuestions: async (concept, citation, questionOptions) => {
+      const result = await syncClient.generateQuestions(concept, citation, questionOptions);
+      return result.ok ? result : { ok: false, error: new Error(result.error.message) };
+    },
+    evaluateAnswer: async (question, answer) => {
+      const result = await syncClient.evaluateAnswer(question, answer);
+      return result.ok ? result : { ok: false, error: new Error(result.error.message) };
+    },
+  };
+  const study = new StudyService(rag, options.storage, undefined, semanticProvider);
+  const session = new MayeuticSessionController(study, options.storage, LOCAL_USER_ID);
 
   return {
     storage: options.storage,
@@ -208,7 +225,8 @@ export function createServices(options: CreateServicesOptions): AppServices {
     embedding,
     policy,
     policyStore: options.policyStore ?? new InMemoryProcessingPolicyStore(),
-    cloudAvailable: options.cloudAvailable ?? CLOUD_PROCESSING_AVAILABLE,
+    cloudAvailable,
+    cloudProcessingEnabled,
   };
 }
 
@@ -304,7 +322,7 @@ export async function importDocument(
       chunkOptions: { maxChars: 900, overlapChars: 150, minChars: 40 },
       // Queda registrado en el documento si el usuario autorizó la nube, para
       // poder auditar después qué material se procesó fuera del dispositivo.
-      cloudConsent: allowsCloudProcessing(services.policy.current()),
+      cloudConsent: services.cloudProcessingEnabled(),
       id,
       now,
     },

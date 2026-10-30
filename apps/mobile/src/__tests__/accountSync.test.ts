@@ -7,6 +7,7 @@ import { InMemoryCredentialStore } from '../services/credentialStore';
 import { inMemoryStorage, type ProgressSnapshot } from '@socracia/core';
 import { startFakeApi, type FakeApi } from './helpers/fakeApi';
 import { nodeFetch } from './helpers/nodeFetch';
+import type { Citation, Concept, SocraticQuestion, UserAnswer } from '@socracia/core';
 
 /**
  * El cliente y el servicio de cuenta hablan HTTP real contra un backend en un
@@ -111,6 +112,88 @@ describe('HttpSyncClient y AccountService', () => {
 
     const pulled = await client.pull(registered.value.userId);
     expect(pulled.ok && pulled.value.evaluations).toHaveLength(1);
+  });
+
+  it('envía generación y evaluación semánticas con la sesión autenticada', async () => {
+    const calls: Array<{ url: string; authorization: string | undefined; body: string }> = [];
+    const fetchImpl: typeof fetch = async (input, init) => {
+      calls.push({
+        url: String(input),
+        authorization: new Headers(init?.headers).get('authorization') ?? undefined,
+        body: String(init?.body ?? ''),
+      });
+      const payload = calls.at(-1)?.url.endsWith('/mayeutic/generate')
+        ? [
+            {
+              prompt: '¿Cómo aplicarías este principio a otro caso?',
+              move: 'aplicar-caso',
+              level: 'aplicar',
+              expectedAnswer: 'Una respuesta fundamentada en el fragmento de referencia.',
+              keyTerms: ['principio'],
+              difficulty: 0.7,
+            },
+          ]
+        : {
+            score: 0.9,
+            matchedKeyTerms: ['principio'],
+            feedback: 'La paráfrasis conserva el sentido.',
+          };
+      return new Response(JSON.stringify(payload), { status: 200 });
+    };
+    const client = new HttpSyncClient({
+      baseUrl: 'https://api.ejemplo.test',
+      token: 'token-estudio',
+      fetchImpl,
+    });
+    const concept: Concept = {
+      id: 'c1',
+      topicId: 't1',
+      label: 'principio',
+      definition: 'Fundamento de una regla.',
+      keywords: ['principio'],
+    };
+    const citation: Citation = {
+      documentId: 'd1',
+      documentTitle: 'Tema 1',
+      chunkId: 'd1:0',
+      excerpt: 'El principio sirve de fundamento.',
+      charStart: 0,
+      charEnd: 34,
+    };
+    const question: SocraticQuestion = {
+      id: 'c1:llm:q0',
+      conceptId: 'c1',
+      prompt: '¿Cómo aplicarías este principio a otro caso?',
+      move: 'aplicar-caso',
+      level: 'aplicar',
+      expectedAnswer: 'Una respuesta fundamentada en el fragmento de referencia.',
+      keyTerms: ['principio'],
+      citation,
+      difficulty: 0.7,
+    };
+    const answer: UserAnswer = {
+      questionId: question.id,
+      text: 'Una explicación equivalente con otras palabras.',
+      answeredAt: 1000,
+      latencyMs: 1200,
+    };
+
+    const generated = await client.generateQuestions(concept, citation, {
+      maxPerConcept: 1,
+      shuffle: false,
+      seed: 1,
+    });
+    const evaluated = await client.evaluateAnswer(question, answer);
+
+    expect(generated.ok).toBe(true);
+    expect(evaluated.ok).toBe(true);
+    expect(calls.map((call) => call.url)).toEqual([
+      'https://api.ejemplo.test/mayeutic/generate',
+      'https://api.ejemplo.test/mayeutic/evaluate',
+    ]);
+    expect(calls.every((call) => call.authorization === 'Bearer token-estudio')).toBe(true);
+    expect(JSON.parse(calls[0]?.body ?? '{}')).toMatchObject({ maxQuestions: 1 });
+    expect(JSON.parse(calls[1]?.body ?? '{}')).toMatchObject({ answer });
   });
 
   it('el servicio de cuenta persiste la sesión y sincroniza el progreso', async () => {

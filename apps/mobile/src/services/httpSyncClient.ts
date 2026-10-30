@@ -1,4 +1,17 @@
-import type { Id, ProgressSnapshot, Result, SyncError, SyncPort } from '@socracia/core';
+import type {
+  Citation,
+  Concept,
+  GenerateQuestionsOptions,
+  Id,
+  ProgressSnapshot,
+  Result,
+  SemanticAnswerAssessment,
+  SemanticQuestionDraft,
+  SocraticQuestion,
+  SyncError,
+  SyncPort,
+  UserAnswer,
+} from '@socracia/core';
 
 /**
  * Cliente HTTP de la API de Socracia.
@@ -37,6 +50,11 @@ export class HttpSyncClient implements SyncPort {
   /** Fija el token tras iniciar sesión o cerrarla (`null`). */
   public setToken(token: string | null): void {
     this.token = token;
+  }
+
+  /** Indica si las operaciones protegidas del backend pueden autenticarse. */
+  public hasSession(): boolean {
+    return this.token !== null;
   }
 
   public async register(
@@ -115,6 +133,31 @@ export class HttpSyncClient implements SyncPort {
     return this.request<ProgressSnapshot>(`/sync/pull?userId=${encodeURIComponent(userId)}`, {
       method: 'GET',
       headers: this.headers(),
+    });
+  }
+
+  /** Genera preguntas semánticas a partir de un concepto y su evidencia. */
+  public generateQuestions(
+    concept: Concept,
+    citation: Citation,
+    options: GenerateQuestionsOptions,
+  ): Promise<Result<readonly SemanticQuestionDraft[], SyncError>> {
+    return this.request('/mayeutic/generate', {
+      method: 'POST',
+      headers: this.headers(),
+      body: JSON.stringify({ concept, citation, maxQuestions: options.maxPerConcept }),
+    });
+  }
+
+  /** Evalúa semánticamente una respuesta, conservando el contrato del dominio. */
+  public evaluateAnswer(
+    question: SocraticQuestion,
+    answer: UserAnswer,
+  ): Promise<Result<SemanticAnswerAssessment, SyncError>> {
+    return this.request('/mayeutic/evaluate', {
+      method: 'POST',
+      headers: this.headers(),
+      body: JSON.stringify({ question, answer }),
     });
   }
 

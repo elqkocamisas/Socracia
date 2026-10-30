@@ -8,7 +8,8 @@ import type {
   Timestamp,
   UserAnswer,
 } from '../domain/types';
-import { evaluateAnswer, type EvaluationThresholds } from './evaluate';
+import { evaluateAnswer, evaluateSemanticAssessment, type EvaluationThresholds } from './evaluate';
+import type { SemanticAnswerAssessment } from './semanticProvider';
 import { detectGaps, initialReviewState, scheduleReview } from './gaps';
 import type { ItineraryStep } from './itinerary';
 import { buildScaffold, needsScaffold, type Scaffold } from './scaffolding';
@@ -88,7 +89,12 @@ export class MayeuticSessionEngine {
    * Registra una respuesta y devuelve el turno: evaluación, repregunta si
    * procede y siguiente pregunta.
    */
-  public submit(text: string, latencyMs: number, now: Timestamp): SessionTurn {
+  public submit(
+    text: string,
+    latencyMs: number,
+    now: Timestamp,
+    assessment?: SemanticAnswerAssessment,
+  ): SessionTurn {
     const step = this.steps[this.cursor];
     if (!step) {
       throw new Error('La sesión ya ha terminado: no hay pregunta actual');
@@ -101,7 +107,9 @@ export class MayeuticSessionEngine {
       answeredAt: now,
       latencyMs,
     };
-    const evaluation = evaluateAnswer(question, answer, this.options.thresholds);
+    const evaluation = assessment
+      ? evaluateSemanticAssessment(question, assessment, this.options.thresholds)
+      : evaluateAnswer(question, answer, this.options.thresholds);
     this.evaluations.push(evaluation);
     this.answers.push(answer);
     this.attemptsOnCurrent += 1;

@@ -174,7 +174,7 @@ export function AccountScreen({
 
   const busy = state.kind === 'enviando';
   const privacyDescription = describeCurrentPolicy(privacy.policy);
-  const cloudToggleVisible = isCloudToggleVisible(services);
+  const cloudToggleVisible = isCloudToggleVisible(services) && state.kind === 'sesion';
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -289,8 +289,11 @@ export function AccountScreen({
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Qué se sincroniza</Text>
         <Text style={styles.cardBody}>
-          Solo tu progreso: respuestas evaluadas, repaso y lagunas. Tus documentos y su texto nunca
-          salen del dispositivo.
+          La sincronización de cuenta incluye solo tu progreso. Al activar el modo nube, los
+          documentos que importes mientras esté activo quedan autorizados: se envían al backend y a
+          Gemini API fragmentos citados y tus respuestas para generar preguntas y evaluarlas. En la
+          cuota gratuita Google puede usar ese contenido para mejorar sus productos: no la uses con
+          material sensible. El documento completo no se envía.
         </Text>
       </View>
 
@@ -305,6 +308,12 @@ export function AccountScreen({
         {privacy.embedding.degradedReason ? (
           <Text style={styles.providerWarn}>
             Modelo local no disponible: {privacy.embedding.degradedReason}
+          </Text>
+        ) : null}
+        {services.cloudAvailable && state.kind !== 'sesion' ? (
+          <Text style={styles.cardBody}>
+            Inicia sesión para habilitar el procesamiento semántico en la nube. Sigue desactivado
+            hasta que lo autorices.
           </Text>
         ) : null}
         {cloudToggleVisible ? (

@@ -5,6 +5,7 @@ import type {
   UserAnswer,
 } from '../domain/types';
 import { tokenize } from '../rag/embeddings';
+import type { SemanticAnswerAssessment } from './semanticProvider';
 
 /** Umbrales de puntuación que separan los veredictos. */
 export interface EvaluationThresholds {
@@ -65,6 +66,31 @@ export function evaluateAnswer(
     matchedKeyTerms,
     missingKeyTerms,
     feedback: buildFeedback(verdict, missingKeyTerms),
+  };
+}
+
+/** Convierte una evaluación semántica en el contrato estable del dominio. */
+export function evaluateSemanticAssessment(
+  question: SocraticQuestion,
+  assessment: SemanticAnswerAssessment,
+  thresholds: EvaluationThresholds = DEFAULT_THRESHOLDS,
+): AnswerEvaluation {
+  const matchedKeyTerms = question.keyTerms.filter((term) =>
+    assessment.matchedKeyTerms.includes(term),
+  );
+  const missingKeyTerms = question.keyTerms.filter((term) => !matchedKeyTerms.includes(term));
+  const score = clamp01(assessment.score);
+  const feedback = assessment.feedback.trim();
+
+  return {
+    questionId: question.id,
+    conceptId: question.conceptId,
+    verdict: classify(score, thresholds),
+    score,
+    matchedKeyTerms,
+    missingKeyTerms,
+    feedback:
+      feedback.length > 0 ? feedback : buildFeedback(classify(score, thresholds), missingKeyTerms),
   };
 }
 

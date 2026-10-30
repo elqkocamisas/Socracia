@@ -1,6 +1,7 @@
 import { inMemoryStorage, ok } from '@socracia/core';
 
 import { createServices, importDocument, type AppServices } from '../services/appServices';
+import { HttpSyncClient } from '../services/httpSyncClient';
 import {
   InMemoryProcessingPolicyStore,
   SqliteProcessingPolicyStore,
@@ -58,7 +59,13 @@ describe('Ajuste de privacidad', () => {
   });
 
   it('el cambio de ajuste afecta a la importación siguiente sin reiniciar', async () => {
-    const services = makeServices();
+    const services = createServices({
+      storage: inMemoryStorage(),
+      picker: NO_PICKER,
+      reader,
+      cloudAvailable: true,
+      syncClient: new HttpSyncClient({ baseUrl: 'http://localhost:8787', token: 'test-token' }),
+    });
     await setProcessingPolicy(services, 'allow-cloud');
 
     expect(isCloudEnabled(services)).toBe(true);
@@ -67,6 +74,23 @@ describe('Ajuste de privacidad', () => {
 
     const documents = await services.storage.documents.listDocuments();
     expect(documents[0]?.cloudConsent).toBe(true);
+  });
+
+  it('no autoriza documentos para nube sin una sesión autenticada', async () => {
+    const services = createServices({
+      storage: inMemoryStorage(),
+      picker: NO_PICKER,
+      reader,
+      cloudAvailable: true,
+    });
+    await setProcessingPolicy(services, 'allow-cloud');
+
+    const result = await importDocument(services, file, NOW);
+
+    expect(result.ok).toBe(true);
+    expect(services.cloudProcessingEnabled()).toBe(false);
+    const documents = await services.storage.documents.listDocuments();
+    expect(documents[0]?.cloudConsent).toBe(false);
   });
 
   it('persiste el ajuste en el almacén para el próximo arranque', async () => {

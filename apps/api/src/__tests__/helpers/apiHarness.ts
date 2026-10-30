@@ -3,6 +3,7 @@ import type { Server } from 'node:http';
 
 import type { ProgressSnapshot } from '@socracia/core';
 
+import type { MayeuticAiService } from '../../mayeutic';
 import { AuthService } from '../../auth';
 import { InMemoryProgressStore } from '../../store';
 import { createApiServer, defaultDependencies } from '../../server';
@@ -32,9 +33,16 @@ export async function startApi(server: Server): Promise<RunningApi> {
 }
 
 /** Crea un servidor de pruebas con almacén en memoria. */
-export function testServer(): { server: Server; store: InMemoryProgressStore } {
+export function testServer(mayeuticAi?: MayeuticAiService): {
+  server: Server;
+  store: InMemoryProgressStore;
+} {
   const store = new InMemoryProgressStore();
-  const server = createApiServer({ auth: new AuthService(), store });
+  const server = createApiServer({
+    auth: new AuthService(),
+    store,
+    ...(mayeuticAi ? { mayeuticAi } : {}),
+  });
   return { server, store };
 }
 

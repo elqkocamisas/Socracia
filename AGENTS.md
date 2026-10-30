@@ -178,6 +178,12 @@ Trampas conocidas:
   sincroniza el progreso, nunca los documentos (D-027).
 - El móvil implementa `SyncPort` en `services/httpSyncClient.ts`; la sesión se
   guarda en `app_meta` vía `services/credentialStore.ts`.
+- La generación y evaluación semánticas opcionales pasan por el puerto
+  `MayeuticSemanticProvider` del núcleo y el backend (`apps/api/src/mayeutic.ts`)
+  las adapta a Gemini API. La clave `GEMINI_API_KEY` solo vive en el servidor;
+  build habilitado, sesión, ajuste y consentimiento por documento son
+  requisitos simultáneos. La cuota gratuita puede usar el contenido para
+  mejorar productos de Google: no habilitarla para material sensible.
 
 ## Reglas de trabajo
 

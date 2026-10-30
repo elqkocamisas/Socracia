@@ -573,6 +573,30 @@ sprint por una cuestión menor.
   aparece en pantalla). El parámetro obligatorio rompe a cualquier llamador
   futuro que intente pasar el identificador, en tiempo de compilación.
 
+## D-039 — LLM remoto gratuito para generación y evaluación mayéuticas, con consentimiento
+
+- **Fecha:** 30 de octubre de 2026
+- **Contexto:** las preguntas de plantilla y la evaluación por solapamiento
+  léxico no captan paráfrasis ni comprueban bien la coherencia entre la fuente,
+  la pregunta y la respuesta.
+- **Decisión:** usar Gemini API (`gemini-3.8-flash`, cuota gratuita de AI Studio
+  sujeta a límites y disponibilidad) desde el backend para generar preguntas
+  socráticas basadas en la cita recuperada y evaluar respuestas por significado.
+  La app solo hace llamadas si el build habilita nube, hay sesión autenticada,
+  el usuario activa el ajuste y el documento registra consentimiento. El modo
+  local sigue siendo el predeterminado; los fallos remotos se muestran y no se
+  disfrazan como evaluación semántica. La clave vive únicamente en el backend.
+  La cuota gratuita puede permitir que Google use el contenido para mejorar sus
+  productos; se advierte que no se envíe material sensible.
+- **Alternativas descartadas:** (a) enviar la clave del proveedor en la app:
+  permitiría extraerla del binario; (b) afirmar que el hashing local aporta
+  semántica: no reconoce paráfrasis; (c) cambiar solo el generador: dejaría la
+  evaluación como una heurística lexical que contradice la pregunta.
+- **Consecuencias:** se añaden rutas autenticadas para generar y evaluar,
+  validación estructurada de las respuestas del proveedor y declaración del
+  procesamiento de fragmentos y respuestas en la política, los términos y las
+  declaraciones de tienda. Se requiere `GEMINI_API_KEY` en el servidor.
+
 ## Ambigüedades pendientes (no bloqueantes)
 
 - **Vertical inicial (oposiciones vs PAU):** resuelto en el Sprint 1: el corpus
@@ -585,4 +609,4 @@ sprint por una cuestión menor.
   carga; el puerto `ProgressStore` ya la abstrae.
 - **Modelo on-device definitivo:** pendiente de las métricas de latencia y
   calidad del Sprint 2. La decisión no bloquea el MVP porque el proveedor es
-  inyectable (D-018).
+  inyectable (D-018); el LLM remoto de D-039 es opt-in.

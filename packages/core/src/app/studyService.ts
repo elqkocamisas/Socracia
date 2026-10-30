@@ -22,6 +22,7 @@ import {
   type SessionTurn,
 } from '../mayeu/session';
 import { DEFAULT_THRESHOLDS } from '../mayeu/evaluate';
+import type { MayeuticSemanticProvider } from '../mayeu/semanticProvider';
 import type { RagEngine } from '../rag/engine';
 import type { StoragePort } from '../storage/ports';
 import { buildProgressOverview, nextActionHint, type ProgressOverview } from './progressService';
@@ -48,11 +49,12 @@ export interface ActiveStudySession {
   readonly session: StudySession;
   readonly engine: MayeuticSessionEngine;
   readonly steps: readonly ItineraryStep[];
+  readonly documents: readonly KnowledgeDocument[];
 }
 
 /** Error de dominio del servicio de estudio. */
 export interface StudyError {
-  readonly code: 'sin-conceptos' | 'generacion-fallida';
+  readonly code: 'sin-conceptos' | 'generacion-fallida' | 'evaluacion-fallida';
   readonly message: string;
 }
 
@@ -68,6 +70,7 @@ export class StudyService {
     private readonly rag: RagEngine,
     private readonly storage: StoragePort,
     private readonly options: StudyServiceOptions = DEFAULT_STUDY_OPTIONS,
+    private readonly semanticProvider?: MayeuticSemanticProvider,
   ) {}
 
   /**
@@ -118,7 +121,7 @@ export class StudyService {
     );
     await this.storage.progress.saveSession(session);
 
-    return ok({ session, engine, steps });
+    return ok({ session, engine, steps, documents });
   }
 
   /**
@@ -133,14 +136,42 @@ export class StudyService {
     text: string,
     latencyMs: number,
     now: Timestamp,
-  ): Promise<SessionTurn> {
-    const turn = active.engine.submit(text, latencyMs, now);
+  ): Promise<Result<SessionTurn, StudyError>> {
+    const question = active.engine.currentQuestion();
+    if (!question) {
+      return err<StudyError>({
+        code: 'evaluacion-fallida',
+        message: 'No hay una pregunta activa para evaluar.',
+      });
+    }
+
+    const document = active.documents.find(
+      (candidate) => candidate.id === question.citation.documentId,
+    );
+    let assessment;
+    if (text.trim().length > 0 && document && this.semanticProvider?.canProcess(document)) {
+      const evaluated = await this.semanticProvider.evaluateAnswer(question, {
+        questionId: question.id,
+        text,
+        answeredAt: now,
+        latencyMs,
+      });
+      if (!evaluated.ok) {
+        return err<StudyError>({
+          code: 'evaluacion-fallida',
+          message: `No se pudo evaluar semánticamente la respuesta: ${evaluated.error.message}`,
+        });
+      }
+      assessment = evaluated.value;
+    }
+
+    const turn = active.engine.submit(text, latencyMs, now, assessment);
     await this.storage.progress.appendEvaluations(userId, [turn.evaluation]);
     await this.storage.progress.saveReviewStates(userId, active.engine.reviewStates());
     // El avance se persiste para poder reanudar o sincronizar la sesión sin
     // depender del estado en memoria de la UI.
     await this.storage.progress.saveSession(active.engine.snapshot());
-    return turn;
+    return ok(turn);
   }
 
   /**
@@ -193,7 +224,35 @@ export class StudyService {
       if (!generated.ok) {
         return err<StudyError>({ code: 'generacion-fallida', message: generated.error.message });
       }
-      const { accepted } = filterNonTrivial(generated.value);
+      let questions = generated.value;
+      const citation = questions[0]?.citation;
+      const sourceDocument = citation
+        ? documents.find((document) => document.id === citation.documentId)
+        : undefined;
+      if (citation && sourceDocument && this.semanticProvider?.canProcess(sourceDocument)) {
+        const semanticOptions = {
+          ...this.options.questions,
+          maxPerConcept: this.options.questionsPerConcept,
+        };
+        const semantic = await this.semanticProvider.generateQuestions(
+          concept,
+          citation,
+          semanticOptions,
+        );
+        if (!semantic.ok) {
+          return err<StudyError>({
+            code: 'generacion-fallida',
+            message: `No se pudieron generar preguntas semánticas: ${semantic.error.message}`,
+          });
+        }
+        questions = semantic.value.map((draft, index) => ({
+          ...draft,
+          id: `${concept.id}:llm:q${index}`,
+          conceptId: concept.id,
+          citation,
+        }));
+      }
+      const { accepted } = filterNonTrivial(questions);
       if (accepted.length > 0) {
         await this.storage.questions.saveQuestions(accepted);
         items.push({ concept, questions: [...accepted] });
