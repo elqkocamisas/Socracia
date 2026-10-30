@@ -8,6 +8,8 @@ import type {
   Timestamp,
 } from '../domain/types';
 import type { ExtractedCurriculum } from '../ingest/conceptExtractor';
+import type { QuestionGeneratorPort } from '../llm/ports';
+import type { LlmPassage } from '../llm/types';
 import type { Result } from '../result';
 import { err, ok } from '../result';
 import { buildItinerary, startSession, type ItineraryStep } from '../mayeu/itinerary';
@@ -34,6 +36,20 @@ export interface StudyServiceOptions {
   readonly questionsPerConcept: number;
   /** Persiste el perfil de lagunas al refrescar el progreso. */
   readonly persistGaps: boolean;
+  /**
+   * Generador de preguntas con modelo. Opcional: si falta, se usa el generador
+   * por plantillas del RAG. El modo principal cuando existe y hay consentimiento;
+   * la plantilla es el respaldo.
+   */
+  readonly questionGenerator?: QuestionGeneratorPort;
+  /**
+   * Recupera los pasajes que respaldan a un concepto, para anclar la generación
+   * y la evaluación. Sin esto, el generador de modelo no se usa.
+   */
+  readonly retrievePassages?: (
+    concept: Concept,
+    documents: readonly KnowledgeDocument[],
+  ) => Promise<readonly LlmPassage[]>;
 }
 
 export const DEFAULT_STUDY_OPTIONS: StudyServiceOptions = {
@@ -114,11 +130,17 @@ export class StudyService {
     }
 
     const session = startSession(sessionId, userId, curriculum.topics[0]?.id ?? 'tema', steps, now);
+    // Los pasajes que respaldan cada pregunta son su propia cita: es el único
+    // fragmento que el RAG asoció al concepto, así que es lo único que hace
+    // falta enviar al evaluador. Nunca sale el documento completo.
+    const sessionOptions: SessionEngineOptions = this.options.session.evaluator
+      ? { ...this.options.session, passages: (question) => [{ citation: question.citation }] }
+      : this.options.session;
     const engine = new MayeuticSessionEngine(
       session,
       steps,
       curriculum.concepts,
-      this.options.session,
+      sessionOptions,
       now,
     );
     await this.storage.progress.saveSession(session);
@@ -191,12 +213,7 @@ export class StudyService {
     const items: Array<{ concept: Concept; questions: SocraticQuestion[] }> = [];
 
     for (const concept of concepts) {
-      const generated = await this.rag.generateConceptQuestions(
-        concept,
-        documents,
-        this.options.questions,
-        this.options.questionsPerConcept,
-      );
+      const generated = await this.generateForConcept(concept, documents);
       if (!generated.ok) {
         return err<StudyError>({ code: 'generacion-fallida', message: generated.error.message });
       }
@@ -208,6 +225,47 @@ export class StudyService {
     }
 
     return ok(items);
+  }
+
+  /**
+   * Genera las preguntas de un concepto, con modelo si está disponible.
+   *
+   * Orden de preferencia: si hay generador y forma de recuperar pasajes, se pide
+   * la pregunta al modelo; si no produce ninguna válida (o falla), se usa el
+   * generador por plantillas del RAG. Nunca se queda sin preguntas por un fallo
+   * del modelo.
+   */
+  private async generateForConcept(
+    concept: Concept,
+    documents: readonly KnowledgeDocument[],
+  ): Promise<Result<SocraticQuestion[], Error>> {
+    const generator = this.options.questionGenerator;
+    const retrieve = this.options.retrievePassages;
+
+    if (generator && retrieve) {
+      const passages = await retrieve(concept, documents);
+      if (passages.length > 0) {
+        const generated = await generator.generate(
+          {
+            conceptId: concept.id,
+            conceptLabel: concept.label,
+            conceptDefinition: concept.definition,
+            keyTerms: concept.keywords,
+          },
+          passages,
+        );
+        if (generated.ok && generated.value.length > 0) {
+          return ok(generated.value);
+        }
+      }
+    }
+
+    return this.rag.generateConceptQuestions(
+      concept,
+      documents,
+      this.options.questions,
+      this.options.questionsPerConcept,
+    );
   }
 
   /** Recupera las evaluaciones acumuladas, útil para resúmenes. */

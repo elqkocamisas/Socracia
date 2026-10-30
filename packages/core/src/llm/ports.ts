@@ -57,7 +57,13 @@ export interface ExplainerPort {
 export interface QuestionGeneratorPort {
   readonly id: string;
   generate(
-    question: { readonly conceptId: string; readonly conceptLabel: string },
+    target: {
+      readonly conceptId: string;
+      readonly conceptLabel: string;
+      readonly conceptDefinition: string;
+      readonly keyTerms: readonly string[];
+    },
     passages: readonly LlmPassage[],
+    avoidPrompts?: readonly string[],
   ): Promise<Result<SocraticQuestion[], LlmError>>;
 }
