@@ -152,8 +152,10 @@ describe('convención de commits', () => {
   });
 
   it('el CLI acepta el historial del proyecto sin errores', () => {
-    // Los commits antiguos usan el estilo «Sprint N: …», que produce
-    // advertencias pero nunca errores: el historial no se reescribe.
+    // `--all` es una auditoría del historial ya fusionado: los incumplimientos
+    // se informan como advertencias pero nunca bloquean, porque el historial
+    // publicado no se reescribe. El modo estricto son los rangos y los mensajes
+    // sueltos, que sí fallan.
     const output = execFileSync('node', [join(ROOT, 'scripts', 'check-commits.mjs'), '--all'], {
       cwd: ROOT,
       encoding: 'utf8',
