@@ -816,6 +816,122 @@ sprint por una cuestión menor.
   actualizar `EXPO_PUBLIC_API_BASE_URL` en EAS. Queda documentado en
   `docs/backend.md` con los valores exactos de los tres campos.
 
+## D-053 — Multitenencia por base compartida con `tenant_id` y RLS
+
+- **Fecha:** Sprint 0 (multitenencia)
+- **Contexto:** el producto pasa de un usuario único a organizaciones cliente
+  (academias, institutos, docentes) con marca, usuarios y contenidos propios. Hay
+  que elegir entre una base por tenant y una base compartida.
+- **Decisión:** **base compartida con `tenant_id` en cada tabla y Row-Level
+  Security de Postgres**. La instancia dedicada queda disponible **solo por
+  configuración**, sin bifurcar el código.
+- **Motivos:** el plan gratuito de Neon da 100 proyectos de 1 GB, y una base por
+  tenant multiplica las migraciones, las copias y el consumo de cómputo (cada
+  proyecto con actividad gasta de su propia bolsa de 100 CU-horas). Con RLS, el
+  aislamiento lo impone el motor, no una condición `WHERE` que alguien puede
+  olvidar. La prueba de fugas puede atacarlo directamente.
+- **Alternativas descartadas:** (a) una base por tenant: aísla más, pero el coste
+  operativo crece con cada cliente y el plan gratuito lo hace inviable a partir
+  de unos pocos; (b) filtrar solo en la aplicación con `WHERE tenant_id = ?`:
+  un `WHERE` olvidado filtra datos ajenos en silencio, y no hay segunda barrera.
+- **Consecuencias:** toda consulta corre dentro de un contexto de tenant
+  (`AsyncLocalStorage`); RLS es la red de seguridad, no la única defensa. El
+  aislamiento híbrido significa que activar una instancia dedicada es un cambio
+  de configuración, no de arquitectura.
+
+## D-054 — El tenant se resuelve por código de academia, no por subdominio
+
+- **Fecha:** Sprint 0 (multitenencia)
+- **Contexto:** hay que decidir cómo sabe el servidor a qué organización
+  pertenece una petición.
+- **Decisión:** el tenant se resuelve por **código de academia** enviado por el
+  cliente (cabecera o ruta) y, en el inicio de sesión, por el propio usuario. No
+  se usan subdominios comodín.
+- **Motivos:** los subdominios comodín no son gratuitos de forma fiable y atan el
+  producto al proveedor de DNS. El plan de coste cero prohíbe depender de algo
+  que puede dejar de ser gratis sin aviso (regla 5). Un código es gratis,
+  verificable y funciona igual en la app móvil, donde no hay subdominios.
+- **Alternativas descartadas:** (a) subdominio por tenant
+  (`academia.socracia.es`): exige certificado comodín o uno por subdominio, y
+  ninguno es fiablemente gratuito; (b) un tenant por ruta en la web
+  (`/t/academia`): funciona, pero deja el código de academia a la vista y no
+  resuelve el caso móvil, que es el principal.
+- **Consecuencias:** el código de academia es un identificador público, no un
+  secreto: la autorización la da la sesión, no conocer el código. Los dominios
+  propios por cliente quedan para más adelante, cuando haya clientes que los
+  paguen.
+
+## D-055 — Migración: la multitenencia se añade apagada
+
+- **Fecha:** Sprint 0 (multitenencia)
+- **Contexto:** hay una app funcionando con usuario único y progreso local. Hay
+  que convertirla en plataforma sin romperla.
+- **Decisión:** **compatibilidad total**. Todo lo nuevo va detrás de
+  `MULTITENANT` (apagado por defecto, se enciende con `MULTITENANT=on`). Sin la
+  variable, la app se comporta **exactamente** como hoy, con un **tenant por
+  defecto** implícito. Las firmas públicas de `packages/core` no cambian y los
+  tests existentes pasan sin modificarse.
+- **Motivos:** el modo actual es el que está publicado y probado. Una migración
+  que obliga a reescribir los tests no se puede verificar: no se sabría si un
+  fallo es nuevo o un artefacto del cambio.
+- **Alternativas descartadas:** (a) migración de golpe con `tenant_id`
+  obligatorio: rompe el modo local-first, que es el que hace la app útil sin
+  cuenta ni conexión; (b) dos códigos base (uno mono-tenant y otro multi):
+  duplica el mantenimiento y garantiza que se separen.
+- **Consecuencias:** la multitenencia avanza por sprints sin dejar `main` roto. El
+  tenant por defecto no es un caso especial del código: es el tenant que se usa
+  cuando nadie ha resuelto otro.
+
+## D-056 — Postgres gratuito: Neon, no Supabase ni Render
+
+- **Fecha:** Sprint 0 (multitenencia)
+- **Contexto:** hace falta una base de datos que quepa en el principio de coste
+  cero, con RLS para el aislamiento de D-053.
+- **Decisión:** **Neon Postgres, plan Free**. Detalle de límites en
+  `docs/free-stack.md`, verificado el 2026-10-30.
+- **Motivos:** 1 GB por proyecto (el doble que Supabase), 100 CU-horas con
+  escalado a cero —solo se paga cómputo mientras hay consultas—, sin tarjeta y
+  sin caducidad. El escalado a cero no es una pausa: el proyecto vuelve a
+  responder en milisegundos, mientras que Supabase **pausa el proyecto tras una
+  semana de inactividad** y hay que reactivarlo desde el panel.
+- **Alternativas descartadas:** (a) **Postgres gratuito de Render**: «expire 30
+  days after creation»; caduca, y la regla 3 lo prohíbe expresamente; (b)
+  **Supabase**: 500 MB y solo 2 proyectos activos, con pausa semanal; queda como
+  alternativa documentada por si en el futuro pesa más su autenticación
+  integrada, ya que el puerto de repositorio permite cambiar sin tocar el
+  dominio; (c) **SQLite en el servidor**: el plan gratuito de Render pierde el
+  sistema de ficheros en cada suspensión, así que no hay dónde guardarlo.
+- **Consecuencias:** el cómputo se agota a las 100 CU-horas/mes por proyecto y el
+  almacenamiento a 1 GB. Ambos límites tienen comportamiento degradado probado
+  (Sprint 1) y presupuesto por tenant (regla 4). El pool de conexiones debe ser
+  pequeño y reconectar tras la suspensión del cómputo.
+
+## D-057 — El LLM es BYOK por tenant; la plataforma no asume el coste
+
+- **Fecha:** Sprint 0 (multitenencia)
+- **Contexto:** el motor mayéutico con modelo es la pieza principal del producto,
+  pero una clave de plataforma compartida por todos los tenants tiene un coste
+  que crece con cada cliente y no cabe en el plan gratuito de ningún proveedor.
+- **Decisión:** **cada organización aporta su propia clave** (BYOK), de un
+  proveedor con plan gratuito. La clave se cifra en reposo con AES-GCM
+  (`node:crypto`) y una clave maestra en variable de entorno. La ruta
+  `/llm/complete` **se amplía**, no se duplica: gana cuotas, límite de tasa y
+  consumo medido por usuario y por tenant.
+- **Motivos:** la plataforma no puede asumir un coste que no controla, y el
+  principio de coste cero exige que ninguna pieza dependa de una tarjeta. BYOK
+  traslada el consumo al tenant, que ya paga su propio plan gratuito.
+- **Alternativas descartadas:** (a) clave de plataforma compartida: un solo
+  tenant abusivo agota la cuota de todos; (b) proxy nuevo junto al actual:
+  duplica la lógica de validación y de consentimiento, que ya existe.
+- **Consecuencias:** al agotar la cuota, la ruta responde `429` (ya lo hace
+  `statusFor`), la app cae a la heurística y la sesión no se rompe. Queda
+  **pendiente de decisión humana** el apartado de privacidad: algunos planes
+  gratuitos usan el contenido para mejorar sus productos, y con datos de alumnos
+  —posiblemente menores— eso exige bloquear el modo LLM salvo autorización
+  explícita del administrador, con la heurística por defecto. La facturación es
+  solo un puerto con adaptador simulado; la pasarela real queda documentada como
+  opcional.
+
 ## Ambigüedades pendientes (no bloqueantes)
 
 - **Vertical inicial (oposiciones vs PAU):** resuelto en el Sprint 1: el corpus
@@ -829,3 +945,27 @@ sprint por una cuestión menor.
 - **Modelo on-device definitivo:** pendiente de las métricas de latencia y
   calidad del Sprint 2. La decisión no bloquea el MVP porque el proveedor es
   inyectable (D-018).
+
+### Abiertas por la multitenencia (con sprint asignado)
+
+- **Catálogo de contenidos: ¿por comunidad autónoma o único?** (Sprint 4). Hay que
+  preguntar antes de modelarlo: cambia la clave del catálogo base y cómo se
+  etiqueta el temario PAU. **No bloquea el Sprint 0.**
+- **Privacidad del LLM con datos de alumnos** (Sprint 6). Algunos planes gratuitos
+  usan el contenido para mejorar sus productos. Con posibles menores, el modo LLM
+  debe quedar **bloqueado por defecto** (heurística) salvo autorización explícita
+  del administrador del tenant. Requiere **revisión humana** de qué proveedor
+  admite datos de alumnos. **No bloquea el Sprint 0.**
+- **Facturación:** solo el puerto con adaptador simulado; la pasarela real queda
+  documentada como opcional (Sprint 6).
+- **Legal:** política de privacidad, términos, contrato de encargado del
+  tratamiento y consentimientos de menores quedan «pendiente de revisión humana»
+  (Sprint 9).
+- **Numeración de decisiones:** el enunciado pedía empezar en D-048, pero ese
+  número y los cuatro siguientes ya están tomados (D-048 a D-052). Este sprint
+  empieza en **D-053** para no colisionar con el PR #14, que reclama D-050 a
+  D-052. Desviación deliberada y documentada.
+- **Dependencias de producción nuevas:** el Sprint 0 **no introduce ninguna**
+  (solo documentación y decisiones), así que no hay decisión de dependencia que
+  registrar todavía. La primera llegará con el adaptador de Postgres (Sprint 1) y
+  ya tiene su comparativa gratuita en D-056.
