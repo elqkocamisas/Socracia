@@ -28,7 +28,8 @@
     "package:source": "node scripts/package-release.mjs",
     "start": "npm run start --workspace @socracia/mobile",
     "android": "npm run android --workspace @socracia/mobile",
-    "ios": "npm run ios --workspace @socracia/mobile"
+    "ios": "npm run ios --workspace @socracia/mobile",
+    "eval:llm": "npm run eval:llm --workspace @socracia/core"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

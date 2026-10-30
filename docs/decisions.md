@@ -641,6 +641,33 @@ sprint por una cuestión menor.
   Se documenta aquí porque el commit de la rama rompe `npm run verify` y conviene
   saber que la causa es el mensaje, no el contenido.
 
+## D-043 — El modelo es el motor principal, pero no dirige la sesión
+
+- **Contexto:** el MVP evaluaba y generaba con heurística. Un modelo de lenguaje
+  mejora mucho la calidad del texto (evaluación matizada, preguntas ancladas,
+  repreguntas que responden al error concreto), pero introduce dos riesgos: el
+  coste y la latencia, por un lado, y la salida no fiable, por otro. Además, el
+  material del usuario es sensible y no puede salir del dispositivo sin permiso.
+- **Decisión:** el modelo pasa a ser el motor **principal** de la experiencia
+  mayéutica cuando hay backend y consentimiento; la heurística queda como
+  respaldo. El modelo solo cambia el texto de cada tarea (evaluar, preguntar,
+  repreguntar, explicar), nunca las decisiones de avance: itinerario, lagunas y
+  repaso espaciado siguen consumiendo `score` y `verdict`, vengan de donde
+  vengan. Toda salida del modelo se valida campo a campo y se descarta si no
+  cumple; un fallo del proveedor no interrumpe la sesión, que continúa con el
+  respaldo.
+- **Alternativas descartadas:** (a) modelo obligatorio: un timeout dejaría al
+  alumno sin poder estudiar; (b) modelo como fuente de avance: una puntuación
+  alucinada alteraría lagunas y repaso, decisiones que deben ser deterministas y
+  auditables; (c) clave del proveedor en la app: quedaría expuesta en el binario
+  y en la revisión de tienda.
+- **Consecuencias:** la app necesita backend para el modo con modelo, pero
+  funciona entera sin él. El consentimiento es la capa externa del proveedor, de
+  modo que revocarlo bloquea incluso la caché. Los evals
+  (`npm run eval:llm`, 32 casos) fijan el comportamiento seguro del motor y se
+  revisan al cambiar prompts o validadores. El detalle vive en
+  `docs/llm-engine.md`.
+
 ## Ambigüedades pendientes (no bloqueantes)
 
 - **Vertical inicial (oposiciones vs PAU):** resuelto en el Sprint 1: el corpus
