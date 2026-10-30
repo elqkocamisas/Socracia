@@ -24,6 +24,7 @@ npm install            # instala y compila core (postinstall)
 npm run verify         # lint + typecheck + test  ← antes de commitear
 npm run lint:commits   # valida los mensajes de commit (CONTRIBUTING.md)
 npm test               # Jest en core y api, jest-expo en mobile
+npm run eval:llm       # evals del motor con modelo (robustez, 32 casos)
 npm run typecheck
 npm run lint
 npm run format         # Prettier
@@ -197,6 +198,17 @@ Trampas conocidas:
   sincroniza el progreso, nunca los documentos (D-027).
 - El móvil implementa `SyncPort` en `services/httpSyncClient.ts`; la sesión se
   guarda en `app_meta` vía `services/credentialStore.ts`.
+- **Motor con modelo (opcional).** `packages/core/src/llm/` valida toda salida
+  del modelo campo a campo; la heurística es el respaldo y el modelo no dirige el
+  avance. La composición vive en `apps/mobile/src/services/llmEngine.ts` y el
+  orden de envoltura es HTTP → resiliencia → **consentimiento** (el guardián va
+  fuera para que revocar el permiso bloquee también la caché). La clave del
+  proveedor vive solo en el backend; el móvil llama a `POST /llm/complete` con su
+  token de sesión. Detalle en `docs/llm-engine.md` (D-043).
+- **Evals del motor.** `packages/core/src/llm/__evals__/` fija la robustez ante
+  salidas mal formadas; se ejecutan con `npm run eval:llm` y también dentro de
+  `npm test`. Al cambiar un prompt o un validador, revisar el informe por
+  categoría. El directorio `__evals__` se excluye del build: son fixtures.
 
 ## Reglas de trabajo
 
@@ -213,6 +225,7 @@ Trampas conocidas:
 
 - `docs/architecture.md` — arquitectura y diagrama del flujo mayéutico.
 - `docs/rag-strategy.md` — RAG local vs backend, decisión y alternancia.
+- `docs/llm-engine.md` — motor mayéutico con modelo: capas, activación y evals.
 - `docs/backend.md` — API de cuentas y sincronización (Sprint 4).
 - `docs/decisions.md` — registro de decisiones (D-001…).
 - `CONTRIBUTING.md` — ramas, commits, pruebas y seguridad.
