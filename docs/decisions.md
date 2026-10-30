@@ -829,3 +829,71 @@ sprint por una cuestión menor.
 - **Modelo on-device definitivo:** pendiente de las métricas de latencia y
   calidad del Sprint 2. La decisión no bloquea el MVP porque el proveedor es
   inyectable (D-018).
+
+## D-050 — Los workflows de EAS viven en `.eas/workflows`, no en `.github/workflows`
+
+- **Contexto:** la pestaña _Workflows_ del panel de Expo salía vacía. El
+  repositorio tenía dos workflows en `.github/workflows/`, que es otra
+  tecnología: los ejecuta GitHub Actions. EAS lee `.eas/workflows/*.yml`, al
+  mismo nivel que `eas.json` —aquí `apps/mobile/`, porque el monorepo tiene el
+  `eas.json` ahí—. No existía ese directorio, así que no había nada que listar.
+- **Decisión:** añadir `apps/mobile/.eas/workflows/build-production.yml`, que
+  compila Android o iOS con el perfil elegido, lanzable a mano.
+- **Motivos:** compilar desde el panel de Expo no depende de que el token de
+  Expo esté en los secretos de GitHub. El flujo `.github/workflows/eas-build.yml`
+  sigue existiendo para quien prefiera lanzarlo desde Actions, pero exige
+  `EXPO_TOKEN` como secreto del repositorio.
+- **Alternativas descartadas:** (a) ampliar el workflow de GitHub Actions: no
+  llena la pestaña de EAS, porque son sistemas distintos; (b) hacer que el
+  workflow de EAS envíe también a tiendas: gasta créditos de envío por
+  accidente, y el envío debe ser una acción deliberada (D-042).
+- **Consecuencias:** el workflow solo compila. El envío a tiendas sigue siendo
+  manual (`eas submit`) o vía el flujo de GitHub Actions con `enviar: true`.
+
+## D-051 — El entorno de compilación se declara explícito en `eas.json`
+
+- **Contexto:** un job `build` de EAS sin `environment` lo infiere del perfil, y
+  sin `environment` en el perfil el criterio es: `production` si `distribution`
+  es `store`, `preview` en el resto de casos. Los perfiles `preview` y
+  `production` no declaraban el campo, así que un build de preview habría caído
+  en el entorno `preview`, donde `EXPO_PUBLIC_API_BASE_URL` no existe (solo está
+  en `production`): el binario habría salido apuntando a `localhost:8787` sin
+  ningún aviso, y el fallo solo se vería al usar la app en un teléfono.
+- **Decisión:** declarar `environment: preview` y `environment: production` en
+  los perfiles correspondientes de `eas.json`, y añadir una prueba que lo exige.
+- **Motivos:** el valor por defecto es correcto hoy para `production` por el
+  criterio de `distribution`, pero depende de un detalle implícito que un cambio
+  futuro en el perfil rompería en silencio. Declararlo lo hace explícito.
+- **Alternativas descartadas:** copiar la variable al entorno `preview`: duplica
+  la configuración y permite que las dos copias diverjan.
+- **Consecuencias:** el build de preview usa el entorno `preview`, que hoy no
+  tiene variables, así que hereda la URL por defecto. Si se quiere probar el
+  preview contra el backend real, hay que añadir la variable a ese entorno.
+
+## D-052 — El APK instalable sale del perfil `preview`, no de `production`
+
+- **Contexto:** el perfil `production` genera un `.aab` (`buildType:
+app-bundle`), que es el formato que Google Play exige **para subir**, no un
+  instalador: Android no lo abre desde el teléfono. Un `.aab` descargado no
+  instala nada, y confundirlo con un fallo de descarga lleva a buscar el
+  problema en el navegador o en el artefacto, donde no está. El artefacto se
+  descarga bien (52,4 MB, ZIP válido, firmado v1) y contiene la URL de
+  producción correcta.
+- **Decisión:** para instalar en un teléfono se compila el perfil `preview`
+  (`buildType: apk`), que produce un APK firmado con el esquema v2/v3
+  (`APK Sig Block 42`), instalable directamente. El `.aab` se reserva para la
+  subida a Play.
+- **Motivos:** cada formato sirve a un destinatario distinto. Mezclarlos
+  produce el fallo más confuso posible: un fichero correcto que «no hace nada».
+- **Alternativas descartadas:** instalar el `.aab` con `bundletool` y generar
+  APKs por dispositivo: añade una herramienta y un paso manual para algo que el
+  perfil `preview` ya resuelve en un comando.
+- **Consecuencias:** el entorno `preview` **sí** tiene
+  `EXPO_PUBLIC_API_BASE_URL=https://socracia.onrender.com`. D-051 lo daba por
+  vacío; se ha añadido porque, sin ella, el APK de prueba apuntaba a
+  `localhost:8787` y no había forma de probarlo contra el backend real. La
+  alternativa que D-051 descartaba era depender de esa copia para el build de
+  tienda; aquí el uso es distinto (prueba manual) y está verificado: el APK
+  contiene `socracia.onrender.com` y cero referencias a `localhost`.
+- **Verificación:** `build:view` del APK da `finished`; el fichero tiene
+  `com.socracia.app`, versión `0.1.0` y firma v2/v3.
