@@ -696,6 +696,26 @@ sprint por una cuestión menor.
   privacidad. Si el servidor empieza a almacenar o registrar el contenido, esta
   decisión debe revisarse: dejaría de ser transitorio.
 
+## D-045 — La APK de prueba se firma con clave de depuración
+
+- **Contexto:** se compiló una APK de release en local para verificar que el
+  proyecto empaqueta de verdad (ver `docs/build-apk-local.md`). El prebuild
+  limpio no define un keystore de release, así que Gradle usa el de depuración.
+- **Decisión:** se acepta esa firma **solo para la APK de verificación**. La
+  publicación no usa este camino: va por `eas build --profile production`, que
+  produce un AAB firmado con credenciales gestionadas por EAS.
+- **Motivos:** el objetivo del APK local es comprobar el empaquetado y permitir
+  una instalación por USB, no publicar. Versionar un keystore de release en el
+  repositorio sería un riesgo de seguridad y un error que no se puede deshacer
+  después de publicar (la clave es la identidad de la app en Play).
+- **Alternativas descartadas:** (a) generar y versionar un keystore de release:
+  expone la clave de firma; (b) no compilar nunca en local: deja sin verificar la
+  puerta de build más costosa; (c) usar el keystore de depuración para publicar:
+  Play lo rechaza.
+- **Consecuencias:** la APK local sirve para pruebas, no para tiendas. La
+  checklist de publicación ya exige el AAB firmado; esta decisión no la cambia,
+  solo documenta por qué el artefacto local no vale para subir.
+
 ## Ambigüedades pendientes (no bloqueantes)
 
 - **Vertical inicial (oposiciones vs PAU):** resuelto en el Sprint 1: el corpus
