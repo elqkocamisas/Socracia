@@ -932,6 +932,39 @@ sprint por una cuestión menor.
   solo un puerto con adaptador simulado; la pasarela real queda documentada como
   opcional.
 
+## D-058 — Gemini prevalece: el proveedor semántico manda y el motor LLM queda como respaldo
+
+- **Fecha:** reparación de `main` (posterior al Sprint 0 multitenante)
+- **Contexto:** la fusión de la rama de Gemini (`c3c23b8`, `e7ee6ee`) conservó los
+  **tests** del diseño de Gemini pero revirtió su **código**. `main` quedó con dos
+  diseños incompatibles de `StudyService` y `MayeuticSessionEngine` a la vez: el
+  contrato de Gemini (`answer` devuelve `Result`, sesión con `documents`,
+  `submit(text, latency, now, assessment?)`) y el contrato del módulo LLM
+  (`answer` devuelve `SessionTurn`, `submitAsync`, `usesModel`, `questionGenerator`,
+  `retrievePassages`). El resultado: `npm run verify` fallaba con 4 suites del
+  módulo LLM y el ajuste de privacidad roto.
+- **Decisión:** **el proveedor semántico de Gemini es el motor principal** y su
+  contrato de dominio prevalece. El módulo LLM **no se elimina**: se conserva como
+  respaldo inyectable, con `submitAsync`, el evaluador, el generador y las
+  explicaciones intactos. Los dos diseños **coexisten** en vez de elegir uno.
+- **Motivos:** el usuario indicó que «Gemini prevalece operativa y funcionalmente».
+  Eliminar el módulo LLM habría borrado 12 suites verdes y capacidades ya
+  publicadas (evaluación con pasajes, repreguntas y explicaciones por modelo);
+  conservarlo como respaldo no cuesta complejidad en el camino principal, porque
+  solo se activa cuando falta el proveedor semántico.
+- **Alternativas descartadas:** (a) restaurar Gemini y borrar el módulo LLM: pierde
+  funcionalidad ya probada y contraviene «no reescribir lo que funciona»; (b) dejar
+  el diseño LLM como principal e ignorar los tests de Gemini: deja rojo el ajuste
+  de privacidad y niega la indicación del usuario; (c) mantener ambos caminos
+  duplicando `StudyService`: dos fuentes de verdad para el mismo dominio.
+- **Consecuencias:** un solo `StudyService.answer` devuelve `Result<SessionTurn,
+  StudyError>`; el orden de preferencia es proveedor semántico → evaluador LLM
+  (`submitAsync`) → heurística local. `ActiveStudySession` lleva `documents`
+  (para localizar la fuente) y `usesModel` (para elegir el camino). La convención
+  de commits pasa a distinguir el modo estricto (rangos, `--message-file`) del de
+  auditoría (`--all`, informa sin bloquear), porque los tres incumplimientos ya
+  están fusionados en `main` y reescribirlos está prohibido.
+
 ## Ambigüedades pendientes (no bloqueantes)
 
 - **Vertical inicial (oposiciones vs PAU):** resuelto en el Sprint 1: el corpus
