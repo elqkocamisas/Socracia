@@ -139,6 +139,12 @@ impiden la subida.
       perfil declara `environment` en `eas.json` (lo prueba
       `easWorkflows.test.ts`): sin ese campo un build de preview apunta a
       `localhost:8787` sin avisar.
+- [ ] Para **probar en un teléfono** use el perfil `preview`
+      (`eas build --profile preview --platform android`): genera un APK
+      instalable. El `.aab` de `production` **no se instala desde el teléfono**;
+      es el formato de subida a Play. Si el móvil «no hace nada» con el `.aab`,
+      no es un fallo de descarga: es el formato. El entorno `preview` debe tener
+      `EXPO_PUBLIC_API_BASE_URL`, o el APK de prueba apuntará a `localhost`.
 - [ ] El workflow de EAS aparece en la pestaña _Workflows_ del panel de Expo
       (`apps/mobile/.eas/workflows/`). Si sale vacía, ese directorio falta: no
       confundir con `.github/workflows/`, que son de GitHub Actions.

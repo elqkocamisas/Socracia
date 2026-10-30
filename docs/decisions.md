@@ -869,3 +869,31 @@ sprint por una cuestión menor.
 - **Consecuencias:** el build de preview usa el entorno `preview`, que hoy no
   tiene variables, así que hereda la URL por defecto. Si se quiere probar el
   preview contra el backend real, hay que añadir la variable a ese entorno.
+
+## D-052 — El APK instalable sale del perfil `preview`, no de `production`
+
+- **Contexto:** el perfil `production` genera un `.aab` (`buildType:
+app-bundle`), que es el formato que Google Play exige **para subir**, no un
+  instalador: Android no lo abre desde el teléfono. Un `.aab` descargado no
+  instala nada, y confundirlo con un fallo de descarga lleva a buscar el
+  problema en el navegador o en el artefacto, donde no está. El artefacto se
+  descarga bien (52,4 MB, ZIP válido, firmado v1) y contiene la URL de
+  producción correcta.
+- **Decisión:** para instalar en un teléfono se compila el perfil `preview`
+  (`buildType: apk`), que produce un APK firmado con el esquema v2/v3
+  (`APK Sig Block 42`), instalable directamente. El `.aab` se reserva para la
+  subida a Play.
+- **Motivos:** cada formato sirve a un destinatario distinto. Mezclarlos
+  produce el fallo más confuso posible: un fichero correcto que «no hace nada».
+- **Alternativas descartadas:** instalar el `.aab` con `bundletool` y generar
+  APKs por dispositivo: añade una herramienta y un paso manual para algo que el
+  perfil `preview` ya resuelve en un comando.
+- **Consecuencias:** el entorno `preview` **sí** tiene
+  `EXPO_PUBLIC_API_BASE_URL=https://socracia.onrender.com`. D-051 lo daba por
+  vacío; se ha añadido porque, sin ella, el APK de prueba apuntaba a
+  `localhost:8787` y no había forma de probarlo contra el backend real. La
+  alternativa que D-051 descartaba era depender de esa copia para el build de
+  tienda; aquí el uso es distinto (prueba manual) y está verificado: el APK
+  contiene `socracia.onrender.com` y cero referencias a `localhost`.
+- **Verificación:** `build:view` del APK da `finished`; el fichero tiene
+  `com.socracia.app`, versión `0.1.0` y firma v2/v3.
