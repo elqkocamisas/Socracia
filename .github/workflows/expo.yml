@@ -1,0 +1,79 @@
+name: Expo
+
+# Puerta de calidad del monorepo y comprobación de que la app móvil compila para
+# las tres plataformas. No publica nada: el envío a tiendas es el flujo
+# «Expo EAS», que solo se lanza a mano y exige EXPO_TOKEN.
+on:
+  push:
+    branches: [main, 'sprint-*']
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: expo-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  calidad:
+    name: Calidad (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Las pruebas de almacenamiento usan `node:sqlite`, que no existe en
+        # Node 20: el mínimo real del proyecto es 22.
+        node: [22, 24]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run verify
+
+  expo:
+    name: App móvil (Expo)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+
+      # Informativo: hoy reporta desajustes de parche del SDK y un aviso sobre el
+      # override de Metro (necesario para el monorepo). Se arreglan en su propia
+      # tarea; no bloquean esta puerta.
+      - name: expo-doctor (informativo)
+        continue-on-error: true
+        working-directory: apps/mobile
+        run: npx --yes expo-doctor
+
+      # Puerta real: si la app no exporta, no se puede publicar.
+      - name: Exportar iOS
+        working-directory: apps/mobile
+        run: npx expo export --platform ios --output-dir dist/ios
+      - name: Exportar Android
+        working-directory: apps/mobile
+        run: npx expo export --platform android --output-dir dist/android
+      - name: Exportar web
+        working-directory: apps/mobile
+        run: npx expo export --platform web --output-dir dist/web
+
+      - name: Resumen
+        run: |
+          {
+            echo "### Export de Expo"
+            echo ""
+            echo "| Plataforma | Tamaño |"
+            echo "| --- | --- |"
+            for p in ios android web; do
+              size=$(du -sh "apps/mobile/dist/$p" | cut -f1)
+              echo "| $p | $size |"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"

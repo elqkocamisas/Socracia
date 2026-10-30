@@ -1,0 +1,70 @@
+name: Expo EAS
+
+# Compilación y envío a tiendas con EAS. **No se ejecuta solo**: requiere
+# `EXPO_TOKEN` y consume créditos de compilación, así que se lanza a mano desde
+# la pestaña Actions. Sin el secreto configurado, el flujo falla con un mensaje
+# explícito en lugar de intentar autenticarse sin credenciales.
+on:
+  workflow_dispatch:
+    inputs:
+      plataforma:
+        description: Plataforma a compilar
+        type: choice
+        default: all
+        options: [all, ios, android]
+      perfil:
+        description: Perfil de eas.json
+        type: choice
+        default: preview
+        options: [development, preview, production]
+      enviar:
+        description: Enviar a las tiendas tras compilar (solo perfil production)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  eas:
+    name: EAS ${{ inputs.perfil }} (${{ inputs.plataforma }})
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+
+      - name: Comprobar EXPO_TOKEN
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::error::Falta el secreto EXPO_TOKEN. Créalo en expo.dev (Account → Access tokens) y guárdalo en Settings → Secrets → Actions."
+            exit 1
+          fi
+
+      - name: Instalar EAS CLI
+        run: npm install --global eas-cli
+
+      # `--no-wait` deja la compilación en los servidores de EAS y devuelve el
+      # control: no se bloquea un runner de GitHub durante 20 minutos.
+      - name: Compilar
+        working-directory: apps/mobile
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          eas build \
+            --platform "${{ inputs.plataforma }}" \
+            --profile "${{ inputs.perfil }}" \
+            --non-interactive \
+            --no-wait
+
+      - name: Enviar a tiendas
+        if: ${{ inputs.enviar && inputs.perfil == 'production' }}
+        working-directory: apps/mobile
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: eas submit --platform "${{ inputs.plataforma }}" --non-interactive --latest
