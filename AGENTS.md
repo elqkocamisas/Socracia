@@ -209,6 +209,15 @@ Trampas conocidas:
   salidas mal formadas; se ejecutan con `npm run eval:llm` y también dentro de
   `npm test`. Al cambiar un prompt o un validador, revisar el informe por
   categoría. El directorio `__evals__` se excluye del build: son fixtures.
+- **Privacidad del motor.** Con el asistente autorizado salen del dispositivo la
+  pregunta, la respuesta del alumno, la referencia y el fragmento citado; el
+  servidor no los almacena ni los registra (D-044). Si cambia qué se envía o el
+  servidor pasa a persistirlo, actualice en el mismo PR
+  `apps/mobile/store/privacy-declarations.json` y el apartado 2.3 de
+  `docs/privacy-policy.md`. La prueba
+  `apps/mobile/src/__tests__/storeListing.test.ts` es el guardián: falla si el
+  motor existe (`ConsentGatedLlmProvider`) y la declaración no lo menciona, o al
+  revés.
 
 ## Reglas de trabajo
 
