@@ -8,7 +8,7 @@ import type {
   Timestamp,
   UserAnswer,
 } from '../domain/types';
-import type { AnswerEvaluatorPort } from '../llm/ports';
+import type { AnswerEvaluatorPort, ExplainerPort, FollowUpPort } from '../llm/ports';
 import type { LlmPassage } from '../llm/types';
 import { evaluateAnswer, type EvaluationThresholds } from './evaluate';
 import { detectGaps, initialReviewState, scheduleReview } from './gaps';
@@ -35,6 +35,11 @@ export interface SessionTurn {
   /** Siguiente pregunta del itinerario; `null` si la sesión terminó. */
   readonly next: SocraticQuestion | null;
   readonly progress: SessionProgress;
+  /**
+   * Explicación directa disponible tras fallos repetidos. `null` mientras el
+   * método exige seguir preguntando. Solo aparece en `submitAsync`.
+   */
+  readonly explanation: string | null;
 }
 
 /** Opciones del motor de sesión. */
@@ -54,6 +59,20 @@ export interface SessionEngineOptions {
    * contenido sin la fuente que lo justifica.
    */
   readonly passages?: (question: SocraticQuestion) => readonly LlmPassage[];
+  /**
+   * Generador de repreguntas con modelo. Si falta o falla, se usa la repregunta
+   * por plantillas de `buildScaffold`.
+   */
+  readonly followUp?: FollowUpPort;
+  /**
+   * Explicador directo. Si falta, nunca se ofrece explicación: el método manda.
+   */
+  readonly explainer?: ExplainerPort;
+  /**
+   * Fallos acumulados sobre un concepto antes de ofrecer la explicación directa.
+   * Por defecto 2: se explica tras el segundo fallo, no antes.
+   */
+  readonly failuresBeforeExplaining?: number;
 }
 
 /**
@@ -73,6 +92,8 @@ export class MayeuticSessionEngine {
   private readonly answers: UserAnswer[] = [];
   private readonly reviews = new Map<string, ReviewState>();
   private readonly conceptById: Map<string, Concept>;
+  /** Fallos acumulados por concepto, para decidir cuándo ofrecer la explicación. */
+  private readonly failuresByConcept = new Map<string, number>();
   private finished = false;
 
   public constructor(
@@ -129,7 +150,47 @@ export class MayeuticSessionEngine {
     const answer = this.newAnswer(step.question, text, now, latencyMs);
 
     const evaluation = await this.evaluateWithFallback(step, answer);
-    return this.registerAnswer(step, answer, evaluation);
+    const turn = this.registerAnswer(step, answer, evaluation);
+    return this.enrichTurn(turn, step, answer);
+  }
+
+  /**
+   * Completa el turno con lo que el modelo puede aportar: repregunta redactada
+   * para el error concreto y, tras fallos repetidos, explicación fundamentada.
+   *
+   * Se ejecuta después de `registerAnswer` para no alterar el avance ni el
+   * repaso espaciado: el modelo solo mejora el texto que ve el alumno, nunca
+   * decide por dónde va la sesión. Si algo falla, se conserva lo heurístico.
+   */
+  private async enrichTurn(
+    turn: SessionTurn,
+    step: ItineraryStep,
+    answer: UserAnswer,
+  ): Promise<SessionTurn> {
+    const question = step.question;
+    let scaffold = turn.scaffold;
+
+    const followUp = this.options.followUp;
+    if (scaffold && followUp) {
+      const generated = await followUp.followUp(question, answer, turn.evaluation);
+      if (generated.ok) {
+        scaffold = generated.value;
+      }
+    }
+
+    let explanation = turn.explanation;
+    const explainer = this.options.explainer;
+    const failures = this.failuresByConcept.get(question.conceptId) ?? 0;
+    const threshold = this.options.failuresBeforeExplaining ?? 2;
+    if (explanation === null && explainer && failures >= threshold) {
+      const passages = this.options.passages?.(question) ?? [];
+      const generated = await explainer.explain(question, passages, turn.evaluation.missingKeyTerms);
+      if (generated.ok) {
+        explanation = generated.value.text;
+      }
+    }
+
+    return { ...turn, scaffold, explanation };
   }
 
   /** Evalúa con el modelo si procede, y degrada a la heurística ante cualquier fallo. */
@@ -191,6 +252,13 @@ export class MayeuticSessionEngine {
     this.evaluations.push(evaluation);
     this.answers.push(answer);
     this.attemptsOnCurrent += 1;
+    // Un fallo (incorrecta o sin respuesta) suma para el umbral de explicación.
+    if (evaluation.verdict === 'incorrecta' || evaluation.verdict === 'sin-respuesta') {
+      this.failuresByConcept.set(
+        question.conceptId,
+        (this.failuresByConcept.get(question.conceptId) ?? 0) + 1,
+      );
+    }
 
     const review =
       this.reviews.get(question.conceptId) ?? initialReviewState(question.conceptId, answer.answeredAt);
@@ -205,6 +273,7 @@ export class MayeuticSessionEngine {
         scaffold: buildScaffold(question, evaluation, step.conceptLabel),
         next: question,
         progress: this.progress(),
+        explanation: null,
       };
     }
 
@@ -216,6 +285,7 @@ export class MayeuticSessionEngine {
         : null,
       next: this.currentQuestion(),
       progress: this.progress(),
+      explanation: null,
     };
   }
 

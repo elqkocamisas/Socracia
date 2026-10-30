@@ -7,6 +7,7 @@
  */
 
 import type { AnswerEvaluation, SocraticQuestion, UserAnswer } from '../domain/types';
+import type { Scaffold } from '../mayeu/scaffolding';
 import type { Result } from '../result';
 import type { LlmError, LlmPassage } from './types';
 
@@ -20,21 +21,19 @@ export interface AnswerEvaluatorPort {
   ): Promise<Result<AnswerEvaluation, LlmError>>;
 }
 
-/** Repregunta de seguimiento adaptada al error concreto. */
-export interface FollowUpSuggestion {
-  readonly kind: 'orientar' | 'acotar' | 'descomponer' | 'ejemplificar';
-  readonly prompt: string;
-  readonly hints: readonly string[];
-}
-
-/** Genera una repregunta a partir del error concreto del alumno. */
+/**
+ * Genera una repregunta a partir del error concreto del alumno.
+ *
+ * Devuelve el mismo `Scaffold` que el andamiaje por plantillas: la interfaz de
+ * conversación no distingue si la repregunta la redactó el modelo o la plantilla.
+ */
 export interface FollowUpPort {
   readonly id: string;
   followUp(
     question: SocraticQuestion,
     answer: UserAnswer | null,
     evaluation: AnswerEvaluation,
-  ): Promise<Result<FollowUpSuggestion, LlmError>>;
+  ): Promise<Result<Scaffold, LlmError>>;
 }
 
 /** Explicación fundamentada con citas, solo tras fallos repetidos. */
