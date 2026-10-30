@@ -1,8 +1,9 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 
-import type { ProgressSnapshot } from '@socracia/core';
+import type { LlmProvider, ProgressSnapshot } from '@socracia/core';
 
 import { AuthService, type AuthResult } from './auth';
+import { routeLlmCompletion } from './llm';
 import { InMemoryProgressStore, type ProgressStore } from './store';
 import { isValidationError, parseSnapshot } from './validation';
 
@@ -10,11 +11,16 @@ import { isValidationError, parseSnapshot } from './validation';
 export interface ApiDependencies {
   readonly auth: AuthService;
   readonly store: ProgressStore;
+  /**
+   * Proveedor de lenguaje. `null` en el MVP sin clave: la ruta responde 503 y
+   * la app cae a su modo local, que es el comportamiento por defecto.
+   */
+  readonly llm?: LlmProvider | null;
 }
 
 /** Crea las dependencias por defecto del MVP. */
 export function defaultDependencies(): ApiDependencies {
-  return { auth: new AuthService(), store: new InMemoryProgressStore() };
+  return { auth: new AuthService(), store: new InMemoryProgressStore(), llm: null };
 }
 
 const MAX_BODY_BYTES = 5 * 1024 * 1024;
@@ -142,6 +148,20 @@ async function route(
     const snapshot = await deps.store.get(userId);
     sendJson(res, 200, snapshot ?? emptySnapshot(userId));
     return;
+  }
+
+  // El asistente con modelo exige sesión: es un recurso con coste y no debe
+  // quedar abierto. La app funciona sin él, así que 401 aquí no rompe nada.
+  if (method === 'POST' && url.pathname === '/llm/complete') {
+    const userId = authenticate(deps, req, res);
+    if (!userId) {
+      return;
+    }
+    const outcome = await routeLlmCompletion(deps.llm ?? null, url.pathname, method, await readJson(req));
+    if (outcome.handled) {
+      sendJson(res, outcome.status, outcome.payload);
+      return;
+    }
   }
 
   sendJson(res, 404, {
