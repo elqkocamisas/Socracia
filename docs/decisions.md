@@ -573,6 +573,74 @@ sprint por una cuestión menor.
   aparece en pantalla). El parámetro obligatorio rompe a cualquier llamador
   futuro que intente pasar el identificador, en tiempo de compilación.
 
+## D-039 — Se introduce CI con GitHub Actions (supera D-029)
+
+- **Contexto:** D-029 decidió no añadir CI mientras no hubiera indicación
+  expresa. La preparación de la publicación pide un workflow de Expo y una
+  puerta de calidad reproducible fuera de la máquina de cada persona.
+- **Decisión:** se añaden dos flujos en `.github/workflows/`. `expo.yml` se
+  ejecuta en cada push a `main` y a ramas `sprint-*` y en cada PR: corre
+  `npm run verify` en Node 22 y 24, y exporta la app para iOS, Android y web.
+  `eas-build.yml` compila y envía a tiendas con EAS, **solo a mano**
+  (`workflow_dispatch`), porque consume créditos y exige `EXPO_TOKEN`.
+- **Alternativas descartadas:** (a) un único flujo que compilara y publicara en
+  cada push: publicaría sin revisión humana y gastaría créditos en cada commit;
+  (b) `eas build` dentro de `expo.yml`: mezclaría la puerta de calidad, que debe
+  ser rápida y sin secretos, con la compilación, que tarda y los necesita.
+- **Consecuencias:** D-029 queda superada. `EXPO_TOKEN` debe crearse como
+  secreto del repositorio antes de usar `eas-build.yml`; sin él, el flujo falla
+  con un mensaje explícito. La puerta de calidad sigue siendo `npm run verify`,
+  que es exactamente lo que ejecuta el CI.
+
+## D-040 — El mínimo real de Node es 22, no 20
+
+- **Contexto:** `package.json` declaraba `engines.node: ">=20"`, pero las
+  pruebas de almacenamiento usan `node:sqlite`, que **no existe en Node 20**
+  (`ERR_UNKNOWN_BUILTIN_MODULE`). Verificado: en Node 20 fallan 5 suites y 3
+  pruebas; en Node 22 y 24, las 446 pasan.
+- **Decisión:** subir `engines.node` a `>=22`, fijar la matriz del CI en
+  Node 22 y 24, y añadir una comprobación en `.openhands/setup.sh` que aborta
+  con un mensaje claro si la versión es menor.
+- **Alternativas descartadas:** (a) mantener `>=20` y dejar que las pruebas
+  fallen: el error («Cannot find module 'node:sqlite'») no dice qué hacer;
+  (b) sustituir `node:sqlite` por un doble de prueba: perdería el valor de
+  ejecutar el SQL real del adaptador móvil, que es justo lo que esas pruebas
+  comprueban.
+- **Consecuencias:** quien tenga Node 20 recibirá un error explícito en el
+  bootstrap en lugar de un fallo opaco en las pruebas. El CI cubre 22 (mínimo) y
+  24 (actual) para detectar regresiones de compatibilidad.
+
+## D-041 — Se retiran dos campos obsoletos de `app.json`
+
+- **Contexto:** `expo-doctor` fallaba en la validación del esquema de
+  configuración por dos campos: `android.edgeToEdgeEnabled` y
+  `newArchEnabled`. Expo declara el primero «no longer available» (Android 16
+  hace obligatorio el edge-to-edge) y RN 0.88 solo tiene la nueva arquitectura,
+  así que ambos eran configuración muerta.
+- **Decisión:** eliminarlos. El resto de `app.json` no cambia.
+- **Alternativas descartadas:** silenciarlos con `expo.install.exclude` o
+  dejarlos: seguirían sin efecto y mantendrían el esquema en rojo.
+- **Consecuencias:** `expo-doctor` pasa de 17/20 a 18/20 comprobaciones. Quedan
+  dos avisos conocidos y no bloqueantes: el override
+  `resolver.disableHierarchicalLookup` de Metro, **necesario** para resolver
+  módulos en el monorepo, y el desajuste de versiones de parche del SDK, que se
+  abordará en su propia tarea. Por eso `expo-doctor` es informativo
+  (`continue-on-error`) en el CI y la puerta real es el export de las tres
+  plataformas.
+
+## D-042 — El workflow no publica en tiendas automáticamente
+
+- **Contexto:** la rama `elqkocamisas-patch-1` se creó desde la web de GitHub
+  para subir un archivo, y su commit («Add files via upload») no sigue la
+  convención del proyecto, lo que hace fallar la suite de convención de commits.
+- **Decisión:** dejar el envío a tiendas como acción manual y explícita. La
+  compilación con `eas build --no-wait` no bloquea un runner durante la
+  compilación, y `eas submit` solo se ofrece con perfil `production` y marcando
+  la casilla correspondiente.
+- **Consecuencias:** ninguna publicación ocurre sin que una persona la pida.
+  Se documenta aquí porque el commit de la rama rompe `npm run verify` y conviene
+  saber que la causa es el mensaje, no el contenido.
+
 ## Ambigüedades pendientes (no bloqueantes)
 
 - **Vertical inicial (oposiciones vs PAU):** resuelto en el Sprint 1: el corpus
