@@ -102,6 +102,10 @@ describe('toDisplayMarkdown', () => {
       const out = execFileSync('node', ['--input-type=module', '-e', script], {
         cwd: ROOT,
         encoding: 'utf8',
+        // Sin `pipe`, el hijo hereda el stderr del proceso de Jest: la prueba
+        // que comprueba que el generador *falla* ante una nota mal cerrada
+        // imprimiría el error en la salida y parecería un fallo real.
+        stdio: ['pipe', 'pipe', 'pipe'],
       });
       return { ok: true, out };
     } catch (error) {

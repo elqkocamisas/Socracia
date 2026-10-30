@@ -10,7 +10,7 @@ declare module 'node:child_process' {
   export function execFileSync(
     file: string,
     args: readonly string[],
-    options: { cwd?: string; encoding?: 'utf8'; stdio?: string },
+    options: { cwd?: string; encoding?: 'utf8'; stdio?: string | readonly string[] },
   ): string;
 }
 
