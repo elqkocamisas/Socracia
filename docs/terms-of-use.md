@@ -34,12 +34,31 @@ declara que:
   ni material protegido por derechos de autor que no esté autorizado a usar.
 
 La aplicación **no** aloja ni redistribuye esos documentos: se procesan en el
-dispositivo del usuario y no se envían a nuestros servidores. Cada pregunta
-muestra el fragmento y el documento del que procede, para que el usuario pueda
-trazar de dónde sale cada afirmación.
+dispositivo del usuario. Como se explica en la política de privacidad, si el
+usuario autoriza el asistente con modelo, el fragmento concreto que respalda cada
+pregunta —nunca el documento entero— se envía de forma transitoria para redactar
+o evaluar esa pregunta. Cada pregunta muestra el fragmento y el documento del que
+procede, para que el usuario pueda trazar de dónde sale cada afirmación.
 
 Si el usuario cree que un contenido infringe derechos de autor, puede escribir a
 legal@socracia.app.
+
+## 3 bis. Contenido generado con modelo
+
+Cuando el asistente con modelo está autorizado, las preguntas, las repreguntas y
+las explicaciones pueden redactarse con un modelo de lenguaje, y la evaluación de
+la respuesta puede hacerla el modelo en lugar de la lógica del dispositivo. El
+usuario debe saber que:
+
+- el texto puede contener imprecisiones aunque el fragmento citado exista, y debe
+  contrastarlo con las fuentes oficiales del temario;
+- la cita que acompaña a cada afirmación se limita a fragmentos del material del
+  usuario, de modo que la trazabilidad se mantiene;
+- si no autoriza el asistente, la app evalúa y redacta en el dispositivo con
+  plantillas y reglas, sin enviar nada.
+
+La app muestra si el asistente está activo y permite desactivarlo en cualquier
+momento desde «Cuenta → Privacidad».
 
 ## 4. Cuenta
 

@@ -24,6 +24,7 @@ npm install            # instala y compila core (postinstall)
 npm run verify         # lint + typecheck + test  ← antes de commitear
 npm run lint:commits   # valida los mensajes de commit (CONTRIBUTING.md)
 npm test               # Jest en core y api, jest-expo en mobile
+npm run eval:llm       # evals del motor con modelo (robustez, 32 casos)
 npm run typecheck
 npm run lint
 npm run format         # Prettier
@@ -87,10 +88,29 @@ npm run generate:assets # regenera iconos y capturas base
   salida de Jest y `npm test` parece fallar en un proyecto sano. La prueba pasa,
   pero el log miente. Cualquier invocación a un proceso que falle a propósito
   debe capturar su stderr.
-- **`main` no lleva el código de los sprints.** El trabajo vive en ramas
-  apiladas (`sprint-5-publicacion` es la punta). Un visitante del repo ve solo
-  `README.md` en `main` y puede creer que está vacío. Antes de decir «el repo
-  está vacío», comprobar con `git ls-remote origin` y `git ls-tree -r <rama>`.
+- **`main` ya lleva el código de los sprints.** El trabajo vivió en ramas
+  apiladas y se integró en `main` por fast-forward el 2026-10-30; el repo público
+  tiene 186 ficheros. Las ramas `sprint-*` siguen ahí como referencia.
+- **El mínimo real de Node es 22, no 20.** Las pruebas de almacenamiento usan
+  `node:sqlite`, que **no existe en Node 20** (`ERR_UNKNOWN_BUILTIN_MODULE`):
+  fallan 5 suites y 3 pruebas. `engines.node` declara `>=22` y `setup.sh` aborta
+  con un mensaje claro si la versión es menor.
+- **`check-commits.mjs --all` depende de la profundidad del clon.** En CI
+  (`actions/checkout` sin `fetch-depth`) solo ve el tip y pasa; en local, con
+  historia completa, sí revisa todo el historial. Un commit subido desde la web
+  de GitHub («Add files via upload») no sigue la convención y hace fallar la
+  suite de convención **solo en local**. No dar por bueno el CI: ejecutar
+  `npm run verify` antes de empujar.
+- **`expo-doctor` no es una puerta fiable al 100 %.** Reporta el override
+  `resolver.disableHierarchicalLookup` de Metro, **necesario** en el monorepo, y
+  desajustes de parche del SDK. Por eso el CI lo ejecuta como informativo
+  (`continue-on-error`); la puerta real es `expo export` de las tres plataformas.
+- **Los campos `newArchEnabled` y `android.edgeToEdgeEnabled` ya no existen** en
+  el esquema de SDK 58 (RN 0.88 solo tiene la nueva arquitectura y Android 16
+  hace obligatorio el edge-to-edge). Añadirlos rompe la validación del esquema.
+- **Ejecutar `npm run verify` junto a otra tarea pesada produce falsos fallos.**
+  Las suites de interfaz (`ImportScreen`, `accountJourney`) tienen límite de 5 s
+  y fallan por contención de CPU, no por un defecto. Verificar en solitario.
 
 ## Arquitectura del motor mayéutico (Sprint 1)
 
@@ -178,6 +198,26 @@ Trampas conocidas:
   sincroniza el progreso, nunca los documentos (D-027).
 - El móvil implementa `SyncPort` en `services/httpSyncClient.ts`; la sesión se
   guarda en `app_meta` vía `services/credentialStore.ts`.
+- **Motor con modelo (opcional).** `packages/core/src/llm/` valida toda salida
+  del modelo campo a campo; la heurística es el respaldo y el modelo no dirige el
+  avance. La composición vive en `apps/mobile/src/services/llmEngine.ts` y el
+  orden de envoltura es HTTP → resiliencia → **consentimiento** (el guardián va
+  fuera para que revocar el permiso bloquee también la caché). La clave del
+  proveedor vive solo en el backend; el móvil llama a `POST /llm/complete` con su
+  token de sesión. Detalle en `docs/llm-engine.md` (D-043).
+- **Evals del motor.** `packages/core/src/llm/__evals__/` fija la robustez ante
+  salidas mal formadas; se ejecutan con `npm run eval:llm` y también dentro de
+  `npm test`. Al cambiar un prompt o un validador, revisar el informe por
+  categoría. El directorio `__evals__` se excluye del build: son fixtures.
+- **Privacidad del motor.** Con el asistente autorizado salen del dispositivo la
+  pregunta, la respuesta del alumno, la referencia y el fragmento citado; el
+  servidor no los almacena ni los registra (D-044). Si cambia qué se envía o el
+  servidor pasa a persistirlo, actualice en el mismo PR
+  `apps/mobile/store/privacy-declarations.json` y el apartado 2.3 de
+  `docs/privacy-policy.md`. La prueba
+  `apps/mobile/src/__tests__/storeListing.test.ts` es el guardián: falla si el
+  motor existe (`ConsentGatedLlmProvider`) y la declaración no lo menciona, o al
+  revés.
 
 ## Reglas de trabajo
 
@@ -194,6 +234,7 @@ Trampas conocidas:
 
 - `docs/architecture.md` — arquitectura y diagrama del flujo mayéutico.
 - `docs/rag-strategy.md` — RAG local vs backend, decisión y alternancia.
+- `docs/llm-engine.md` — motor mayéutico con modelo: capas, activación y evals.
 - `docs/backend.md` — API de cuentas y sincronización (Sprint 4).
 - `docs/decisions.md` — registro de decisiones (D-001…).
 - `CONTRIBUTING.md` — ramas, commits, pruebas y seguridad.

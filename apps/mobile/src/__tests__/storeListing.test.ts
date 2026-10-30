@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+import { ConsentGatedLlmProvider } from '@socracia/core';
 import { PNG } from 'pngjs';
 
 /**
@@ -40,11 +41,12 @@ interface Declarations {
     seguimiento: boolean;
     datosUsadosParaSeguimiento: unknown[];
     datosVinculadosAlUsuario: Array<{ tipo: string; recogido: boolean }>;
+    notaSobreDocumentos: string;
   };
   googlePlay: {
     comparteConTerceros: boolean;
     datosCifradosEnTransito: boolean;
-    tipos: Array<{ recogido: boolean; compartido: boolean }>;
+    tipos: Array<{ recogido: boolean; compartido: boolean; tipo: string; detalle?: string }>;
     noRecogidos: string[];
   };
 }
@@ -207,5 +209,36 @@ describe('Declaraciones de privacidad', () => {
     for (const dato of ['Ubicación', 'Salud', 'Contactos', 'Fotos']) {
       expect(noRecogidos).toContain(dato);
     }
+  });
+
+  /**
+   * Guardián de coherencia con el motor mayéutico con modelo.
+   *
+   * `@socracia/core` exporta el motor (`ConsentGatedLlmProvider`). Si el motor
+   * existe, la app puede enviar pregunta, respuesta y fragmento al servidor, y
+   * las declaraciones deben decirlo. Si algún día se retira el motor y las
+   * declaraciones siguieran afirmándolo, esta prueba avisa de que hay que
+   * revisarlas: declarar de más también es un error.
+   */
+  it('las declaraciones describen la transmisión del asistente con modelo', () => {
+    const llmEnginePresent = typeof ConsentGatedLlmProvider === 'function';
+
+    const declaredInAppStore = declarations.appStore.datosVinculadosAlUsuario.some((d) =>
+      /modelo/i.test(d.tipo),
+    );
+    const declaredInPlay = declarations.googlePlay.tipos.some(
+      (t) => /modelo/i.test(t.tipo) || /modelo/i.test(t.detalle ?? ''),
+    );
+
+    // La app real puede transmitir contenido con el motor; las dos tiendas deben
+    // declararlo. Si el motor no está, no debe declararse transmisión por él.
+    expect(declaredInAppStore).toBe(llmEnginePresent);
+    expect(declaredInPlay).toBe(llmEnginePresent);
+  });
+
+  it('la nota sobre documentos no promete que nunca sale un fragmento', () => {
+    // Con el asistente activado, un fragmento concreto puede viajar con su
+    // pregunta. La nota debe admitirlo en vez de negarlo en rotundo.
+    expect(/fragmento/i.test(declarations.appStore.notaSobreDocumentos)).toBe(true);
   });
 });
