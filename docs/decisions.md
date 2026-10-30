@@ -668,6 +668,34 @@ sprint por una cuestión menor.
   revisan al cambiar prompts o validadores. El detalle vive en
   `docs/llm-engine.md`.
 
+## D-044 — El asistente con modelo se declara como transmisión transitoria bajo consentimiento
+
+- **Contexto:** el motor mayéutico con modelo (D-043) envía a la pregunta, la
+  respuesta del alumno, la referencia y el fragmento citado del temario. Las
+  declaraciones de tienda y la política decían que lo único que salía del
+  dispositivo era el progreso agregado y que los documentos nunca se
+  transmitían. Esa afirmación era exacta antes del motor y dejó de serlo al
+  integrarlo: declarar «no se transmiten documentos» con una ruta que sí envía
+  fragmentos es una declaración falsa, motivo de rechazo en ambas tiendas.
+- **Decisión:** declarar el asistente como una categoría propia de datos, con dos
+  matices que lo describen con exactitud: (a) la base jurídica es el
+  **consentimiento explícito**, revocable en cualquier momento, no la ejecución
+  de contrato; (b) el tratamiento es **transitorio**: el servidor atiende la
+  petición en memoria y no la almacena ni la registra. Se declara en las dos
+  tiendas y en los apartados 2.1, 2.3 y 4 de la política, con una cláusula nueva
+  en los términos sobre contenido generado con modelo.
+- **Alternativas descartadas:** (a) dejar las declaraciones como estaban: sería
+  una declaración falsa; (b) declarar la transmisión como general (sin distinguir
+  consentimiento): describiría mal una app cuyo defecto es solo-dispositivo y
+  obligaría a renunciar a «Data Not Collected» sin motivo; (c) no transmitir nada
+  nunca: renunciaría a la mejora de calidad del motor, que sí aporta valor.
+- **Consecuencias:** las declaraciones ya no pueden afirmar que ningún fragmento
+  sale nunca; la prueba `storeListing.test.ts` incluye un guardián que falla si
+  el motor existe y la declaración no lo menciona, o si se retira el motor y la
+  declaración lo sigue afirmando. La checklist de tiendas gana una puerta de
+  privacidad. Si el servidor empieza a almacenar o registrar el contenido, esta
+  decisión debe revisarse: dejaría de ser transitorio.
+
 ## Ambigüedades pendientes (no bloqueantes)
 
 - **Vertical inicial (oposiciones vs PAU):** resuelto en el Sprint 1: el corpus
