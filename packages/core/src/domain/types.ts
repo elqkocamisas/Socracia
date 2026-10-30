@@ -99,6 +99,11 @@ export interface SocraticQuestion {
   readonly keyTerms: readonly string[];
   readonly citation: Citation;
   readonly difficulty: number;
+  /**
+   * Razonamiento del evaluador cuando la pregunta la generó un modelo.
+   * Ausente en la generación por plantillas, que no lo produce.
+   */
+  readonly rationale?: string;
 }
 
 /** Respuesta del usuario a una pregunta mayéutica. */
@@ -126,6 +131,16 @@ export interface AnswerEvaluation {
   readonly missingKeyTerms: readonly string[];
   /** Explicación en lenguaje natural del veredicto. */
   readonly feedback: string;
+  /**
+   * Razonamiento del evaluador semántico, cuando lo hay.
+   * Ausente en la evaluación heurística, que no lo produce.
+   */
+  readonly rationale?: string;
+  /**
+   * Pasaje que respalda la evaluación. Presente solo si la emitió un modelo y
+   * la cita apunta a un fragmento realmente enviado; la heurística no la emite.
+   */
+  readonly citation?: Citation;
 }
 
 /** Lagunas detectadas por concepto, con prioridad de repaso. */
