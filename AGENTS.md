@@ -240,3 +240,17 @@ Trampas conocidas:
 - `CONTRIBUTING.md` — ramas, commits, pruebas y seguridad.
 - `docs/store-release-checklist.md` — publicación en App Store y Google Play.
 - `docs/no-git-delivery.md` — entrega y arranque sin Git.
+- `docs/build-apk-local.md` — compilación de la APK sin EAS (JDK 21, SDK 36).
+
+## Herramientas y trampas comprobadas
+
+- **El mensaje del squash lo valida el mismo filtro.** Al fusionar con
+  «Squash and merge» hay que escribir un asunto con `tipo(ámbito):` de ≤72
+  caracteres y un cuerpo con líneas de ≤100. Si se deja el título del PR como
+  mensaje, `check-commits.mjs --all` falla **en `main`**, porque el escáner
+  recorre todo el historial. Paso seguro: `node scripts/check-commits.mjs --all`
+  localmente antes de empujar, y `--force-with-lease` con el SHA previo para
+  reparar solo el mensaje (el árbol no cambia).
+- **`gh pr merge` y `git push` a `main` necesitan token con permiso de
+  escritura.** El token de la app no basta; las operaciones de escritura van con
+  un token personal y la URL directa, sin persistirlo en ningún fichero.
