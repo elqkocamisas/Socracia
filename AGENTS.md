@@ -81,6 +81,16 @@ npm run generate:assets # regenera iconos y capturas base
 - **Umbral de relevancia del RAG.** `DEFAULT_RELEVANCE.minScore = 0.2` está
   calibrado para el proveedor léxico (aciertos 0.26–0.55, ruido 0.08–0.18). Un
   proveedor semántico real exige recalibrarlo; no es una constante universal.
+- **`execFileSync` hereda el stderr del hijo.** Si la prueba invoca un proceso
+  que _debe_ fallar (el guardián de notas internas de `generate-legal.mjs`, por
+  ejemplo) sin pasar `stdio: ['pipe','pipe','pipe']`, el error se imprime en la
+  salida de Jest y `npm test` parece fallar en un proyecto sano. La prueba pasa,
+  pero el log miente. Cualquier invocación a un proceso que falle a propósito
+  debe capturar su stderr.
+- **`main` no lleva el código de los sprints.** El trabajo vive en ramas
+  apiladas (`sprint-5-publicacion` es la punta). Un visitante del repo ve solo
+  `README.md` en `main` y puede creer que está vacío. Antes de decir «el repo
+  está vacío», comprobar con `git ls-remote origin` y `git ls-tree -r <rama>`.
 
 ## Arquitectura del motor mayéutico (Sprint 1)
 
