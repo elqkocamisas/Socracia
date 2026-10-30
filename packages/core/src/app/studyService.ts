@@ -24,6 +24,7 @@ import {
   type SessionTurn,
 } from '../mayeu/session';
 import { DEFAULT_THRESHOLDS } from '../mayeu/evaluate';
+import type { MayeuticSemanticProvider } from '../mayeu/semanticProvider';
 import type { RagEngine } from '../rag/engine';
 import type { StoragePort } from '../storage/ports';
 import { buildProgressOverview, nextActionHint, type ProgressOverview } from './progressService';
@@ -65,15 +66,21 @@ export interface ActiveStudySession {
   readonly engine: MayeuticSessionEngine;
   readonly steps: readonly ItineraryStep[];
   /**
+   * Documentos del temario, para localizar la fuente de cada pregunta al
+   * evaluar y decidir si el documento autoriza procesamiento en la nube.
+   */
+  readonly documents: readonly KnowledgeDocument[];
+  /**
    * `true` si esta sesión evaluará con modelo. Lo decide la composición: si no
-   * hay evaluador inyectado, es `false` y todo funciona con la heurística.
+   * hay evaluador ni proveedor semántico, es `false` y todo funciona con la
+   * heurística.
    */
   readonly usesModel: boolean;
 }
 
 /** Error de dominio del servicio de estudio. */
 export interface StudyError {
-  readonly code: 'sin-conceptos' | 'generacion-fallida';
+  readonly code: 'sin-conceptos' | 'generacion-fallida' | 'evaluacion-fallida';
   readonly message: string;
 }
 
@@ -89,6 +96,12 @@ export class StudyService {
     private readonly rag: RagEngine,
     private readonly storage: StoragePort,
     private readonly options: StudyServiceOptions = DEFAULT_STUDY_OPTIONS,
+    /**
+     * Proveedor semántico en la nube (Gemini). Es el motor principal cuando el
+     * documento está autorizado y hay sesión; si falta, todo sigue por la
+     * heurística local.
+     */
+    private readonly semanticProvider?: MayeuticSemanticProvider,
   ) {}
 
   /**
@@ -145,11 +158,24 @@ export class StudyService {
     );
     await this.storage.progress.saveSession(session);
 
-    return ok({ session, engine, steps, usesModel: this.options.session.evaluator !== undefined });
+    return ok({
+      session,
+      engine,
+      steps,
+      documents,
+      // Con modelo si hay evaluador inyectado o proveedor semántico en la nube.
+      usesModel:
+        this.options.session.evaluator !== undefined || this.semanticProvider !== undefined,
+    });
   }
 
   /**
    * Registra una respuesta y persiste la evaluación y el repaso resultantes.
+   *
+   * Prioridad de evaluación: si el documento está autorizado y hay proveedor
+   * semántico (Gemini), se pide su juicio y se aplica. Si no, se usa el camino
+   * del motor de sesión, que a su vez emplea el evaluador inyectado
+   * (`submitAsync`) o la heurística local (`submit`).
    *
    * Devuelve el turno completo para que la UI pinte feedback, andamiaje y
    * siguiente pregunta sin lógica de negocio propia.
@@ -160,16 +186,49 @@ export class StudyService {
     text: string,
     latencyMs: number,
     now: Timestamp,
-  ): Promise<SessionTurn> {
-    const turn = active.usesModel
-      ? await active.engine.submitAsync(text, latencyMs, now)
-      : active.engine.submit(text, latencyMs, now);
+  ): Promise<Result<SessionTurn, StudyError>> {
+    const question = active.engine.currentQuestion();
+    if (!question) {
+      return err<StudyError>({
+        code: 'evaluacion-fallida',
+        message: 'No hay una pregunta activa para evaluar.',
+      });
+    }
+
+    const document = active.documents.find(
+      (candidate) => candidate.id === question.citation.documentId,
+    );
+    let assessment;
+    if (text.trim().length > 0 && document && this.semanticProvider?.canProcess(document)) {
+      const evaluated = await this.semanticProvider.evaluateAnswer(question, {
+        questionId: question.id,
+        text,
+        answeredAt: now,
+        latencyMs,
+      });
+      if (!evaluated.ok) {
+        return err<StudyError>({
+          code: 'evaluacion-fallida',
+          message: `No se pudo evaluar semánticamente la respuesta: ${evaluated.error.message}`,
+        });
+      }
+      assessment = evaluated.value;
+    }
+
+    // Sin evaluación semántica propia, se usa el camino del motor: asíncrono si
+    // hay evaluador inyectado (el modelo decide con los pasajes), síncrono si no.
+    const turn =
+      assessment !== undefined
+        ? active.engine.submit(text, latencyMs, now, assessment)
+        : active.usesModel
+          ? await active.engine.submitAsync(text, latencyMs, now)
+          : active.engine.submit(text, latencyMs, now);
     await this.storage.progress.appendEvaluations(userId, [turn.evaluation]);
     await this.storage.progress.saveReviewStates(userId, active.engine.reviewStates());
     // El avance se persiste para poder reanudar o sincronizar la sesión sin
     // depender del estado en memoria de la UI.
     await this.storage.progress.saveSession(active.engine.snapshot());
-    return turn;
+    return ok(turn);
   }
 
   /**
@@ -213,11 +272,56 @@ export class StudyService {
     const items: Array<{ concept: Concept; questions: SocraticQuestion[] }> = [];
 
     for (const concept of concepts) {
-      const generated = await this.generateForConcept(concept, documents);
-      if (!generated.ok) {
-        return err<StudyError>({ code: 'generacion-fallida', message: generated.error.message });
+      // Las plantillas del RAG se piden siempre: además de respaldo, aportan la
+      // cita que ancla la generación semántica al pasaje que la justifica.
+      const templated = await this.rag.generateConceptQuestions(
+        concept,
+        documents,
+        this.options.questions,
+        this.options.questionsPerConcept,
+      );
+      if (!templated.ok) {
+        return err<StudyError>({ code: 'generacion-fallida', message: templated.error.message });
       }
-      const { accepted } = filterNonTrivial(generated.value);
+      let questions = templated.value;
+      const citation = questions[0]?.citation;
+      const sourceDocument = citation
+        ? documents.find((document) => document.id === citation.documentId)
+        : undefined;
+
+      if (citation && sourceDocument && this.semanticProvider?.canProcess(sourceDocument)) {
+        // Gemini (nube) manda cuando el documento está autorizado.
+        const semanticOptions = {
+          ...this.options.questions,
+          maxPerConcept: this.options.questionsPerConcept,
+        };
+        const semantic = await this.semanticProvider.generateQuestions(
+          concept,
+          citation,
+          semanticOptions,
+        );
+        if (!semantic.ok) {
+          return err<StudyError>({
+            code: 'generacion-fallida',
+            message: `No se pudieron generar preguntas semánticas: ${semantic.error.message}`,
+          });
+        }
+        questions = semantic.value.map((draft, index) => ({
+          ...draft,
+          id: `${concept.id}:llm:q${index}`,
+          conceptId: concept.id,
+          citation,
+        }));
+      } else if (this.options.questionGenerator) {
+        // Respaldo: generador de modelo inyectado, y plantillas si aquel falla.
+        const withModel = await this.generateForConcept(concept, documents);
+        if (!withModel.ok) {
+          return err<StudyError>({ code: 'generacion-fallida', message: withModel.error.message });
+        }
+        questions = withModel.value;
+      }
+
+      const { accepted } = filterNonTrivial(questions);
       if (accepted.length > 0) {
         await this.storage.questions.saveQuestions(accepted);
         items.push({ concept, questions: [...accepted] });

@@ -137,7 +137,12 @@ describe('StudyService con generador de modelo', () => {
     }
     expect(prepared.value.usesModel).toBe(true);
 
-    const turn = await service.answer(prepared.value, USER, 'La ley lo permite.', 1000, NOW);
+    const answered = await service.answer(prepared.value, USER, 'La ley lo permite.', 1000, NOW);
+    expect(answered.ok).toBe(true);
+    if (!answered.ok) {
+      return;
+    }
+    const turn = answered.value;
     expect(turn.evaluation.verdict).toBe('parcial');
     expect(turn.evaluation.rationale).toContain('habilitación');
 
