@@ -91,6 +91,44 @@ PORT=8787 DATA_FILE=./datos.json npm start --workspace @socracia/api
 La app apunta al backend con `EXPO_PUBLIC_API_BASE_URL` (por defecto
 `http://localhost:8787`).
 
+## Despliegue en Render
+
+El repositorio declara el servicio en `render.yaml`. **No despliegue la app Expo
+en modo web en el mismo servicio**: es un error fácil de cometer y silencioso.
+El servicio `socracia` de `socracia.onrender.com` servía el cliente web, así que
+cualquier ruta —incluidas `/health` y `/auth/login`— devolvía el HTML de
+`react-native-web` en lugar de JSON. Un móvil apuntado ahí no sincroniza nunca.
+Para comprobar cuál está desplegado:
+
+```bash
+curl -s https://<servicio>.onrender.com/health
+```
+
+Debe responder `{"status":"ok"}` con `content-type: application/json`. Si
+devuelve HTML con `<title>Socracia</title>`, ahí está la app web, no la API.
+
+Para desplegar la API:
+
+1. En Render, **New → Blueprint**, apunte al repositorio y confirme el servicio
+   `socracia-api` que declara `render.yaml`.
+2. Copie la URL del servicio (`https://socracia-api.onrender.com` o similar) y
+   regístrela en EAS para que el build de tienda la lleve embebida:
+
+   ```bash
+   cd apps/mobile
+   eas env:create --environment production \
+     --name EXPO_PUBLIC_API_BASE_URL \
+     --value https://<servicio>.onrender.com --visibility plaintext
+   ```
+
+3. Vuelva a lanzar el build de producción. Sin este paso la app usa
+   `localhost`, que en un teléfono es el propio teléfono.
+
+**Persistencia.** Con el plan gratuito, `DATA_FILE` vive en un sistema de
+archivos efímero y el servicio se suspende sin tráfico. Sirve para verificar el
+despliegue, no para producción. Para conservar el progreso: suba el plan a
+`starter` y descomente el bloque `disk` de `render.yaml`.
+
 ### Procesamiento en la nube (opt-in)
 
 Por defecto la app procesa todo en el dispositivo y el ajuste «Cuenta →
