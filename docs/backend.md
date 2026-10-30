@@ -32,15 +32,16 @@ implementa `HttpSyncClient`, en las pruebas un servidor en memoria.
 
 ## Endpoints
 
-| Método | Ruta             | Cuerpo                                   | Respuesta                    |
-| ------ | ---------------- | ---------------------------------------- | ---------------------------- |
-| GET    | `/health`        | —                                        | `{ "status": "ok" }`         |
-| POST   | `/auth/register` | `{ email, password }`                    | `{ token, userId }`          |
-| POST   | `/auth/login`    | `{ email, password }`                    | `{ token, userId }`          |
-| POST   | `/auth/logout`   | — (con `Authorization`)                  | `{ "status": "cerrado" }`    |
-| DELETE | `/account`       | — (con `Authorization`)                  | `{ "status": "eliminada" }`  |
-| POST   | `/sync/push`     | `ProgressSnapshot` (con `Authorization`) | `ProgressSnapshot` fusionada |
-| GET    | `/sync/pull`     | — (con `Authorization`)                  | `ProgressSnapshot` guardada  |
+| Método  | Ruta             | Cuerpo                                   | Respuesta                    |
+| ------- | ---------------- | ---------------------------------------- | ---------------------------- |
+| GET     | `/health`        | —                                        | `{ "status": "ok" }`         |
+| POST    | `/auth/register` | `{ email, password }`                    | `{ token, userId }`          |
+| POST    | `/auth/login`    | `{ email, password }`                    | `{ token, userId }`          |
+| POST    | `/auth/logout`   | — (con `Authorization`)                  | `{ "status": "cerrado" }`    |
+| DELETE  | `/account`       | — (con `Authorization`)                  | `{ "status": "eliminada" }`  |
+| POST    | `/sync/push`     | `ProgressSnapshot` (con `Authorization`) | `ProgressSnapshot` fusionada |
+| GET     | `/sync/pull`     | — (con `Authorization`)                  | `ProgressSnapshot` guardada  |
+| OPTIONS | cualquiera       | —                                        | `204` sin cuerpo (preflight) |
 
 Autenticación por `Authorization: Bearer <token>`. Códigos de error:
 
@@ -59,6 +60,32 @@ Autenticación por `Authorization: Bearer <token>`. Códigos de error:
   proceso las sesiones caducan.
 - **Solo se sincroniza el progreso.** Los documentos y sus fragmentos nunca se
   envían al servidor.
+
+### CORS (cliente web)
+
+El móvil nativo no necesita CORS: `fetch` desde iOS o Android no aplica la
+política de origen. Pero la app también se compila para **web**, y ahí el
+navegador sí la aplica: sin las cabeceras, el cliente web no puede llamar a la
+API. Antes de D-048, el preflight devolvía `404` y cualquier petición con
+`Authorization` moría antes de salir del navegador.
+
+La API responde al preflight (`OPTIONS`, `204`) y añade las cabeceras a **todas**
+las respuestas, incluidos el `404` y el `500`: si el error no las lleva, el
+navegador oculta el motivo y el cliente solo ve «error de red».
+
+Por defecto se autoriza cualquier origen. La sesión viaja en la cabecera
+`Authorization`, no en cookies, así que el navegador no adjunta credenciales por
+sí solo y una página ajena no puede leer la respuesta autenticada de nadie sin
+poseer ya el token. Nunca se envía `Access-Control-Allow-Credentials`.
+
+Para restringirlo, defina `CORS_ORIGINS` con los orígenes separados por comas:
+
+```bash
+CORS_ORIGINS="https://app.socracia.es,https://staging.socracia.es" node apps/api/dist/index.js
+```
+
+Solo se autoriza un origen que coincida exactamente. `CORS_ORIGINS=,,` (solo
+comas) no autoriza ninguno: un valor mal escrito **cierra** la API, no la abre.
 
 ## Sincronización
 
