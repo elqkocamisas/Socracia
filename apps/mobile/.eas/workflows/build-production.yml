@@ -1,0 +1,36 @@
+name: Compilar para tiendas
+
+# Workflow de EAS. Estos ficheros viven en .eas/workflows/, al mismo nivel que
+# eas.json, y los lee el servidor de EAS; no confundir con .github/workflows/,
+# que son de GitHub Actions. Se lanza a mano desde la pestaña Workflows del
+# panel de Expo o con:
+#   eas workflow:run .eas/workflows/build-production.yml
+#
+# Solo compila: el envío a tiendas va aparte para no gastar créditos de envío
+# por accidente.
+
+on:
+  workflow_dispatch:
+    inputs:
+      plataforma:
+        type: choice
+        options:
+          - android
+          - ios
+        required: true
+        default: android
+      perfil:
+        type: choice
+        options:
+          - preview
+          - production
+        required: true
+        default: production
+
+jobs:
+  compilar:
+    name: Compilar ${{ inputs.plataforma }} (${{ inputs.perfil }})
+    type: build
+    params:
+      platform: ${{ inputs.plataforma }}
+      profile: ${{ inputs.perfil }}

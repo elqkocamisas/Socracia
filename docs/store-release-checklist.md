@@ -135,6 +135,15 @@ impiden la subida.
 - [ ] `eas build --profile production --platform ios` genera un IPA firmado.
 - [ ] Revise que el perfil de producción **no** incluya el cliente de desarrollo
       (lo prueba `buildConfig.test.ts`).
+- [ ] El build lleva la URL del backend real, no `localhost`. Compruebe que el
+      perfil declara `environment` en `eas.json` (lo prueba
+      `easWorkflows.test.ts`): sin ese campo un build de preview apunta a
+      `localhost:8787` sin avisar.
+- [ ] El workflow de EAS aparece en la pestaña _Workflows_ del panel de Expo
+      (`apps/mobile/.eas/workflows/`). Si sale vacía, ese directorio falta: no
+      confundir con `.github/workflows/`, que son de GitHub Actions.
+- [ ] El secreto `EXPO_TOKEN` está en Settings → Secrets → Actions si va a
+      lanzar el flujo «Expo EAS» desde GitHub. El workflow de EAS no lo necesita.
 - [ ] `play-service-account.json` **no** está versionado (está en `.gitignore`).
 - [ ] Cuenta de desarrollador de Apple activa (99 €/año) y de Google Play
       (25 € único, más verificación de identidad).

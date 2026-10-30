@@ -15,8 +15,13 @@ declare module 'node:fs' {
   export function writeFileSync(path: string, data: string, encoding?: 'utf8'): void;
   export function mkdirSync(path: string, options?: { recursive?: boolean }): void;
   export function existsSync(path: string): boolean;
+  export function readdirSync(path: string): string[];
   export function mkdtempSync(prefix: string): string;
   export function rmSync(path: string, options?: { recursive?: boolean; force?: boolean }): void;
+}
+
+declare module 'js-yaml' {
+  export function load(source: string): unknown;
 }
 
 declare module 'node:path' {

@@ -829,3 +829,43 @@ sprint por una cuestión menor.
 - **Modelo on-device definitivo:** pendiente de las métricas de latencia y
   calidad del Sprint 2. La decisión no bloquea el MVP porque el proveedor es
   inyectable (D-018).
+
+## D-050 — Los workflows de EAS viven en `.eas/workflows`, no en `.github/workflows`
+
+- **Contexto:** la pestaña _Workflows_ del panel de Expo salía vacía. El
+  repositorio tenía dos workflows en `.github/workflows/`, que es otra
+  tecnología: los ejecuta GitHub Actions. EAS lee `.eas/workflows/*.yml`, al
+  mismo nivel que `eas.json` —aquí `apps/mobile/`, porque el monorepo tiene el
+  `eas.json` ahí—. No existía ese directorio, así que no había nada que listar.
+- **Decisión:** añadir `apps/mobile/.eas/workflows/build-production.yml`, que
+  compila Android o iOS con el perfil elegido, lanzable a mano.
+- **Motivos:** compilar desde el panel de Expo no depende de que el token de
+  Expo esté en los secretos de GitHub. El flujo `.github/workflows/eas-build.yml`
+  sigue existiendo para quien prefiera lanzarlo desde Actions, pero exige
+  `EXPO_TOKEN` como secreto del repositorio.
+- **Alternativas descartadas:** (a) ampliar el workflow de GitHub Actions: no
+  llena la pestaña de EAS, porque son sistemas distintos; (b) hacer que el
+  workflow de EAS envíe también a tiendas: gasta créditos de envío por
+  accidente, y el envío debe ser una acción deliberada (D-042).
+- **Consecuencias:** el workflow solo compila. El envío a tiendas sigue siendo
+  manual (`eas submit`) o vía el flujo de GitHub Actions con `enviar: true`.
+
+## D-051 — El entorno de compilación se declara explícito en `eas.json`
+
+- **Contexto:** un job `build` de EAS sin `environment` lo infiere del perfil, y
+  sin `environment` en el perfil el criterio es: `production` si `distribution`
+  es `store`, `preview` en el resto de casos. Los perfiles `preview` y
+  `production` no declaraban el campo, así que un build de preview habría caído
+  en el entorno `preview`, donde `EXPO_PUBLIC_API_BASE_URL` no existe (solo está
+  en `production`): el binario habría salido apuntando a `localhost:8787` sin
+  ningún aviso, y el fallo solo se vería al usar la app en un teléfono.
+- **Decisión:** declarar `environment: preview` y `environment: production` en
+  los perfiles correspondientes de `eas.json`, y añadir una prueba que lo exige.
+- **Motivos:** el valor por defecto es correcto hoy para `production` por el
+  criterio de `distribution`, pero depende de un detalle implícito que un cambio
+  futuro en el perfil rompería en silencio. Declararlo lo hace explícito.
+- **Alternativas descartadas:** copiar la variable al entorno `preview`: duplica
+  la configuración y permite que las dos copias diverjan.
+- **Consecuencias:** el build de preview usa el entorno `preview`, que hoy no
+  tiene variables, así que hereda la URL por defecto. Si se quiere probar el
+  preview contra el backend real, hay que añadir la variable a ese entorno.

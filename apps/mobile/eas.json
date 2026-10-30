@@ -16,7 +16,8 @@
       "channel": "preview",
       "android": {
         "buildType": "apk"
-      }
+      },
+      "environment": "preview"
     },
     "production": {
       "channel": "production",
@@ -26,7 +27,8 @@
       },
       "ios": {
         "resourceClass": "m-medium"
-      }
+      },
+      "environment": "production"
     }
   },
   "submit": {
