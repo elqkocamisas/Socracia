@@ -791,6 +791,31 @@ sprint por una cuestión menor.
   la sesión pasa a cookies, habrá que sustituir el comodín por la lista blanca
   y añadir `Allow-Credentials` y protección CSRF.
 
+## D-049 — El servicio de Render debe arrancar la API, no `npm start` de la raíz
+
+- **Contexto:** el servicio `socracia` seguía sirviendo el cliente web después
+  de fusionar `render.yaml` (D-046). La causa no era el repositorio: el servicio
+  se creó a mano y, sin _Start Command_, Render ejecuta `npm start`, que en la
+  raíz del monorepo delega en `@socracia/mobile` y arranca `expo start`. El HTML
+  servido lo delataba: pedía `index.ts.bundle?platform=web&dev=true`, un bundle
+  que solo genera el servidor de desarrollo de Expo.
+- **Decisión:** el servicio debe arrancar con `node apps/api/dist/index.js`, bien
+  corrigiendo el servicio actual (Settings → Build & Deploy), bien creándolo
+  desde `render.yaml` como Blueprint.
+- **Motivos:** `render.yaml` **no** modifica servicios creados a mano; solo lo
+  leen los servicios de tipo Blueprint. Sin entender esto, se sigue empujando
+  commits esperando un cambio que no puede ocurrir: el comando de arranque no
+  está en el repositorio.
+- **Alternativas descartadas:** (a) cambiar el `start` de la raíz para que
+  arranque la API: rompe el flujo de desarrollo documentado (`npm start` arranca
+  la app, que es lo que se espera al clonar el repositorio) y afecta a todos los
+  workspaces; (b) dejar el servicio como está: el cliente web seguiría en la URL
+  del backend.
+- **Consecuencias:** la URL del servicio se conserva con la opción A; con la
+  opción B cambia si cambia el nombre del Blueprint, y entonces hay que
+  actualizar `EXPO_PUBLIC_API_BASE_URL` en EAS. Queda documentado en
+  `docs/backend.md` con los valores exactos de los tres campos.
+
 ## Ambigüedades pendientes (no bloqueantes)
 
 - **Vertical inicial (oposiciones vs PAU):** resuelto en el Sprint 1: el corpus

@@ -4,8 +4,11 @@
 # API: cualquier ruta devolvía el HTML del cliente. Aquí se declara el servicio
 # que sí ejecuta `apps/api`.
 #
-# Render lee este archivo al crear el Blueprint. Si el servicio se crea a mano
-# desde el panel, hay que respetar estos mismos valores.
+# Render lee este archivo al crear el Blueprint. OJO: no modifica servicios ya
+# creados a mano; solo lo leen los servicios de tipo Blueprint. Si el servicio se
+# crea a mano desde el panel, hay que respetar estos mismos valores. Un servicio
+# sin Start Command ejecuta `npm start`, que en la raiz arranca `expo start` y
+# sirve la app web en lugar de la API (D-049).
 services:
   - type: web
     name: socracia-api

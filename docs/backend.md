@@ -120,12 +120,26 @@ La app apunta al backend con `EXPO_PUBLIC_API_BASE_URL` (por defecto
 
 ## Despliegue en Render
 
-El repositorio declara el servicio en `render.yaml`. **No despliegue la app Expo
-en modo web en el mismo servicio**: es un error fácil de cometer y silencioso.
-El servicio `socracia` de `socracia.onrender.com` servía el cliente web, así que
-cualquier ruta —incluidas `/health` y `/auth/login`— devolvía el HTML de
-`react-native-web` en lugar de JSON. Un móvil apuntado ahí no sincroniza nunca.
-Para comprobar cuál está desplegado:
+### Por qué el servicio servía la app web
+
+El servicio `socracia` de `socracia.onrender.com` devolvía el cliente web en
+todas las rutas, incluidas `/health` y `/auth/login`. La causa no estaba en el
+repositorio, sino en el **comando de arranque** del servicio. La cadena es:
+
+```
+Render (sin Start Command)  →  npm start           (raíz del monorepo)
+  →  npm run start --workspace @socracia/mobile
+    →  expo start                                   ← servidor de desarrollo
+```
+
+`npm start` en la raíz arranca Expo, que es lo correcto para desarrollar la app,
+pero no para un servicio web. La prueba está en el propio HTML servido: pedía
+`index.ts.bundle?platform=web&dev=true`, que solo lo genera `expo start`.
+
+**Un `push` no arregla esto.** El comando de arranque vive en la configuración
+del servicio, no en el repositorio, así que ningún commit lo cambia.
+
+Para comprobar qué está sirviendo un servicio:
 
 ```bash
 curl -s https://<servicio>.onrender.com/health
@@ -134,22 +148,40 @@ curl -s https://<servicio>.onrender.com/health
 Debe responder `{"status":"ok"}` con `content-type: application/json`. Si
 devuelve HTML con `<title>Socracia</title>`, ahí está la app web, no la API.
 
-Para desplegar la API:
+### Arreglarlo
 
-1. En Render, **New → Blueprint**, apunte al repositorio y confirme el servicio
-   `socracia-api` que declara `render.yaml`.
-2. Copie la URL del servicio (`https://socracia-api.onrender.com` o similar) y
-   regístrela en EAS para que el build de tienda la lleve embebida:
+**Opción A — corregir el servicio actual (conserva la URL).** En el panel de
+Render, _Settings → Build & Deploy_:
 
-   ```bash
-   cd apps/mobile
-   eas env:create --environment production \
-     --name EXPO_PUBLIC_API_BASE_URL \
-     --value https://<servicio>.onrender.com --visibility plaintext
-   ```
+| Campo             | Valor                                                                                                                |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Build Command     | `npm ci --no-audit --no-fund && npm run build --workspace @socracia/core && npm run build --workspace @socracia/api` |
+| Start Command     | `node apps/api/dist/index.js`                                                                                        |
+| Health Check Path | `/health`                                                                                                            |
 
-3. Vuelva a lanzar el build de producción. Sin este paso la app usa
-   `localhost`, que en un teléfono es el propio teléfono.
+El `npm ci` ya ejecuta el `postinstall`, que compila todos los workspaces, pero
+se listan los dos `build` de forma explícita para que el arranque no dependa de
+un script implícito. Tras guardar, _Manual Deploy → Deploy latest commit_.
+
+**Opción B — crear el servicio desde `render.yaml`.** En Render,
+_New → Blueprint_, apunte al repositorio y confirme el servicio `socracia-api`.
+Render lee `render.yaml` y aplica el comando correcto. Ojo: `render.yaml` **no**
+modifica servicios creados a mano; solo lo leen los servicios de tipo Blueprint.
+Si el nombre del Blueprint cambia, la URL cambia con él.
+
+### Conectar la app
+
+Con la URL del servicio en la mano, regístrela en EAS para que el build de
+tienda la lleve embebida:
+
+```bash
+cd apps/mobile
+eas env:create --environment production \
+  --name EXPO_PUBLIC_API_BASE_URL \
+  --value https://<servicio>.onrender.com --visibility plaintext
+```
+
+Sin este paso la app usa `localhost`, que en un teléfono es el propio teléfono.
 
 **Persistencia.** Con el plan gratuito, `DATA_FILE` vive en un sistema de
 archivos efímero y el servicio se suspende sin tráfico. Sirve para verificar el
