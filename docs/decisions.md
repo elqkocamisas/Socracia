@@ -763,6 +763,34 @@ sprint por una cuestión menor.
 - **Consecuencias:** la prueba nueva falla con `ENOENT` si se retira el arreglo
   (verificado). Sin efecto en el modo en memoria.
 
+## D-048 — CORS abierto por defecto, con lista blanca opcional
+
+- **Contexto:** la API no manejaba CORS en absoluto. El preflight (`OPTIONS`)
+  devolvía `404` sin cabeceras y las respuestas normales tampoco llevaban
+  `Access-Control-Allow-Origin`. El móvil nativo no lo nota (su `fetch` no aplica
+  la política de origen), pero la app también se compila para **web**, y ahí el
+  navegador bloquea toda petición con `Authorization` antes de salir.
+- **Decisión:** responder al preflight con `204` y añadir las cabeceras CORS a
+  todas las respuestas. Por defecto, cualquier origen (`*`); la variable
+  `CORS_ORIGINS` permite fijar una lista blanca.
+- **Motivos:** el comodín es seguro **en este diseño** porque la sesión viaja en
+  la cabecera `Authorization`, no en cookies. El navegador no adjunta
+  credenciales por sí solo, así que una página ajena no puede leer la respuesta
+  autenticada de nadie: tendría que poseer ya el token. Y nunca se envía
+  `Access-Control-Allow-Credentials`, que es la combinación que el navegador
+  prohíbe junto al comodín. Bloquear por defecto rompería el cliente web recién
+  compilado sin que nadie hubiera configurado la lista.
+- **Alternativas descartadas:** (a) exigir lista blanca siempre: rompe el
+  arranque local y el cliente web hasta que alguien acierte con la variable;
+  (b) comodín con `Allow-Credentials`: el navegador lo rechaza y sería un fallo
+  de seguridad; (c) resolver CORS solo en el borde (proxy o plataforma): deja el
+  fallo latente en cualquier otro despliegue y no se puede probar en local.
+- **Consecuencias:** las cabeceras se fijan con `res.setHeader` antes de
+  enrutar, así que valen también para el `404` y el `500`. Un `CORS_ORIGINS`
+  mal escrito (`CORS_ORIGINS=,,`) cierra la API en lugar de abrirla. Si algún día
+  la sesión pasa a cookies, habrá que sustituir el comodín por la lista blanca
+  y añadir `Allow-Credentials` y protección CSRF.
+
 ## Ambigüedades pendientes (no bloqueantes)
 
 - **Vertical inicial (oposiciones vs PAU):** resuelto en el Sprint 1: el corpus

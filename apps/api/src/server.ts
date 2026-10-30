@@ -3,6 +3,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import type { LlmProvider, ProgressSnapshot } from '@socracia/core';
 
 import { AuthService, type AuthResult } from './auth';
+import { corsHeaders, type CorsOptions } from './cors';
 import { routeLlmCompletion } from './llm';
 import { InMemoryProgressStore, type ProgressStore } from './store';
 import { isValidationError, parseSnapshot } from './validation';
@@ -16,6 +17,8 @@ export interface ApiDependencies {
    * la app cae a su modo local, que es el comportamiento por defecto.
    */
   readonly llm?: LlmProvider | null;
+  /** Orígenes autorizados para el cliente web. Por defecto, cualquiera. */
+  readonly cors?: CorsOptions;
 }
 
 /** Crea las dependencias por defecto del MVP. */
@@ -61,6 +64,9 @@ export function createApiServer(deps: ApiDependencies = defaultDependencies()): 
   return createServer(createRequestHandler(deps));
 }
 
+/** CORS por defecto: cualquier origen (ver `cors.ts` para el razonamiento). */
+const DEFAULT_CORS: CorsOptions = { origins: '*' };
+
 async function route(
   deps: ApiDependencies,
   req: IncomingMessage,
@@ -68,6 +74,24 @@ async function route(
 ): Promise<void> {
   const url = new URL(req.url ?? '/', 'http://localhost');
   const method = req.method ?? 'GET';
+
+  // Las cabeceras se fijan antes de responder: `sendJson` usa `writeHead`, que
+  // Node fusiona con lo ya fijado, así que valen para todas las respuestas
+  // (incluido el 404 y el 500) sin tocar cada llamada.
+  for (const [name, value] of Object.entries(
+    corsHeaders(req.headers.origin, deps.cors ?? DEFAULT_CORS),
+  )) {
+    res.setHeader(name, value);
+  }
+
+  // Preflight del cliente web: se responde aquí porque el enrutador no conoce
+  // `OPTIONS` y sin esto toda petición con `Authorization` moría con un 404
+  // antes de salir del navegador.
+  if (method === 'OPTIONS') {
+    res.writeHead(204);
+    res.end();
+    return;
+  }
 
   if (method === 'GET' && url.pathname === '/health') {
     sendJson(res, 200, { status: 'ok' });

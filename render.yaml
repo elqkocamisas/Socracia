@@ -24,6 +24,12 @@ services:
       # almacén vive en memoria y el progreso se pierde al reiniciar.
       - key: DATA_FILE
         value: /var/data/progreso.json
+      # Origenes autorizados para el cliente web, separados por comas. Sin
+      # esta variable se autoriza cualquiera, que es lo correcto mientras la
+      # sesion viaje en la cabecera Authorization. Definirla al publicar el
+      # cliente web en un dominio concreto.
+      # - key: CORS_ORIGINS
+      #   value: https://app.socracia.es
     # AVISO: el disco persistente exige un plan de pago (el gratuito no lo
     # admite) y el plan gratuito suspende el servicio tras un rato sin tráfico,
     # con lo que el primer acceso tarda en responder. Para producción real:

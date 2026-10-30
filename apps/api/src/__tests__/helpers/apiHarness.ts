@@ -4,6 +4,7 @@ import type { Server } from 'node:http';
 import type { ProgressSnapshot } from '@socracia/core';
 
 import { AuthService } from '../../auth';
+import type { CorsOptions } from '../../cors';
 import { InMemoryProgressStore } from '../../store';
 import { createApiServer, defaultDependencies } from '../../server';
 
@@ -32,9 +33,12 @@ export async function startApi(server: Server): Promise<RunningApi> {
 }
 
 /** Crea un servidor de pruebas con almacén en memoria. */
-export function testServer(): { server: Server; store: InMemoryProgressStore } {
+export function testServer(options: { cors?: CorsOptions } = {}): {
+  server: Server;
+  store: InMemoryProgressStore;
+} {
   const store = new InMemoryProgressStore();
-  const server = createApiServer({ auth: new AuthService(), store });
+  const server = createApiServer({ auth: new AuthService(), store, cors: options.cors });
   return { server, store };
 }
 
