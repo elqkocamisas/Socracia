@@ -52,8 +52,8 @@ function main() {
         'Comprueba los mensajes de commit según CONTRIBUTING.md.',
         '',
         '  (sin argumentos)     commits de la rama actual (últimos 20)',
-        '  <rango>              p. ej. main..HEAD',
-        '  --all                todo el historial',
+        '  <rango>              p. ej. main..HEAD (estricto: bloquea)',
+        '  --all                todo el historial (auditoría: informa, no bloquea)',
         '  --message-file <f>   valida un mensaje suelto (sin Git)',
         '',
       ].join('\n'),
@@ -79,17 +79,22 @@ function main() {
   }
 
   const range = args.includes('--all') ? null : (args.find((arg) => !arg.startsWith('-')) ?? null);
+  // `--all` audita el historial completo. Ese historial ya está fusionado y no
+  // se reescribe, así que un incumplimiento se informa pero no bloquea: bloquear
+  // obligaría a reescribir `main`, que es justo lo que la convención evita. La
+  // puerta estricta son los rangos (`main..HEAD`) y los mensajes sueltos.
+  const lenient = args.includes('--all');
   const commits = readCommits(range);
 
   let failures = 0;
   let warnings = 0;
   for (const commit of commits) {
     const result = validateCommitMessage(commit.message);
-    if (!result.ok) {
+    if (!result.ok && !lenient) {
       failures += 1;
     }
-    warnings += result.warnings.length;
-    report(commit, result);
+    warnings += result.warnings.length + (lenient && !result.ok ? result.errors.length : 0);
+    report(commit, result, lenient);
   }
 
   process.stdout.write(
@@ -102,15 +107,17 @@ function main() {
   }
 }
 
-function report(commit, result) {
+function report(commit, result, lenient = false) {
   const subject = result.parsed.subject;
-  if (result.ok && result.warnings.length === 0) {
+  const ok = result.ok || lenient;
+  if (ok && result.warnings.length === 0 && result.ok) {
     process.stdout.write(`ok   ${commit.hash}  ${subject}\n`);
     return;
   }
-  if (result.ok) {
+  if (ok) {
     process.stdout.write(`warn ${commit.hash}  ${subject}\n`);
-    for (const warning of result.warnings) {
+    const notes = lenient ? [...result.errors, ...result.warnings] : result.warnings;
+    for (const warning of notes) {
       process.stdout.write(`     · ${warning}\n`);
     }
     return;

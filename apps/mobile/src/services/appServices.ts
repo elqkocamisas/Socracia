@@ -20,6 +20,7 @@ import {
   assertProcessingAllowed,
   type EdgeLlmNativeModule,
   type EmbeddingProvider,
+  type MayeuticSemanticProvider,
   type Result,
   type VectorStore,
 } from '@socracia/core';
@@ -140,6 +141,13 @@ export interface AppServices {
   readonly policyStore: ProcessingPolicyStore;
   /** `true` si este build tiene backend de corpus en la nube. */
   readonly cloudAvailable: boolean;
+  /**
+   * Comprueba en tiempo real todos los requisitos de procesamiento remoto:
+   * build con backend, sesión iniciada y política que lo autoriza. Es lo que la
+   * UI consulta antes de ofrecer la nube y lo que decide, junto al
+   * consentimiento por documento, si una respuesta se evalúa con Gemini.
+   */
+  readonly cloudProcessingEnabled: () => boolean;
 }
 
 /** Opciones de creación del runtime. */
@@ -198,19 +206,36 @@ export function createServices(options: CreateServicesOptions): AppServices {
   const store = options.vectorStore ?? new InMemoryVectorStore();
   const rag = new RagEngine(store, provider);
   const ingestion = new DocumentIngestionService(defaultRegistry(fflateInflate), rag);
-  // Con paquete de modelo, el estudio lo usa como motor principal; sin él, queda
-  // el camino heurístico. No se cambia ninguna firma pública: solo las opciones.
-  const studyOptions = options.llm
-    ? withLlmEngine(DEFAULT_STUDY_OPTIONS, options.llm, rag)
-    : DEFAULT_STUDY_OPTIONS;
-  const study = new StudyService(rag, options.storage, studyOptions);
-  const session = new MayeuticSessionController(study, options.storage, LOCAL_USER_ID);
   const syncClient =
     options.syncClient ??
     new HttpSyncClient({ baseUrl: options.apiBaseUrl ?? DEFAULT_API_BASE_URL });
   const credentials = options.credentials ?? new InMemoryCredentialStore();
   const account = new AccountService(syncClient, credentials, options.storage, LOCAL_USER_ID);
   const policy = new ProcessingPolicyHolder(options.policy ?? DEFAULT_PROCESSING_POLICY);
+  const cloudAvailable = options.cloudAvailable ?? CLOUD_PROCESSING_AVAILABLE;
+  const cloudProcessingEnabled = (): boolean =>
+    cloudAvailable && syncClient.hasSession() && allowsCloudProcessing(policy.current());
+  // Gemini es el motor principal cuando el documento está autorizado y hay
+  // sesión; sin sesión o sin permiso, `canProcess` devuelve `false` y el estudio
+  // cae a la heurística local sin cambiar de camino.
+  const semanticProvider: MayeuticSemanticProvider = {
+    canProcess: (document) => document.cloudConsent && cloudProcessingEnabled(),
+    generateQuestions: async (concept, citation, questionOptions) => {
+      const result = await syncClient.generateQuestions(concept, citation, questionOptions);
+      return result.ok ? result : { ok: false, error: new Error(result.error.message) };
+    },
+    evaluateAnswer: async (question, answer) => {
+      const result = await syncClient.evaluateAnswer(question, answer);
+      return result.ok ? result : { ok: false, error: new Error(result.error.message) };
+    },
+  };
+  // Con paquete de modelo, las opciones del estudio lo incorporan como respaldo
+  // del generador; el proveedor semántico va aparte porque decide por documento.
+  const studyOptions = options.llm
+    ? withLlmEngine(DEFAULT_STUDY_OPTIONS, options.llm, rag)
+    : DEFAULT_STUDY_OPTIONS;
+  const study = new StudyService(rag, options.storage, studyOptions, semanticProvider);
+  const session = new MayeuticSessionController(study, options.storage, LOCAL_USER_ID);
 
   return {
     storage: options.storage,
@@ -224,7 +249,8 @@ export function createServices(options: CreateServicesOptions): AppServices {
     embedding,
     policy,
     policyStore: options.policyStore ?? new InMemoryProcessingPolicyStore(),
-    cloudAvailable: options.cloudAvailable ?? CLOUD_PROCESSING_AVAILABLE,
+    cloudAvailable,
+    cloudProcessingEnabled,
   };
 }
 
@@ -340,7 +366,8 @@ export async function importDocument(
       chunkOptions: { maxChars: 900, overlapChars: 150, minChars: 40 },
       // Queda registrado en el documento si el usuario autorizó la nube, para
       // poder auditar después qué material se procesó fuera del dispositivo.
-      cloudConsent: allowsCloudProcessing(services.policy.current()),
+      // Se exige también sesión iniciada: sin cuenta no hay nube posible.
+      cloudConsent: services.cloudProcessingEnabled(),
       id,
       now,
     },

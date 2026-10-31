@@ -133,3 +133,8 @@ npm run lint:commits              # revisa los commits de la rama actual
 npm run lint:commits -- main..HEAD
 npm run lint:commits -- --all
 ```
+
+El rango (`main..HEAD`) y `--message-file` son **estrictos**: bloquean con código
+de salida 1. `--all` es una **auditoría** del historial ya fusionado: informa de
+los incumplimientos como advertencias, pero no bloquea, porque el historial
+publicado no se reescribe.

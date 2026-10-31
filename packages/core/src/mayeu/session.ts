@@ -10,7 +10,8 @@ import type {
 } from '../domain/types';
 import type { AnswerEvaluatorPort, ExplainerPort, FollowUpPort } from '../llm/ports';
 import type { LlmPassage } from '../llm/types';
-import { evaluateAnswer, type EvaluationThresholds } from './evaluate';
+import { evaluateAnswer, evaluateSemanticAssessment, type EvaluationThresholds } from './evaluate';
+import type { SemanticAnswerAssessment } from './semanticProvider';
 import { detectGaps, initialReviewState, scheduleReview } from './gaps';
 import type { ItineraryStep } from './itinerary';
 import { buildScaffold, needsScaffold, type Scaffold } from './scaffolding';
@@ -123,13 +124,23 @@ export class MayeuticSessionEngine {
    * Registra una respuesta y devuelve el turno: evaluación, repregunta si
    * procede y siguiente pregunta.
    *
-   * Camino síncrono, con la heurística de `evaluateAnswer`. Se mantiene intacto
-   * para los llamantes que no usan modelo.
+   * Camino síncrono. Si el llamante ya obtuvo una evaluación semántica (por
+   * ejemplo, del proveedor en la nube), la pasa en `assessment` y se respeta su
+   * juicio; si no, se aplica la heurística de `evaluateAnswer`. En ambos casos el
+   * avance de la sesión y el repaso espaciado son idénticos.
    */
-  public submit(text: string, latencyMs: number, now: Timestamp): SessionTurn {
+  public submit(
+    text: string,
+    latencyMs: number,
+    now: Timestamp,
+    assessment?: SemanticAnswerAssessment,
+  ): SessionTurn {
     const step = this.requireCurrentStep();
     const answer = this.newAnswer(step.question, text, now, latencyMs);
-    return this.registerAnswer(step, answer, evaluateAnswer(step.question, answer, this.options.thresholds));
+    const evaluation = assessment
+      ? evaluateSemanticAssessment(step.question, assessment, this.options.thresholds)
+      : evaluateAnswer(step.question, answer, this.options.thresholds);
+    return this.registerAnswer(step, answer, evaluation);
   }
 
   /**

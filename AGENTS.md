@@ -260,3 +260,14 @@ Trampas conocidas:
 - **`gh pr merge` y `git push` a `main` necesitan token con permiso de
   escritura.** El token de la app no basta; las operaciones de escritura van con
   un token personal y la URL directa, sin persistirlo en ningún fichero.
+- **Una fusión puede conservar los tests y revertir el código.** Si al integrar
+  una rama se elige «theirs» o «ours» por fichero sin mirar los tests, `main`
+  queda con el contrato de una mitad y la implementación de la otra: los tests
+  exigen una firma y el código ofrece otra. Síntoma: suites que «fallan sin
+  tocar nada» con errores de tipos como `Expected 2-3 arguments, but got 4`.
+  Antes de dar por buena una fusión, `npm run verify` **en la rama fusionada**,
+  no solo en la rama de origen.
+- **La app móvil resuelve los tipos del core desde `dist/`.** Tras tocar
+  `packages/core/src`, hay que `npm run build --workspace @socracia/core` antes
+  de `npm run verify`, o el typecheck de móvil usará los `.d.ts` antiguos y
+  dará errores que el código fuente no tiene.
