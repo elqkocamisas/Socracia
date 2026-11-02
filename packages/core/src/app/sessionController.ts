@@ -24,6 +24,12 @@ export interface StudyViewState {
   readonly verdict: AnswerVerdict | null;
   /** Repregunta de andamiaje si el fallo lo justifica; si no, `null`. */
   readonly scaffold: Scaffold | null;
+  /**
+   * Explicación fundamentada del modelo tras fallos repetidos; `null` mientras
+   * no se alcance el umbral o cuando no hay motor con modelo. El motor la
+   * produce en `enrichTurn`, pero sin este campo se perdía antes de la pantalla.
+   */
+  readonly explanation: string | null;
   /** Puntuación de la última respuesta en [0, 1]. */
   readonly lastScore: number | null;
 }
@@ -162,6 +168,7 @@ export class MayeuticSessionController {
       feedback: turn?.evaluation.feedback ?? null,
       verdict: turn?.evaluation.verdict ?? null,
       scaffold: turn?.scaffold ?? null,
+      explanation: turn?.explanation ?? null,
       lastScore: turn?.evaluation.score ?? null,
     };
   }

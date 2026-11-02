@@ -1001,6 +1001,34 @@ sprint por una cuestión menor.
   «el proveedor semántico no desactiva el enriquecimiento») y se comprobó que falla con el
   código anterior y pasa con el arreglo.
 
+## D-060 — La explicación del modelo llega a la vista: se cierra el camino D-059
+
+- **Fecha:** Sprint 5 (módulo LLM como motor principal)
+- **Contexto:** el arreglo de D-059 devolvió al motor la capacidad de pedir la
+  explicación. Al verificar el recorrido completo apareció el último eslabón roto
+  del mismo camino: `SessionController.buildView` construía `StudyViewState` sin
+  copiar `turn.explanation`, y el contrato de la vista ni siquiera tenía ese campo.
+  La explicación se producía, se descartaba y el alumno no la veía nunca; ninguna
+  prueba lo cubría porque todas comprobaban el turno del motor, no la vista.
+- **Decisión:** `StudyViewState` incorpora `explanation: string | null` y
+  `buildView` lo rellena desde `turn.explanation`. La pantalla de estudio pinta un
+  bloque «Explicación» cuando el campo no es nulo, con el mismo tratamiento visual
+  que el feedback y el andamiaje.
+- **Motivos:** el contrato de la vista es el único punto por el que el estado del
+  motor llega a la interfaz. Si un dato del turno no está ahí, no existe para el
+  alumno, por bien que lo calcule el núcleo. Declarar el campo como obligatorio
+  (aunque nullable) hace que el compilador impida volver a olvidarlo: quitar la
+  asignación en `buildView` rompe la compilación.
+- **Alternativas descartadas:** (a) pasar `SessionTurn` entero a la vista: filtra
+  detalle interno del motor y acopla la UI al núcleo; (b) mostrar la explicación
+  dentro del feedback existente: mezcla dos textos con propósitos distintos
+  (corrección inmediata frente a explicación tras fallos repetidos).
+- **Consecuencias:** dos pruebas nuevas fijan el comportamiento en ambos extremos
+  del camino: `sessionController.test.ts` comprueba que la vista lleva la
+  explicación y `StudyScreen.test.tsx` que la pantalla la pinta. Ambas se
+  verificaron en los dos sentidos: fallan sin el arreglo y pasan con él.
+  `npm run verify` queda en 548 pruebas (321 core, 56 api, 171 móvil).
+
 ## Ambigüedades pendientes (no bloqueantes)
 
 - **Vertical inicial (oposiciones vs PAU):** resuelto en el Sprint 1: el corpus
