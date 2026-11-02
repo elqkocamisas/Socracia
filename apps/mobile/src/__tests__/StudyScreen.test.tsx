@@ -6,6 +6,7 @@ import {
   makeServices,
   submitAnswer,
   typeAnswer,
+  withExplainingEngine,
   NOW,
 } from './helpers/appTestHarness';
 
@@ -66,5 +67,24 @@ describe('StudyScreen', () => {
 
     await waitFor(() => expect(screen.getByText(/no tiene temario procesado/i)).toBeTruthy());
     expect(screen.getByText('Reintentar')).toBeTruthy();
+  });
+
+  it('muestra la explicación del modelo cuando el motor la produce', async () => {
+    const services = makeServices(undefined, withExplainingEngine());
+    const documentId = await importTemario(services);
+
+    await render(<StudyScreen services={services} documentId={documentId} now={() => NOW} />);
+    await waitFor(() => expect(screen.getByLabelText('Tu respuesta')).toBeTruthy());
+
+    // Tres fallos: el umbral de explicación es 2, así que a partir del segundo
+    // turno el motor la produce y la pantalla debe pintarla.
+    for (let i = 0; i < 3; i += 1) {
+      await typeAnswer('no lo sé');
+      fireEvent.press(screen.getByText(/Enviar respuesta|Responder de nuevo/));
+      await waitFor(() => expect(screen.getByText(/^[1-9]\d* \/ \d+ respuestas$/)).toBeTruthy());
+    }
+
+    expect(screen.getByText('Explicación')).toBeTruthy();
+    expect(screen.getByText('explicación del modelo')).toBeTruthy();
   });
 });

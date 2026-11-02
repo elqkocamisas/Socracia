@@ -124,43 +124,46 @@ export class MayeuticSessionEngine {
    * Registra una respuesta y devuelve el turno: evaluación, repregunta si
    * procede y siguiente pregunta.
    *
-   * Camino síncrono. Si el llamante ya obtuvo una evaluación semántica (por
-   * ejemplo, del proveedor en la nube), la pasa en `assessment` y se respeta su
-   * juicio; si no, se aplica la heurística de `evaluateAnswer`. En ambos casos el
-   * avance de la sesión y el repaso espaciado son idénticos.
+   * Camino síncrono y sin modelo: aplica la heurística de `evaluateAnswer`. No
+   * enriquece el turno (ni repregunta redactada ni explicación) porque eso exige
+   * llamadas al modelo; para eso está `submitAsync`. Un llamante que ya tenga una
+   * evaluación semántica debe usar `submitAsync` y pasarla en `assessment`, o
+   * perdería el enriquecimiento en silencio.
    */
-  public submit(
-    text: string,
-    latencyMs: number,
-    now: Timestamp,
-    assessment?: SemanticAnswerAssessment,
-  ): SessionTurn {
+  public submit(text: string, latencyMs: number, now: Timestamp): SessionTurn {
     const step = this.requireCurrentStep();
     const answer = this.newAnswer(step.question, text, now, latencyMs);
-    const evaluation = assessment
-      ? evaluateSemanticAssessment(step.question, assessment, this.options.thresholds)
-      : evaluateAnswer(step.question, answer, this.options.thresholds);
-    return this.registerAnswer(step, answer, evaluation);
+    return this.registerAnswer(step, answer, evaluateAnswer(step.question, answer, this.options.thresholds));
   }
 
   /**
    * Variante asíncrona que usa el evaluador semántico si está disponible.
    *
-   * Prioridad: si hay evaluador y pasajes, se pide la evaluación al modelo y se
-   * usa su juicio. Si no hay evaluador, si no hay pasajes, o si la llamada falla
-   * (timeout, cuota, circuito, salida inválida), se cae a la heurística: la
-   * sesión **nunca** se interrumpe por un fallo del modelo. Es el modo principal
-   * de la experiencia; la heurística es la red de seguridad.
+   * Si el llamante ya obtuvo una evaluación semántica (por ejemplo, del proveedor
+   * en la nube), la pasa en `assessment` y se respeta su juicio sin volver a
+   * evaluar. Si no, se pide la evaluación al modelo.
+   *
+   * Prioridad de evaluación: si hay evaluador y pasajes, se usa su juicio. Si no
+   * hay evaluador, si no hay pasajes, o si la llamada falla (timeout, cuota,
+   * circuito, salida inválida), se cae a la heurística: la sesión **nunca** se
+   * interrumpe por un fallo del modelo. Es el modo principal de la experiencia;
+   * la heurística es la red de seguridad.
+   *
+   * En todos los casos el turno se enriquece después con lo que el modelo puede
+   * aportar (repregunta y explicación): es el único camino que lo hace.
    */
   public async submitAsync(
     text: string,
     latencyMs: number,
     now: Timestamp,
+    assessment?: SemanticAnswerAssessment,
   ): Promise<SessionTurn> {
     const step = this.requireCurrentStep();
     const answer = this.newAnswer(step.question, text, now, latencyMs);
 
-    const evaluation = await this.evaluateWithFallback(step, answer);
+    const evaluation = assessment
+      ? evaluateSemanticAssessment(step.question, assessment, this.options.thresholds)
+      : await this.evaluateWithFallback(step, answer);
     const turn = this.registerAnswer(step, answer, evaluation);
     return this.enrichTurn(turn, step, answer);
   }
