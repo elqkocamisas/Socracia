@@ -965,6 +965,42 @@ sprint por una cuestión menor.
   auditoría (`--all`, informa sin bloquear), porque los tres incumplimientos ya
   están fusionados en `main` y reescribirlos está prohibido.
 
+## D-059 — El proveedor semántico evalúa, pero el enriquecimiento del turno sigue su curso
+
+- **Fecha:** Sprint 5 (módulo LLM como motor principal)
+- **Contexto:** con el proveedor semántico (Gemini) como motor principal, `StudyService.answer`
+  obtenía la evaluación del proveedor y luego llamaba a `engine.submit(text, latency, now, assessment)`.
+  `submit` es el camino **síncrono** y **no** ejecuta `enrichTurn`, que es el único punto
+  donde se piden la repregunta (`followUp`) y la explicación (`explainer`) al modelo. La
+  consecuencia: justo cuando el documento estaba autorizado y el modelo disponible, el
+  alumno **perdía** la repregunta redactada y la explicación, que `docs/llm-engine.md`
+  promete. La paradoja era que el recorrido **sin** autorización (heurístico, vía
+  `submitAsync`) sí las pedía. Ninguna prueba lo cubría: `npm run verify` seguía verde con
+  el fallo presente.
+- **Decisión:** el enriquecimiento del turno es **independiente de quién evalúa**. Tanto si
+  el veredicto viene del proveedor semántico como del evaluador LLM o de la heurística, el
+  turno pasa por `submitAsync`, que es el único camino que llama a `enrichTurn`. Para no
+  evaluar dos veces, `submitAsync` acepta el `assessment` ya obtenido y, si viene, respeta
+  su juicio sin volver a pedirlo al modelo. `submit` queda como camino síncrono puro y sin
+  modelo: se le retira el parámetro `assessment` para que no pueda volver a desactivar el
+  enriquecimiento en silencio.
+- **Motivos:** el diseño de `docs/llm-engine.md` separa dos responsabilidades —decidir el
+  veredicto y mejorar el texto del turno— y el bug las había acoplado por accidente. Con el
+  arreglo, el orden de preferencia de D-058 se mantiene intacto y solo se restaura la
+  capacidad que se había perdido. El coste es una llamada más por turno con fallo, y solo
+  cuando el motor está activo; sin modelo no se pide nada.
+- **Alternativas descartadas:** (a) dejar que `submit` llame también a `enrichTurn`:
+  convierte un método síncrono en asíncrono y obliga a cambiar a todos sus llamantes
+  (pruebas incluidas) por un caso que ya cubre `submitAsync`; (b) enriquecer en
+  `StudyService.answer` en lugar del motor: saca del motor una decisión que es suya y
+  duplica la lógica de umbral de fallos; (c) no hacer nada: mantiene una capacidad
+  anunciada en la documentación que no llega nunca al alumno.
+- **Consecuencias:** `MayeuticSessionEngine.submitAsync(text, latencyMs, now, assessment?)`
+  gana un cuarto parámetro opcional; `submit(text, latencyMs, now)` pierde el suyo. La
+  prueba de regresión vive en `packages/core/src/__tests__/studyService.test.ts` (bloque
+  «el proveedor semántico no desactiva el enriquecimiento») y se comprobó que falla con el
+  código anterior y pasa con el arreglo.
+
 ## Ambigüedades pendientes (no bloqueantes)
 
 - **Vertical inicial (oposiciones vs PAU):** resuelto en el Sprint 1: el corpus
