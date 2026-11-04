@@ -27,6 +27,13 @@
       "ios": {
         "resourceClass": "m-medium"
       }
+    },
+    "release-apk": {
+      "extends": "production",
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      }
     }
   },
   "submit": {

@@ -958,12 +958,43 @@ sprint por una cuestión menor.
   de privacidad y niega la indicación del usuario; (c) mantener ambos caminos
   duplicando `StudyService`: dos fuentes de verdad para el mismo dominio.
 - **Consecuencias:** un solo `StudyService.answer` devuelve `Result<SessionTurn,
-  StudyError>`; el orden de preferencia es proveedor semántico → evaluador LLM
+StudyError>`; el orden de preferencia es proveedor semántico → evaluador LLM
   (`submitAsync`) → heurística local. `ActiveStudySession` lleva `documents`
   (para localizar la fuente) y `usesModel` (para elegir el camino). La convención
   de commits pasa a distinguir el modo estricto (rangos, `--message-file`) del de
   auditoría (`--all`, informa sin bloquear), porque los tres incumplimientos ya
   están fusionados en `main` y reescribirlos está prohibido.
+
+## D-059 — La APK de 1.0 se genera con un perfil de EAS que extiende de producción
+
+- **Fecha:** Sprint de cierre de 1.0 (2026-11-04)
+- **Contexto:** la entrega de 1.0 exige un APK instalable para probar en
+  dispositivo, pero el perfil `production` genera un **AAB** (`app-bundle`),
+  que Google Play consume y un teléfono no instala directamente. Los perfiles
+  `development` y `preview` sí generan APK, pero con `developmentClient` o sin el
+  canal de producción, y no son lo que se quiere entregar como build de
+  lanzamiento.
+- **Decisión:** se añade el perfil **`release-apk`** que **extiende de
+  `production`** (`extends: "production"`) y solo cambia lo necesario:
+  `distribution: "internal"` y `android.buildType: "apk"`. Hereda el canal de
+  producción, la versión remota y `autoIncrement: true`.
+- **Motivos:** extender de `production` mantiene una sola fuente de verdad para
+  el canal y la numeración; el APK de lanzamiento no es una configuración
+  paralela que pueda divergir. `distribution: "internal"` evita cualquier envío a
+  tienda: el artefacto es para instalación directa. El `versionCode` sigue
+  gestionado por EAS en remoto (`appVersionSource: "remote"`), como exige el
+  alcance de 1.0; no se toca a mano.
+- **Alternativas descartadas:** (a) reutilizar `preview`: no comparte canal con
+  producción y arrastra su configuración de previsualización; (b) cambiar
+  `production` a APK: rompería la entrega a Google Play, que exige AAB;
+  (c) generar el APK solo en local con `docs/build-apk-local.md`: válido como
+  respaldo, pero no es «APK generado por EAS», que es lo que pide la puerta G7.
+- **Consecuencias:** `eas build --profile release-apk --platform android` produce
+  un APK de lanzamiento. La prueba `buildConfig.test.ts` fija que el perfil
+  extiende de producción, distribuye internamente y genera APK, para que un
+  cambio futuro no lo degrade en silencio. El primer keystore de Android no se
+  puede generar en modo no interactivo (issue de `eas-cli`), así que la primera
+  compilación exige un paso humano: ver `docs/release-1.0-smoke.md`.
 
 ## Ambigüedades pendientes (no bloqueantes)
 
