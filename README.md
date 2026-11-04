@@ -9,17 +9,30 @@ un itinerario de asimilación progresiva del conocimiento.
 
 ## Estado
 
-Sprints 0–4 completados. El Sprint 0 dejó las fundaciones y el dominio base; el
-Sprint 1, el motor mayéutico completo (extracción de conceptos, generación de
-preguntas no triviales, itinerario progresivo, andamiaje y motor de sesión); el
-Sprint 2, la ingesta de documentos (PDF, TXT y MD) con RAG on-device,
-persistencia local en SQLite y la pantalla de importación; el Sprint 3, la
-conversación guiada y la pantalla de progreso con repetición espaciada; y el
-Sprint 4, la cuenta opcional y la sincronización del progreso entre
-dispositivos. El recorrido **adjuntar documento → responder preguntas → ver
-progreso** funciona de principio a fin, y el progreso puede continuarse en otro
-dispositivo iniciando sesión. Ver `docs/architecture.md` para el alcance por
-sprint.
+**1.0.0** — app móvil de un solo usuario, local-first. Sprints 0–4 completados:
+el Sprint 0 dejó las fundaciones y el dominio base; el Sprint 1, el motor
+mayéutico completo (extracción de conceptos, generación de preguntas no
+triviales, itinerario progresivo, andamiaje y motor de sesión); el Sprint 2, la
+ingesta de documentos (PDF, TXT y MD) con RAG on-device, persistencia local en
+SQLite y la pantalla de importación; el Sprint 3, la conversación guiada y la
+pantalla de progreso con repetición espaciada; y el Sprint 4, la cuenta opcional
+y la sincronización del progreso entre dispositivos. El recorrido **adjuntar
+documento → responder preguntas → ver progreso** funciona de principio a fin, y
+el progreso puede continuarse en otro dispositivo iniciando sesión. Ver
+`docs/architecture.md` para el alcance por sprint.
+
+El alcance de 1.0 incluye además el proveedor semántico opcional con
+consentimiento por documento (D-057/D-058) y la heurística como respaldo, y la
+entrega de un APK de lanzamiento por EAS. Quedan **fuera** de 1.0 la
+multitenencia, la consola docente, la facturación y la publicación en tiendas.
+La multitenencia está documentada (D-053 a D-056) pero **no implementada**: no
+hay código multitenante que activar ni que apagar.
+
+### Camino a 1.0
+
+El dictamen de la versión y la evidencia de cada puerta de aceptación están en
+[`docs/release-1.0-verdict.md`](docs/release-1.0-verdict.md). La prueba manual en
+dispositivo sigue el checklist [`docs/release-1.0-smoke.md`](docs/release-1.0-smoke.md).
 
 ## Stack
 
@@ -54,14 +67,14 @@ anteriores.
 
 ## Comandos
 
-| Comando             | Descripción                     |
-| ------------------- | ------------------------------- |
-| `npm test`          | Pruebas de todos los workspaces |
-| `npm run typecheck` | TypeScript estricto             |
-| `npm run lint`      | ESLint (flat config)            |
-| `npm run format`    | Prettier                        |
-| `npm run verify`    | lint + typecheck + test         |
-| `npm run package:source` | Entrega en `.tar.gz` sin Git |
+| Comando                  | Descripción                     |
+| ------------------------ | ------------------------------- |
+| `npm test`               | Pruebas de todos los workspaces |
+| `npm run typecheck`      | TypeScript estricto             |
+| `npm run lint`           | ESLint (flat config)            |
+| `npm run format`         | Prettier                        |
+| `npm run verify`         | lint + typecheck + test         |
+| `npm run package:source` | Entrega en `.tar.gz` sin Git    |
 
 ## Documentación
 

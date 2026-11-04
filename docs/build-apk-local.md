@@ -61,7 +61,7 @@ unzip -t "$APK"                                  # integridad del ZIP
 apksigner verify --print-certs "$APK"            # firma
 ```
 
-Resultado esperado: `com.socracia.app`, `versionName 0.1.0`, `targetSdk 36`,
+Resultado esperado: `com.socracia.app`, `versionName 1.0.0`, `targetSdk 36`,
 cuatro ABIs (`arm64-v8a`, `armeabi-v7a`, `x86`, `x86_64`) y **sin** permisos de
 cámara, ubicación ni contactos.
 
