@@ -117,9 +117,20 @@ function decodePdfLiteral(raw: string): string {
   return out;
 }
 
-/** Extrae los literales de texto de un operador `Tj` o `TJ` de un flujo de contenido. */
+/**
+ * Extrae los literales de texto de un operador `Tj` o `TJ` de un flujo de contenido.
+ *
+ * La estructura de líneas importa: si se aplanan todos los espacios, un
+ * encabezado queda pegado al párrafo siguiente y la extracción de conceptos
+ * pierde el límite del tema. Por eso cada objeto de texto (`BT…ET`) se separa
+ * con una línea en blanco, y dentro de un mismo objeto los fragmentos se unen
+ * con un espacio: así un párrafo repartido en varias líneas se reconstruye,
+ * pero dos bloques distintos no se confunden.
+ */
 function extractFromContentStream(content: string): string {
   let out = '';
+  let previousEnd = 0;
+  let started = false;
   // Recorre los literales entre paréntesis que preceden a Tj/TJ.
   let i = 0;
   while (i < content.length) {
@@ -148,16 +159,22 @@ function extractFromContentStream(content: string): string {
       literal += char;
       j += 1;
     }
-    const decoded = decodePdfLiteral(literal);
     // Mira hacia delante para ver si el literal es texto mostrado.
     const after = content.slice(j + 1, j + 4);
     if (/^\s*(Tj|TJ|')/.test(after)) {
-      out += decoded;
+      const decoded = decodePdfLiteral(literal);
+      const gap = content.slice(previousEnd, open);
+      const boundary = /\bET\b|\bBT\b/.test(gap) ? '\n\n' : ' ';
+      out += started ? boundary + decoded : decoded;
+      started = true;
     }
+    previousEnd = j + 1;
     i = j + 1;
   }
-  // Los saltos de línea de PDF vienen de Td/TD/T*/ET: se aproximan por espacio.
-  return out.replace(/\s+/g, ' ').trim();
+  return out
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 }
 
 /**
