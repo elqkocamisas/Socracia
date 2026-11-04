@@ -167,6 +167,13 @@ export function StudyScreen({
             </View>
           ) : null}
 
+          {view.explanation ? (
+            <View style={styles.explanation}>
+              <Text style={styles.explanationLabel}>Te lo explico</Text>
+              <Text style={styles.explanationText}>{view.explanation}</Text>
+            </View>
+          ) : null}
+
           <TextInput
             accessibilityLabel="Tu respuesta"
             multiline
@@ -286,6 +293,26 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   scaffoldText: {
+    color: colors.textPrimary,
+    fontSize: 15,
+    marginTop: spacing.xs,
+    lineHeight: 22,
+  },
+  explanation: {
+    backgroundColor: colors.surface,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.primary,
+    borderRadius: radius.sm,
+    padding: spacing.md,
+  },
+  explanationLabel: {
+    color: colors.primary,
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  explanationText: {
     color: colors.textPrimary,
     fontSize: 15,
     marginTop: spacing.xs,
