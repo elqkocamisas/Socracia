@@ -29,7 +29,8 @@
     "start": "npm run start --workspace @socracia/mobile",
     "android": "npm run android --workspace @socracia/mobile",
     "ios": "npm run ios --workspace @socracia/mobile",
-    "eval:llm": "npm run eval:llm --workspace @socracia/core"
+    "eval:llm": "npm run eval:llm --workspace @socracia/core",
+    "eval:real": "node scripts/eval-real.mjs"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
