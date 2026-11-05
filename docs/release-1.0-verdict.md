@@ -19,11 +19,19 @@ definido y validado.
 **El GO queda bloqueado por dos puertas que exigen un paso humano o una
 credencial que no está disponible en este entorno:**
 
-- **G3 — evals con proveedor real: NO VERIFICADO.** No hay clave de proveedor
-  semántico disponible (ni gratuita propia). Sin ella, G3 queda «no verificado» y
-  **bloquea el GO** por regla explícita del encargo. Las evals existentes
-  (32 casos) se ejecutan contra el **proveedor falso** y miden la robustez del
-  motor, no la calidad del modelo real.
+- **G3 — evals con proveedor real: NO VERIFICADO.** El backend de Render **sí
+  tiene** la clave de Gemini configurada (comprobado: `/mayeutic/*` responde 502
+  del proveedor, no 503 «no configurado»), pero **toda** llamada real devuelve un
+  `400` del proveedor. La causa es del lado del proveedor (clave o acceso al
+  modelo), no del cuerpo de la petición: se calibró contra Gemini y el cuerpo que
+  envía el backend **pasa** su validación de forma (un `response_format` o
+  `max_tokens` inválidos se rechazan _antes_ que la clave; el cuerpo real solo
+  produce «Please pass a valid API key» con una clave falsa). Falta evidencia
+  ejecutada contra el proveedor real, así que G3 queda «no verificado» y
+  **bloquea el GO** por regla explícita del encargo. Las evals del repositorio
+  (32 casos) corren contra el **proveedor falso** y miden la robustez del motor,
+  no la calidad del modelo real. El arnés para cerrarla ya existe
+  (`npm run eval:real`, D-060).
 - **G7 — APK por EAS: pendiente del paso humano.** No hay `EXPO_TOKEN` en el
   entorno. Además, el **primer keystore de Android no se puede generar en modo no
   interactivo** (comportamiento documentado de `eas-cli`), así que la primera
@@ -43,17 +51,17 @@ dispositivo**. Una puerta no se da por cumplida sin evidencia ejecutada.
 
 ## Tabla de puertas G1–G9
 
-| Puerta | Descripción                                                                                | Estado | Nivel de evidencia                       | Evidencia ejecutada                                                                                                                                                |
-| ------ | ------------------------------------------------------------------------------------------ | ------ | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| G1     | `npm run verify` en verde                                                                  | ✅     | Ejecutado                                | 40 suites/332 (core, evals 32/32) + 8/56 (api) + 24/172 (mobile) = **560 pruebas**                                                                                 |
+| Puerta | Descripción                                                                                | Estado | Nivel de evidencia                       | Evidencia ejecutada                                                                                                                                                                                                                                                |
+| ------ | ------------------------------------------------------------------------------------------ | ------ | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| G1     | `npm run verify` en verde                                                                  | ✅     | Ejecutado                                | 40 suites/332 (core, evals 32/32) + 8/56 (api) + 24/172 (mobile) = **560 pruebas**                                                                                                                                                                                 |
 | G2     | Recorrido dorado con 3 documentos (TXT/MD/PDF) y coherencia por capa documentada           | ✅     | Ejecutado con proveedor falso            | `packages/core/src/__tests__/goldenPath.test.ts` (12: extracción por formato + ciclo completo en TXT, MD y PDF real) + `apps/mobile/src/__tests__/goldenPath.e2e.test.tsx` (1, pantallas). Los tres formatos → mismos 3 temas/3 conceptos y mismo cierre de sesión |
-| G3     | Evals con proveedor real: ≥30 casos, veredicto ≥80 %, 0 citas inventadas, ≥90 % paráfrasis | ❌     | **No verificado**                        | Sin clave real. Evals existentes = 32 casos contra proveedor falso (no cuentan para G3)                                                                            |
-| G4     | Degradación probada en los 4 supuestos de F2                                               | ✅     | Ejecutado                                | `consent.test.ts`, `httpProvider.test.ts` (red, 429/cuota, respuesta inválida), `sessionAsync.test.ts`, `resilience.test.ts`, `llmEngine.test.ts`                  |
-| G5     | Sin secretos en cliente ni en el APK                                                       | ✅     | Ejecutado (bundle)                       | `expo export` + `strings` del bundle `.hbc`: 0 `AIza`, 0 `GEMINI_API_KEY`, 0 `sk-`, 0 `eyJ`. El cliente solo usa token de sesión                                   |
-| G6     | Textos legales alineados y marcados para revisión humana                                   | ✅     | Implementado + revisión humana pendiente | `docs/privacy-policy.md`, `docs/terms-of-use.md`, `privacy-declarations.json`, `storeListing.test.ts`; notas internas marcadas «PENDIENTE DE REVISIÓN HUMANA»      |
-| G7     | APK generado por EAS, instalable, versión 1.0.0                                            | ⚠️     | Config validada; artefacto pendiente     | Perfil `release-apk` en `eas.json` + prueba `buildConfig.test.ts`. **Sin `EXPO_TOKEN` y con keystore inicial pendiente de paso humano**                            |
-| G8     | Smoke test humano en dispositivo real                                                      | ⏳     | Pendiente                                | Checklist listo: `docs/release-1.0-smoke.md`. Depende de G7                                                                                                        |
-| G9     | Documentación y paquete fuente reproducibles                                               | ✅     | Ejecutado                                | `npm run package:source` produce `dist/socracia-1.0.0-fuente.tar.gz` + manifiesto con huellas; `npm ci && npm run verify` reproducible                             |
+| G3     | Evals con proveedor real: ≥30 casos, veredicto ≥80 %, 0 citas inventadas, ≥90 % paráfrasis | ❌     | **No verificado**                        | Backend con clave Gemini, pero el proveedor devuelve 400 en toda llamada (causa del proveedor, no del cuerpo). Arnés listo: `npm run eval:real` (D-060). Evals del repo = 32 casos con proveedor falso (no cuentan para G3)                                        |
+| G4     | Degradación probada en los 4 supuestos de F2                                               | ✅     | Ejecutado                                | `consent.test.ts`, `httpProvider.test.ts` (red, 429/cuota, respuesta inválida), `sessionAsync.test.ts`, `resilience.test.ts`, `llmEngine.test.ts`                                                                                                                  |
+| G5     | Sin secretos en cliente ni en el APK                                                       | ✅     | Ejecutado (bundle)                       | `expo export` + `strings` del bundle `.hbc`: 0 `AIza`, 0 `GEMINI_API_KEY`, 0 `sk-`, 0 `eyJ`. El cliente solo usa token de sesión                                                                                                                                   |
+| G6     | Textos legales alineados y marcados para revisión humana                                   | ✅     | Implementado + revisión humana pendiente | `docs/privacy-policy.md`, `docs/terms-of-use.md`, `privacy-declarations.json`, `storeListing.test.ts`; notas internas marcadas «PENDIENTE DE REVISIÓN HUMANA»                                                                                                      |
+| G7     | APK generado por EAS, instalable, versión 1.0.0                                            | ⚠️     | Config validada; artefacto pendiente     | Perfil `release-apk` en `eas.json` + prueba `buildConfig.test.ts`. **Sin `EXPO_TOKEN` y con keystore inicial pendiente de paso humano**                                                                                                                            |
+| G8     | Smoke test humano en dispositivo real                                                      | ⏳     | Pendiente                                | Checklist listo: `docs/release-1.0-smoke.md`. Depende de G7                                                                                                                                                                                                        |
+| G9     | Documentación y paquete fuente reproducibles                                               | ✅     | Ejecutado                                | `npm run package:source` produce `dist/socracia-1.0.0-fuente.tar.gz` + manifiesto con huellas; `npm ci && npm run verify` reproducible                                                                                                                             |
 
 Leyenda: ✅ cumplida · ⚠️ parcial (requiere paso humano) · ❌ no verificada · ⏳ pendiente.
 
@@ -76,11 +84,15 @@ en el recorrido, con proveedor falso.
 
 ## Riesgos abiertos
 
-1. **G3 no verificado (bloqueante).** Sin evals contra un proveedor real no se
+1. **G3 no verificado (bloqueante).** El backend tiene la clave, pero el
+   proveedor devuelve 400. Sin evals contra un proveedor real en verde no se
    puede afirmar que la evaluación semántica alcance el 80 % de concordancia ni
    el 90 % de paráfrasis aceptadas, ni que no invente citas. Mitigación: la
    heurística es el respaldo probado y el consentimiento es explícito; aun así, la
-   puerta exige evidencia real.
+   puerta exige evidencia real. **Diagnóstico abierto:** confirmar la causa del
+   400 con el detalle que ahora propaga el backend (D-060) o con la consola del
+   proveedor; los candidatos son clave caducada/incorrecta, proyecto sin acceso
+   al modelo o cuota del modelo agotada.
 2. **Primer build de EAS (bloqueante para G7/G8).** El primer keystore exige modo
    interactivo. Riesgo de cuota: el plan gratuito permite **15 builds de Android
    al mes** (verificado el 2026-11-04); no se ha consumido ninguno desde aquí.
@@ -97,8 +109,10 @@ en el recorrido, con proveedor falso.
 
 ## Qué haría falta para convertir esto en GO
 
-1. Obtener una clave gratuita propia de un proveedor semántico (p. ej. Gemini) y
-   ejecutar las evals reales de G3 (≥30 casos) hasta alcanzar los umbrales.
+1. Ejecutar `npm run eval:real` contra el backend con el proveedor real en verde
+   (≥30 casos, veredicto ≥80 %, 0 citas inventadas, ≥90 % paráfrasis). El arnés
+   ya existe (D-060); antes hay que resolver el 400 del proveedor (clave, acceso
+   al modelo o cuota).
 2. Lanzar el primer `eas build` interactivo para generar el keystore y producir el
    APK de lanzamiento (G7).
 3. Ejecutar `docs/release-1.0-smoke.md` en un teléfono real (G8).

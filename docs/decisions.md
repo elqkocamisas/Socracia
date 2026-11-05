@@ -996,6 +996,34 @@ StudyError>`; el orden de preferencia es proveedor semántico → evaluador LLM
   puede generar en modo no interactivo (issue de `eas-cli`), así que la primera
   compilación exige un paso humano: ver `docs/release-1.0-smoke.md`.
 
+## D-060 — Las evals de G3 se ejecutan contra el backend real, sin clave en el cliente
+
+- **Fecha:** cierre de 1.0 (2026-11-05)
+- **Contexto:** la puerta G3 exige evals contra el proveedor semántico **real**
+  (≥ 30 casos, concordancia de veredicto ≥ 80 %, 0 citas inventadas, ≥ 90 % de
+  paráfrasis correctas aceptadas). Las 32 evals del repositorio corren con
+  respuestas **simuladas**: miden la robustez del motor, no la calidad del modelo
+  real, así que no cuentan para G3. Faltaba un arnés que llamara al proveedor.
+- **Decisión:** se añade `scripts/eval-real.mjs` (`npm run eval:real`), que
+  ejercita el backend real (`/mayeutic/generate` y `/mayeutic/evaluate`), no la
+  API del proveedor. El script **no contiene ninguna clave**: crea una cuenta de
+  prueba efímera, llama al backend y la borra al terminar. La clave del proveedor
+  vive solo en el servidor, coherente con D-057/D-058.
+- **Motivos:** llamar al backend y no a Gemini directamente reproduce el camino
+  de producción (autenticación, validación de entrada, adaptador) y mantiene el
+  principio de coste cero y de «ninguna clave en el cliente». Además, el script
+  distingue «proveedor no disponible» (503/502 → G3 **no verificada**) de «por
+  debajo del umbral» (→ G3 **fallida**), que son diagnósticos distintos.
+- **Alternativas descartadas:** (a) llamar a la API del proveedor desde el
+  script: exigiría una clave en el entorno de ejecución y duplicaría el adaptador;
+  (b) ampliar las evals simuladas: seguirían sin ser evidencia real.
+- **Consecuencias:** el adaptador del backend (`apps/api/src/mayeutic.ts`) ahora
+  **propaga el mensaje de error del proveedor** en su respuesta (antes solo decía
+  «respondió 400»), para que un fallo de clave o de modelo sea diagnosticable sin
+  acceso a los logs del servidor. La clave del proveedor nunca se incluye en el
+  mensaje. G3 se cierra ejecutando `npm run eval:real` contra el backend con el
+  proveedor configurado.
+
 ## Ambigüedades pendientes (no bloqueantes)
 
 - **Vertical inicial (oposiciones vs PAU):** resuelto en el Sprint 1: el corpus

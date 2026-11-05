@@ -67,14 +67,16 @@ anteriores.
 
 ## Comandos
 
-| Comando                  | Descripción                     |
-| ------------------------ | ------------------------------- |
-| `npm test`               | Pruebas de todos los workspaces |
-| `npm run typecheck`      | TypeScript estricto             |
-| `npm run lint`           | ESLint (flat config)            |
-| `npm run format`         | Prettier                        |
-| `npm run verify`         | lint + typecheck + test         |
-| `npm run package:source` | Entrega en `.tar.gz` sin Git    |
+| Comando                  | Descripción                         |
+| ------------------------ | ----------------------------------- |
+| `npm test`               | Pruebas de todos los workspaces     |
+| `npm run typecheck`      | TypeScript estricto                 |
+| `npm run lint`           | ESLint (flat config)                |
+| `npm run format`         | Prettier                            |
+| `npm run verify`         | lint + typecheck + test             |
+| `npm run eval:llm`       | Evals de robustez (proveedor falso) |
+| `npm run eval:real`      | Evals contra el proveedor real (G3) |
+| `npm run package:source` | Entrega en `.tar.gz` sin Git        |
 
 ## Documentación
 

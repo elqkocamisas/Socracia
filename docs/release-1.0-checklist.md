@@ -10,39 +10,58 @@ por EAS y prueba en dispositivo).
 
 ## Camino crítico hacia 1.0
 
-| #   | Sprint                         | Objetivo                                                                    | Puerta       | Tamaño | Depende de  | Responsable                       |
-| --- | ------------------------------ | --------------------------------------------------------------------------- | ------------ | ------ | ----------- | --------------------------------- |
-| 1   | Clave semántica y evals reales | Obtener clave gratuita propia y ejecutar las evals contra el proveedor real | **G3**       | M      | —           | Humano (clave) + agente (harness) |
-| 2   | Primer build de EAS            | Generar el keystore inicial y producir el APK de lanzamiento                | **G7**       | M      | Cuenta Expo | **Humano**                        |
-| 3   | Inspección del APK final       | Confirmar que no hay secretos en el APK firmado                             | **G5** (APK) | S      | #2          | Agente                            |
-| 4   | Smoke test en dispositivo      | Ejecutar el checklist manual en un teléfono real                            | **G8**       | M      | #2          | **Humano**                        |
+| #   | Sprint                               | Objetivo                                                                  | Puerta       | Tamaño | Depende de  | Responsable                            |
+| --- | ------------------------------------ | ------------------------------------------------------------------------- | ------------ | ------ | ----------- | -------------------------------------- |
+| 1   | Evals reales del proveedor semántico | Ejecutar las evals contra el proveedor real y resolver el 400 del backend | **G3**       | M      | —           | Agente (arnés) + humano (clave/acceso) |
+| 2   | Primer build de EAS                  | Generar el keystore inicial y producir el APK de lanzamiento              | **G7**       | M      | Cuenta Expo | **Humano**                             |
+| 3   | Inspección del APK final             | Confirmar que no hay secretos en el APK firmado                           | **G5** (APK) | S      | #2          | Agente                                 |
+| 4   | Smoke test en dispositivo            | Ejecutar el checklist manual en un teléfono real                          | **G8**       | M      | #2          | **Humano**                             |
 
 ---
 
-## Sprint 1 — Clave semántica y evals reales (G3)
+## Sprint 1 — Evals reales del proveedor semántico (G3)
 
 - **Objetivo:** verificar que el motor semántico alcanza los umbrales de calidad
   con un modelo real: concordancia de veredicto ≥ 80 %, 0 citas inventadas y
   ≥ 90 % de paráfrasis correctas aceptadas, sobre ≥ 30 casos.
+- **Estado de partida (real, 2026-11-05):** el backend de Render **tiene** la
+  clave configurada, pero `/mayeutic/generate` y `/mayeutic/evaluate` devuelven
+  **502** con un **400 del proveedor** en toda llamada. La causa es del proveedor
+  (clave, acceso al modelo o cuota), no del cuerpo: se calibró contra Gemini y el
+  cuerpo que envía el backend pasa su validación de forma. El adaptador ahora
+  **propaga el mensaje del proveedor** (D-060), así que la primera llamada tras
+  desplegar ese cambio dirá el motivo exacto.
 - **Tareas:**
-  1. **(Humano)** Crear una clave gratuita propia de un proveedor semántico
-     (Gemini u otro con plan gratuito) y configurarla **solo** en el backend
-     (`GEMINI_API_KEY`). No introducirla en el cliente.
-  2. **(Agente)** Ampliar el conjunto de evals para que, además de la robustez
-     actual (32 casos contra proveedor falso), exista un modo **real**: un runner
-     que recorra los mismos casos contra el proveedor HTTP y calcule
-     concordancia de veredicto, citas inventadas y paráfrasis aceptadas.
-  3. **(Agente)** Añadir al conjunto casos de **paráfrasis correcta** y de
-     **respuesta errónea** con veredicto esperado, para poder medir el 90 % de
-     paráfrasis aceptadas.
-  4. **(Humano + agente)** Ejecutar el runner real con la clave y registrar el
-     informe por categoría.
+  1. **(Humano)** Confirmar/renovar la `GEMINI_API_KEY` en Render y que el
+     proyecto tiene acceso al modelo configurado (`GEMINI_MODEL`, por defecto
+     `gemini-3.8-flash`, con plan gratuito). Guardarla **solo** en el servidor.
+  2. **(Agente, hecho)** Arnés de evals reales: `scripts/eval-real.mjs`
+     (`npm run eval:real`), sin clave en el cliente, contra el backend real
+     (D-060).
+  3. **(Agente, hecho)** El adaptador del backend propaga el mensaje de error del
+     proveedor para poder diagnosticar sin acceso a los logs.
+  4. **(Humano)** Desplegar el backend con ese cambio (Render, «Manual Deploy →
+     Deploy latest commit» de `main` tras fusionar el PR de release).
+  5. **(Humano + agente)** Ejecutar el arnés y registrar el informe por categoría.
+- **Comandos exactos:**
+  ```bash
+  # El backend debe tener GEMINI_API_KEY configurada en Render.
+  npm run eval:real            # usa https://socracia.onrender.com por defecto
+  # O apuntando a otro servicio / cuenta de prueba:
+  SOCRA_REAL_EVAL_BASE_URL=https://<servicio>.onrender.com \
+    SOCRA_REAL_EVAL_EMAIL=<cuenta> SOCRA_REAL_EVAL_PASSWORD=<clave> \
+    npm run eval:real
+  ```
+  Código de salida: `0` = G3 alcanzada; `1` = por debajo del umbral; `2` =
+  proveedor no disponible (G3 no verificada, no fallida).
 - **Puerta de aceptación:** informe real adjunto con ≥ 30 casos, veredicto
   ≥ 80 %, 0 citas inventadas y ≥ 90 % de paráfrasis aceptadas. Si no se alcanza,
   ajustar el prompt de evaluación (no el umbral) y repetir.
 - **Tamaño:** M.
-- **Dependencias:** ninguna técnica; requiere la clave (paso humano).
-- **Responsable:** humano (clave y ejecución con crédito) + agente (harness).
+- **Dependencias:** acceso del proyecto de Gemini al modelo; despliegue del
+  backend con el cambio de D-060.
+- **Responsable:** agente (arnés y diagnóstico) + humano (clave, acceso y
+  despliegue).
 
 ## Sprint 2 — Primer build de EAS (G7)
 

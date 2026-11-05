@@ -22,6 +22,9 @@ Primera versión completa del producto: app móvil de un solo usuario, local-fir
   documentos (TXT, MD y un PDF con texto real), en el núcleo y en la interfaz.
 - **Perfil de EAS `release-apk`** que extiende de producción y entrega un APK
   instalable de distribución interna.
+- **Arnés de evals con proveedor real** (`npm run eval:real`): ejercita el
+  backend real, sin clave en el cliente, y calcula las métricas de la puerta G3
+  (concordancia de veredicto, paráfrasis aceptadas y citas inventadas).
 
 ### Cambiado
 
