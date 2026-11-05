@@ -158,14 +158,29 @@ export class GeminiMayeuticService implements MayeuticAiService {
       );
     }
 
-    if (!response.ok) {
-      return err(new Error(`El proveedor semántico respondió ${response.status}.`));
-    }
-
     let body: unknown;
+    let parsed = true;
     try {
       body = await response.json();
     } catch {
+      body = null;
+      parsed = false;
+    }
+
+    if (!response.ok) {
+      // Se propaga el motivo del proveedor: sin él, un 400 de clave o de modelo
+      // es indistinguible de un fallo de red y no se puede diagnosticar.
+      const detail = providerErrorDetail(body);
+      return err(
+        new Error(
+          detail
+            ? `El proveedor semántico respondió ${response.status}: ${detail}`
+            : `El proveedor semántico respondió ${response.status}.`,
+        ),
+      );
+    }
+
+    if (!parsed) {
       return err(new Error('El proveedor semántico devolvió una respuesta inválida.'));
     }
 
@@ -275,6 +290,18 @@ function responseContent(value: unknown): string | null {
     return null;
   }
   return typeof choice.message.content === 'string' ? choice.message.content : null;
+}
+
+/**
+ * Extrae el mensaje de error del proveedor (formato OpenAI/Gemini) para poder
+ * diagnosticar. Nunca incluye la clave: el proveedor no la repite en el cuerpo.
+ */
+function providerErrorDetail(value: unknown): string | null {
+  if (!isRecord(value) || !isRecord(value.error)) {
+    return null;
+  }
+  const { message } = value.error;
+  return typeof message === 'string' && message.trim().length > 0 ? message.trim() : null;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
