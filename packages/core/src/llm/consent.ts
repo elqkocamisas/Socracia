@@ -33,9 +33,7 @@ export class ConsentGatedLlmProvider implements LlmProvider {
     this.model = inner.model;
   }
 
-  public async complete(
-    request: LlmCompletionRequest,
-  ): Promise<Result<LlmCompletion, LlmError>> {
+  public async complete(request: LlmCompletionRequest): Promise<Result<LlmCompletion, LlmError>> {
     if (!allowsCloudProcessing(this.policy.current())) {
       return err<LlmError>({
         code: 'sin-consentimiento',

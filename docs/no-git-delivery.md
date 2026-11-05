@@ -115,12 +115,12 @@ alternativa práctica a la etiqueta de git que sugiere
 
 ## 4. Comparación de las opciones
 
-| Opción                 | Necesita Git | Trae historial | Reproducible | Tamaño  |
-| ---------------------- | ------------ | -------------- | ------------ | ------- |
-| A. Paquete de fuente   | No           | No             | Sí (lockfile)| ~380 KB |
-| B. Copia con rsync     | No           | No             | Sí           | Variable|
-| C. ZIP de GitHub       | No           | No             | Aceptable    | ~1 MB   |
-| Clon con Git           | Sí           | Sí             | Sí           | ~1 MB   |
+| Opción               | Necesita Git | Trae historial | Reproducible  | Tamaño   |
+| -------------------- | ------------ | -------------- | ------------- | -------- |
+| A. Paquete de fuente | No           | No             | Sí (lockfile) | ~380 KB  |
+| B. Copia con rsync   | No           | No             | Sí            | Variable |
+| C. ZIP de GitHub     | No           | No             | Aceptable     | ~1 MB    |
+| Clon con Git         | Sí           | Sí             | Sí            | ~1 MB    |
 
 La opción A es la única que además produce un manifiesto con huellas, que es lo
 que permite demostrar que la entrega no se alteró por el camino.

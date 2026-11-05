@@ -11,7 +11,14 @@
 import type { SocraticQuestion } from '../domain/types';
 import type { Result } from '../result';
 import { err, ok } from '../result';
-import { arrayOf, describeSchemaError, extractJsonObject, nonEmptyString, record, type SchemaError } from './json';
+import {
+  arrayOf,
+  describeSchemaError,
+  extractJsonObject,
+  nonEmptyString,
+  record,
+  type SchemaError,
+} from './json';
 import type { Explanation, ExplainerPort } from './ports';
 import { explanationPrompt } from './prompts';
 import type { LlmError, LlmPassage, LlmProvider } from './types';
@@ -86,7 +93,10 @@ export class LlmExplainer implements ExplainerPort {
 
     const parsed = parseExplanation(completion.value.text, passages);
     if (!parsed.ok) {
-      return err<LlmError>({ code: 'respuesta-invalida', message: describeSchemaError(parsed.error) });
+      return err<LlmError>({
+        code: 'respuesta-invalida',
+        message: describeSchemaError(parsed.error),
+      });
     }
     return ok(parsed.value);
   }

@@ -1,4 +1,10 @@
-import type { LlmCompletion, LlmCompletionRequest, LlmError, LlmProvider, Result } from '@socracia/core';
+import type {
+  LlmCompletion,
+  LlmCompletionRequest,
+  LlmError,
+  LlmProvider,
+  Result,
+} from '@socracia/core';
 import { ok } from '@socracia/core';
 
 import { AuthService } from '../auth';
@@ -13,11 +19,13 @@ class StubProvider implements LlmProvider {
   public readonly model = 'stub-1';
   public readonly calls: LlmCompletionRequest[] = [];
 
-  public constructor(private readonly outcome: Result<LlmCompletion, LlmError> = ok({
-    text: '{"verdict":"correcta"}',
-    model: 'stub-1',
-    usage: { promptTokens: 1, completionTokens: 1 },
-  })) {}
+  public constructor(
+    private readonly outcome: Result<LlmCompletion, LlmError> = ok({
+      text: '{"verdict":"correcta"}',
+      model: 'stub-1',
+      usage: { promptTokens: 1, completionTokens: 1 },
+    }),
+  ) {}
 
   public async complete(request: LlmCompletionRequest): Promise<Result<LlmCompletion, LlmError>> {
     this.calls.push(request);
@@ -26,7 +34,14 @@ class StubProvider implements LlmProvider {
 }
 
 function body(overrides: Record<string, unknown> = {}): Record<string, unknown> {
-  return { system: 's', user: 'u', purpose: 'evaluar', maxTokens: 100, temperature: 0, ...overrides };
+  return {
+    system: 's',
+    user: 'u',
+    purpose: 'evaluar',
+    maxTokens: 100,
+    temperature: 0,
+    ...overrides,
+  };
 }
 
 describe('parseCompletionRequest', () => {
@@ -88,7 +103,11 @@ describe('routeLlmCompletion', () => {
 describe('POST /llm/complete sobre HTTP', () => {
   it('exige sesión: sin token responde 401', async () => {
     const provider = new StubProvider();
-    const server = createApiServer({ auth: new AuthService(), store: new InMemoryProgressStore(), llm: provider });
+    const server = createApiServer({
+      auth: new AuthService(),
+      store: new InMemoryProgressStore(),
+      llm: provider,
+    });
     const api = await startApi(server);
     try {
       const response = await fetch(`${api.baseUrl}/llm/complete`, {
@@ -105,7 +124,11 @@ describe('POST /llm/complete sobre HTTP', () => {
 
   it('con sesión válida delega en el proveedor', async () => {
     const provider = new StubProvider();
-    const server = createApiServer({ auth: new AuthService(), store: new InMemoryProgressStore(), llm: provider });
+    const server = createApiServer({
+      auth: new AuthService(),
+      store: new InMemoryProgressStore(),
+      llm: provider,
+    });
     const api = await startApi(server);
     try {
       const { token } = await register(api.baseUrl, 'llm@ejemplo.com');

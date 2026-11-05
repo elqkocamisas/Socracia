@@ -202,87 +202,85 @@ describe('recorrido dorado mayéutico (servicio + controlador)', () => {
       ['TXT', 'text/plain', 'temario.txt', () => encoder.encode(TXT)],
       ['MD', 'text/markdown', 'temario.md', () => encoder.encode(MD)],
       ['PDF', 'application/pdf', 'temario.pdf', () => pdfBytes()],
-    ])('%s: importar → pregunta anclada → parafrasear → errar → explicar → progreso', async (
-      _label,
-      mime,
-      name,
-      bytes,
-    ) => {
-      const provider = new FakeLlmProvider([
-        {
-          compute: (request) => {
-            if (request.purpose !== 'explicar') {
-              return JSON.stringify({});
-            }
-            // La cita debe apuntar a un fragmento realmente enviado: se toma el
-            // identificador del propio mensaje, no uno inventado.
-            const match = request.user.match(/\[([^\]]+)\]\s/);
-            return JSON.stringify({
-              explanation:
-                'La fotosíntesis convierte la luz solar en energía química que la planta guarda como glucosa.',
-              citations: match ? [match[1]] : [],
-            });
+    ])(
+      '%s: importar → pregunta anclada → parafrasear → errar → explicar → progreso',
+      async (_label, mime, name, bytes) => {
+        const provider = new FakeLlmProvider([
+          {
+            compute: (request) => {
+              if (request.purpose !== 'explicar') {
+                return JSON.stringify({});
+              }
+              // La cita debe apuntar a un fragmento realmente enviado: se toma el
+              // identificador del propio mensaje, no uno inventado.
+              const match = request.user.match(/\[([^\]]+)\]\s/);
+              return JSON.stringify({
+                explanation:
+                  'La fotosíntesis convierte la luz solar en energía química que la planta guarda como glucosa.',
+                citations: match ? [match[1]] : [],
+              });
+            },
           },
-        },
-      ]);
-      const evaluator = new HeuristicEvaluator(DEFAULT_STUDY_OPTIONS.session.thresholds);
-      const harness = makeHarness({ explainer: new LlmExplainer(provider), evaluator });
-      const { document } = await importDoc(harness, {
-        name,
-        mime,
-        bytes: bytes(),
-        id: 'doc-ciclo',
-      });
+        ]);
+        const evaluator = new HeuristicEvaluator(DEFAULT_STUDY_OPTIONS.session.thresholds);
+        const harness = makeHarness({ explainer: new LlmExplainer(provider), evaluator });
+        const { document } = await importDoc(harness, {
+          name,
+          mime,
+          bytes: bytes(),
+          id: 'doc-ciclo',
+        });
 
-      // Pregunta anclada a un fragmento realmente indexado.
-      const chunks = await harness.storage.documents.listChunks(document.id);
-      const started = await harness.controller.start(document.id, NOW, 's1');
-      if (!started.ok) {
-        throw new Error('no arrancó');
-      }
-      const firstQuestion = started.value.question;
-      const citation = started.value.citation;
-      expect(citation).not.toBeNull();
-      expect(chunks.some((chunk) => chunk.id === citation?.chunkId)).toBe(true);
-
-      // Paráfrasis correcta del concepto de la primera pregunta.
-      const conceptId = firstQuestion?.conceptId ?? '';
-      const paraphrase = PARAPHRASE[conceptId] ?? '';
-      expect(paraphrase.length).toBeGreaterThan(0);
-      const good = await harness.controller.answer(paraphrase, 900, NOW + 1);
-      expect(good.ok).toBe(true);
-      if (good.ok) {
-        expect(good.value.verdict).toBe('correcta');
-      }
-
-      // Se responde mal al resto hasta cerrar la sesión; aparece la explicación.
-      let state = good.ok ? good.value : started.value;
-      let sawExplanation = false;
-      let guard = 0;
-      while (state.phase !== 'terminada' && guard < 40) {
-        const answered = await harness.controller.answer(WRONG, 400, NOW + guard + 2);
-        if (!answered.ok) {
-          throw new Error('no respondió');
+        // Pregunta anclada a un fragmento realmente indexado.
+        const chunks = await harness.storage.documents.listChunks(document.id);
+        const started = await harness.controller.start(document.id, NOW, 's1');
+        if (!started.ok) {
+          throw new Error('no arrancó');
         }
-        state = answered.value;
-        if (state.explanation) {
-          sawExplanation = true;
-        }
-        guard += 1;
-      }
-      expect(state.phase).toBe('terminada');
-      expect(sawExplanation).toBe(true);
-      expect(state.progress.incorrect).toBeGreaterThan(0);
+        const firstQuestion = started.value.question;
+        const citation = started.value.citation;
+        expect(citation).not.toBeNull();
+        expect(chunks.some((chunk) => chunk.id === citation?.chunkId)).toBe(true);
 
-      // Lagunas actualizadas y repaso programado a futuro.
-      const overview = await harness.controller.overview(NOW + 5000);
-      expect(overview.gaps.length).toBeGreaterThan(0);
-      const reviews = await harness.storage.progress.listReviewStates(USER);
-      expect(reviews.length).toBeGreaterThan(0);
-      for (const review of reviews) {
-        expect(review.dueAt).toBeGreaterThan(NOW);
-      }
-    });
+        // Paráfrasis correcta del concepto de la primera pregunta.
+        const conceptId = firstQuestion?.conceptId ?? '';
+        const paraphrase = PARAPHRASE[conceptId] ?? '';
+        expect(paraphrase.length).toBeGreaterThan(0);
+        const good = await harness.controller.answer(paraphrase, 900, NOW + 1);
+        expect(good.ok).toBe(true);
+        if (good.ok) {
+          expect(good.value.verdict).toBe('correcta');
+        }
+
+        // Se responde mal al resto hasta cerrar la sesión; aparece la explicación.
+        let state = good.ok ? good.value : started.value;
+        let sawExplanation = false;
+        let guard = 0;
+        while (state.phase !== 'terminada' && guard < 40) {
+          const answered = await harness.controller.answer(WRONG, 400, NOW + guard + 2);
+          if (!answered.ok) {
+            throw new Error('no respondió');
+          }
+          state = answered.value;
+          if (state.explanation) {
+            sawExplanation = true;
+          }
+          guard += 1;
+        }
+        expect(state.phase).toBe('terminada');
+        expect(sawExplanation).toBe(true);
+        expect(state.progress.incorrect).toBeGreaterThan(0);
+
+        // Lagunas actualizadas y repaso programado a futuro.
+        const overview = await harness.controller.overview(NOW + 5000);
+        expect(overview.gaps.length).toBeGreaterThan(0);
+        const reviews = await harness.storage.progress.listReviewStates(USER);
+        expect(reviews.length).toBeGreaterThan(0);
+        for (const review of reviews) {
+          expect(review.dueAt).toBeGreaterThan(NOW);
+        }
+      },
+    );
   });
 
   it('ancla cada pregunta a una cita real del documento (trazabilidad)', async () => {

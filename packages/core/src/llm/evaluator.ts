@@ -179,7 +179,21 @@ export function parseEvaluation(
       ? value.citation.trim()
       : null;
 
-  return ok(buildEvaluation({ verdict: verdict.value, score: score.value, matched: matched.value, missing: missing.value, rationale, citationChunkId }, question, passages, thresholds));
+  return ok(
+    buildEvaluation(
+      {
+        verdict: verdict.value,
+        score: score.value,
+        matched: matched.value,
+        missing: missing.value,
+        rationale,
+        citationChunkId,
+      },
+      question,
+      passages,
+      thresholds,
+    ),
+  );
 }
 
 function buildEvaluation(
@@ -223,10 +237,7 @@ function classify(score: number, thresholds: EvaluationThresholds): AnswerVerdic
  * de aceptarla: una cita inventada es peor que ninguna, porque daría al alumno
  * una fuente falsa.
  */
-function resolveCitation(
-  chunkId: string | null,
-  passages: readonly LlmPassage[],
-): Citation | null {
+function resolveCitation(chunkId: string | null, passages: readonly LlmPassage[]): Citation | null {
   if (chunkId === null) {
     return null;
   }

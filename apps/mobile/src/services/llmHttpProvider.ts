@@ -62,14 +62,15 @@ export class LlmHttpProvider implements LlmProvider {
     return this.token;
   }
 
-  public async complete(
-    request: LlmCompletionRequest,
-  ): Promise<Result<LlmCompletion, LlmError>> {
+  public async complete(request: LlmCompletionRequest): Promise<Result<LlmCompletion, LlmError>> {
     const token = await this.resolveToken();
     if (!token) {
       return {
         ok: false,
-        error: { code: 'no-configurado', message: 'Inicia sesión para usar el asistente con modelo.' },
+        error: {
+          code: 'no-configurado',
+          message: 'Inicia sesión para usar el asistente con modelo.',
+        },
       };
     }
 

@@ -152,11 +152,7 @@ export class MayeuticSessionEngine {
    * sesión **nunca** se interrumpe por un fallo del modelo. Es el modo principal
    * de la experiencia; la heurística es la red de seguridad.
    */
-  public async submitAsync(
-    text: string,
-    latencyMs: number,
-    now: Timestamp,
-  ): Promise<SessionTurn> {
+  public async submitAsync(text: string, latencyMs: number, now: Timestamp): Promise<SessionTurn> {
     const step = this.requireCurrentStep();
     const answer = this.newAnswer(step.question, text, now, latencyMs);
 
@@ -195,7 +191,11 @@ export class MayeuticSessionEngine {
     const threshold = this.options.failuresBeforeExplaining ?? 2;
     if (explanation === null && explainer && failures >= threshold) {
       const passages = this.options.passages?.(question) ?? [];
-      const generated = await explainer.explain(question, passages, turn.evaluation.missingKeyTerms);
+      const generated = await explainer.explain(
+        question,
+        passages,
+        turn.evaluation.missingKeyTerms,
+      );
       if (generated.ok) {
         explanation = generated.value.text;
       }
@@ -272,7 +272,8 @@ export class MayeuticSessionEngine {
     }
 
     const review =
-      this.reviews.get(question.conceptId) ?? initialReviewState(question.conceptId, answer.answeredAt);
+      this.reviews.get(question.conceptId) ??
+      initialReviewState(question.conceptId, answer.answeredAt);
     this.reviews.set(question.conceptId, scheduleReview(review, evaluation, answer.answeredAt));
 
     const shouldRetry =

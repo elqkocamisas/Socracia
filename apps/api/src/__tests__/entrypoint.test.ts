@@ -14,9 +14,11 @@ import { join } from 'node:path';
  */
 describe('punto de entrada de la API', () => {
   const apiRoot = join(__dirname, '..', '..');
-  const entry = (JSON.parse(readFileSync(join(apiRoot, 'package.json'), 'utf8')) as {
-    main: string;
-  }).main;
+  const entry = (
+    JSON.parse(readFileSync(join(apiRoot, 'package.json'), 'utf8')) as {
+      main: string;
+    }
+  ).main;
 
   it('`npm start` ejecuta un fichero que abre un puerto', async () => {
     const entryPath = join(apiRoot, entry);

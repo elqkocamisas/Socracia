@@ -38,9 +38,7 @@ export class FakeLlmProvider implements LlmProvider {
 
   public constructor(private readonly replies: readonly FakeReply[] = []) {}
 
-  public async complete(
-    request: LlmCompletionRequest,
-  ): Promise<Result<LlmCompletion, LlmError>> {
+  public async complete(request: LlmCompletionRequest): Promise<Result<LlmCompletion, LlmError>> {
     this.calls.push({ request });
     if (this.replies.length === 0) {
       return err<LlmError>({
