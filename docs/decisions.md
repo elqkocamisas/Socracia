@@ -1024,6 +1024,35 @@ StudyError>`; el orden de preferencia es proveedor semántico → evaluador LLM
   mensaje. G3 se cierra ejecutando `npm run eval:real` contra el backend con el
   proveedor configurado.
 
+## D-061 — El bloqueo de G3 es de créditos del proyecto de Gemini, no de código
+
+- **Fecha:** cierre de 1.0 (2026-11-05)
+- **Contexto:** tras habilitar la facturación en el proyecto de Gemini, se probó
+  una clave **válida** (autentica contra `generativelanguage.googleapis.com` y
+  lista 50 modelos, `gemini-3.8-flash` incluido) directamente contra la API
+  oficial, tanto por el endpoint compatible con OpenAI como por
+  `generateContent`. **Toda** llamada devuelve **HTTP 402
+  `RESOURCE_EXHAUSTED`**: «Your prepayment credits are depleted… manage your
+  project and billing».
+- **Decisión:** se registra que la causa raíz del bloqueo de G3 es la **ausencia
+  de créditos en el proyecto de Gemini** (el paso a prepago con 0 créditos
+  sustituye a la cuota gratuita), no un defecto del cliente, del cuerpo de la
+  petición ni de la forma de la clave. El backend de Render, además, sigue
+  sirviendo el código viejo (su mensaje no incluye el detalle del proveedor),
+  así que su `400` y el `402` real conviven hasta que se despliegue D-060.
+- **Motivos:** sin esta distinción, el siguiente intento volvería a confundir un
+  problema de facturación/cuota con un bug de integración. La calibración contra
+  Gemini confirma que el cuerpo que envía el backend pasa la validación de forma
+  (un `temperature`/`max_tokens` fuera de rango se rechaza antes que la clave).
+- **Alternativas descartadas:** (a) tocar el umbral o el prompt para «pasar» G3:
+  no produce evidencia real; (b) llamar a la API desde el script con una clave en
+  el entorno: rompe D-060 y el principio de «ninguna clave en el cliente».
+- **Consecuencias:** G3 sigue **no verificada** y bloquea el GO. Desbloqueo
+  (humano): cargar créditos de prepago en el proyecto de Gemini, o usar una clave
+  de un proyecto **sin** facturación (nivel gratuito), configurarla como
+  `GEMINI_API_KEY` en Render y desplegar el backend con la propagación de error
+  (D-060); después, `npm run eval:real`.
+
 ## Ambigüedades pendientes (no bloqueantes)
 
 - **Vertical inicial (oposiciones vs PAU):** resuelto en el Sprint 1: el corpus

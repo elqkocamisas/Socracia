@@ -32,6 +32,13 @@ credencial que no está disponible en este entorno:**
   (32 casos) corren contra el **proveedor falso** y miden la robustez del motor,
   no la calidad del modelo real. El arnés para cerrarla ya existe
   (`npm run eval:real`, D-060).
+  **Causa raíz confirmada (2026-11-05, tras habilitar facturación):** una clave
+  de Gemini **válida** (autentica y lista 50 modelos, `gemini-3.8-flash` incluido)
+  devuelve **HTTP 402 `RESOURCE_EXHAUSTED`** en **toda** llamada: «Your
+  prepayment credits are depleted». Habilitar la facturación **no** restaura la
+  cuota gratuita: el proyecto pasa a prepago con **0 créditos**, y sin créditos el
+  modelo no responde. Por tanto el bloqueo no es de código ni de clave mal
+  formada, sino de **créditos del proyecto de Gemini**.
 - **G7 — APK por EAS: pendiente del paso humano.** No hay `EXPO_TOKEN` en el
   entorno. Además, el **primer keystore de Android no se puede generar en modo no
   interactivo** (comportamiento documentado de `eas-cli`), así que la primera
@@ -85,14 +92,19 @@ en el recorrido, con proveedor falso.
 ## Riesgos abiertos
 
 1. **G3 no verificado (bloqueante).** El backend tiene la clave, pero el
-   proveedor devuelve 400. Sin evals contra un proveedor real en verde no se
+   proveedor devuelve 400; con una clave válida probada directamente, el
+   proveedor devuelve **402 `RESOURCE_EXHAUSTED`** («prepayment credits are
+   depleted»). **Causa raíz confirmada: el proyecto de Gemini no tiene créditos
+   ni cuota gratuita utilizable** (habilitar facturación pasó el proyecto a
+   prepago con 0 créditos). Sin evals contra un proveedor real en verde no se
    puede afirmar que la evaluación semántica alcance el 80 % de concordancia ni
    el 90 % de paráfrasis aceptadas, ni que no invente citas. Mitigación: la
    heurística es el respaldo probado y el consentimiento es explícito; aun así, la
-   puerta exige evidencia real. **Diagnóstico abierto:** confirmar la causa del
-   400 con el detalle que ahora propaga el backend (D-060) o con la consola del
-   proveedor; los candidatos son clave caducada/incorrecta, proyecto sin acceso
-   al modelo o cuota del modelo agotada.
+   puerta exige evidencia real. **Desbloqueo (humano):** cargar créditos de
+   prepago en el proyecto, o crear una clave en un proyecto de Gemini **sin**
+   facturación (nivel gratuito) y configurarla como `GEMINI_API_KEY` en Render;
+   después, desplegar el backend con la propagación de error (D-060) y ejecutar
+   `npm run eval:real`.
 2. **Primer build de EAS (bloqueante para G7/G8).** El primer keystore exige modo
    interactivo. Riesgo de cuota: el plan gratuito permite **15 builds de Android
    al mes** (verificado el 2026-11-04); no se ha consumido ninguno desde aquí.
@@ -111,8 +123,9 @@ en el recorrido, con proveedor falso.
 
 1. Ejecutar `npm run eval:real` contra el backend con el proveedor real en verde
    (≥30 casos, veredicto ≥80 %, 0 citas inventadas, ≥90 % paráfrasis). El arnés
-   ya existe (D-060); antes hay que resolver el 400 del proveedor (clave, acceso
-   al modelo o cuota).
+   ya existe (D-060); antes hay que resolver el **402 `RESOURCE_EXHAUSTED`**:
+   cargar créditos de prepago en el proyecto de Gemini o usar una clave de un
+   proyecto sin facturación (nivel gratuito), y configurarla en Render.
 2. Lanzar el primer `eas build` interactivo para generar el keystore y producir el
    APK de lanzamiento (G7).
 3. Ejecutar `docs/release-1.0-smoke.md` en un teléfono real (G8).

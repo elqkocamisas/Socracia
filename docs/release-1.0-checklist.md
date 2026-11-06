@@ -31,6 +31,19 @@ por EAS y prueba en dispositivo).
   cuerpo que envía el backend pasa su validación de forma. El adaptador ahora
   **propaga el mensaje del proveedor** (D-060), así que la primera llamada tras
   desplegar ese cambio dirá el motivo exacto.
+- **Actualización (real, 2026-11-05, tras habilitar facturación):** se probó una
+  clave de Gemini **válida** (autentica y lista 50 modelos, incluido
+  `gemini-3.8-flash`) contra la API oficial. **Toda** llamada devuelve ahora
+  **HTTP 402 `RESOURCE_EXHAUSTED`**: «Your prepayment credits are depleted…
+  manage your project and billing». Es decir, habilitar la facturación **no**
+  restaura la cuota gratuita: pasa el proyecto a un plan de prepago con **0
+  créditos**, y sin créditos el modelo no responde. El backend de Render sigue
+  devolviendo **400** (su `GEMINI_API_KEY` sigue siendo la anterior o el código
+  desplegado es el viejo). **Causa raíz confirmada: el proyecto de Gemini no tiene
+  créditos ni cuota gratuita utilizable.** Para G3 hace falta una de estas dos
+  cosas, ambas humanas: (a) cargar créditos de prepago en el proyecto, o
+  (b) crear una clave en un proyecto de Gemini **sin** facturación (nivel
+  gratuito) y configurarla como `GEMINI_API_KEY` en Render.
 - **Tareas:**
   1. **(Humano)** Confirmar/renovar la `GEMINI_API_KEY` en Render y que el
      proyecto tiene acceso al modelo configurado (`GEMINI_MODEL`, por defecto
