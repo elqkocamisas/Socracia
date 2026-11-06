@@ -37,6 +37,20 @@ Primera versión completa del producto: app móvil de un solo usuario, local-fir
   el motor la produce; antes se calculaba y se descartaba.
 - Versión unificada a 1.0.0 en la raíz, los workspaces, `app.json` y la ficha de
   tienda.
+- **El proveedor semántico rota entre modelos gratuitos.** Ante un fallo de cuota
+  (429) o de disponibilidad (503), pasa al siguiente modelo de la lista
+  (`GEMINI_MODEL` + `GEMINI_MODELS`), porque el nivel gratuito de Gemini limita
+  por modelo. El modelo por defecto pasa a `gemini-3.6-flash` (`gemini-3.8-flash`
+  devuelve 503 «high demand» en el nivel gratuito).
+- **Parseo tolerante de la salida del modelo:** se acepta `{questions:[…]}` o un
+  array suelto, y una pregunta mal formada ya no invalida el lote entero.
+- **El motivo del proveedor ya no se pierde:** el endpoint OpenAI-compatible
+  devuelve el error dentro de un array (`[{error:{…}}]`) y ahora se desenvuelve,
+  de modo que un 429 muestra la pista de reintento en vez de parecer un fallo de
+  red.
+- El arnés de evals reales espacia los casos y reintenta ante 429/503; ante un
+  límite diario se detiene y deja la puerta «no verificada» en vez de esperar en
+  vano.
 
 ### Notas
 
@@ -46,3 +60,6 @@ Primera versión completa del producto: app móvil de un solo usuario, local-fir
   queda fuera del alcance de 1.0 y no hay código que activar.
 - Los textos legales están alineados con el comportamiento real y marcados como
   **pendiente de revisión humana**.
+- **G3 verificada con el proveedor real** (2026-11-06): 30 casos de evaluación +
+  3 de generación; concordancia de veredicto 83.3 %, paráfrasis aceptadas 100 %,
+  0 citas inventadas. Evidencia en `docs/release-1.0-g3-evidence.txt` (D-063).

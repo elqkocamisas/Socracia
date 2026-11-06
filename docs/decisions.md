@@ -1085,6 +1085,44 @@ StudyError>`; el orden de preferencia es proveedor semántico → evaluador LLM
   en Render, desplegar el backend con la propagación de error (D-060) y ejecutar
   `npm run eval:real`. El modelo por defecto no requiere cambios.
 
+## D-063 — El proveedor rota entre modelos gratuitos y tolera salidas irregulares
+
+- **Fecha:** cierre de 1.0 (2026-11-06)
+- **Contexto:** tras desactivar la facturación (recuperando el nivel gratuito de
+  Gemini), la clave vuelve a responder. Al ejecutar el arnés de G3 se observaron
+  dos hechos del nivel gratuito: **(1)** el límite es **por modelo** —~5
+  peticiones por minuto y ~20 por día— así que 33 casos agotan enseguida un solo
+  modelo; **(2)** `gemini-3.8-flash` devuelve **503 «high demand»** de forma
+  sistemática, y `gemini-3.5-flash-lite` devuelve a veces un **array suelto** en
+  vez de `{questions:[…]}`.
+- **Decisión:**
+  1. **Rotación de modelos.** `GeminiMayeuticService` usa una **lista** de
+     modelos (`GEMINI_MODEL` + `GEMINI_MODELS`, con respaldos gratuitos por
+     defecto: `gemini-3.5-flash-lite`, `gemini-3.1-flash-lite`). Solo cambia de
+     modelo ante fallos de **cuota o disponibilidad** (429/500/502/503 o error de
+     red); un error de formato o de datos no se reintenta con otro modelo. Modelo
+     por defecto: `gemini-3.6-flash` (responde y respeta el esquema).
+  2. **Parseo tolerante.** `readQuestionDrafts` acepta `{questions:[…]}` o un
+     array suelto, y **descarta solo la pregunta mal formada** en vez de tumbar el
+     lote entero. `providerErrorDetail` desenvuelve el error que el endpoint
+     OpenAI-compatible devuelve **dentro de un array** (`[{error:{…}}]`), sin lo
+     cual el motivo —y la pista de reintento— se perdía.
+  3. **Arnés con ritmo y reintento.** `scripts/eval-real.mjs` espacia los casos
+     (`PACE_MS`) y reintenta ante 429/503; ante un límite **diario** (espera
+     > 60 s) se detiene y deja la puerta «no verificada» en vez de esperar en vano.
+- **Motivos:** el nivel gratuito exige repartir la carga entre varios modelos
+  para sostener una sesión real sin coste; la tolerancia evita perder respuestas
+  válidas por la envoltura o por una sola pregunta defectuosa. Todo respeta el
+  principio de «la heurística es el respaldo» y no introduce dependencias.
+- **Alternativas descartadas:** (a) subir a un plan de pago: rompe la regla de
+  coste cero; (b) fijar un solo modelo: agota su cuota diaria en una sesión;
+  (c) rechazar el lote entero ante una pregunta inválida: pérdida innecesaria.
+- **Consecuencias:** **G3 queda verificada con el proveedor real** (30 casos de
+  evaluación + 3 de generación): concordancia de veredicto **83.3 %** (≥ 80 %),
+  paráfrasis correctas **100 %** (≥ 90 %), **0** citas inventadas. Evidencia:
+  `docs/release-1.0-g3-evidence.txt`. El motor sigue funcionando con la heurística
+  cuando no hay clave, no hay red o se agota la cuota (D-043, D-058).
+
 ## Ambigüedades pendientes (no bloqueantes)
 
 - **Vertical inicial (oposiciones vs PAU):** resuelto en el Sprint 1: el corpus

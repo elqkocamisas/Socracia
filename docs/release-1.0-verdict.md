@@ -1,6 +1,6 @@
 # Dictamen de release — Socracia 1.0.0
 
-**Fecha:** 4 de noviembre de 2026
+**Fecha:** 6 de noviembre de 2026
 **Versión evaluada:** `1.0.0` (raíz, workspaces, `app.json` y ficha de tienda)
 **Alcance:** app móvil de un solo usuario, local-first; importación de documentos;
 motor mayéutico; proveedor semántico opcional con consentimiento; APK por EAS.
@@ -9,50 +9,28 @@ tiendas.
 
 ## Veredicto
 
-## ❌ NO-GO
+## ⚠️ NO-GO (bloqueado solo por pasos humanos: G7/G8)
 
 El proceso mayéutico **funciona de extremo a extremo** y está demostrado con
-pruebas ejecutadas (recorrido dorado sobre TXT, MD y PDF real, en el núcleo y en
-la interfaz). La versión 1.0.0 está preparada y el perfil de APK de EAS está
-definido y validado.
+pruebas ejecutadas: recorrido dorado sobre TXT, MD y PDF real (núcleo e
+interfaz), **y evals contra el proveedor semántico real** (G3). La versión 1.0.0
+está preparada y el perfil de APK de EAS está definido y validado.
 
-**El GO queda bloqueado por dos puertas que exigen un paso humano o una
-credencial que no está disponible en este entorno:**
+**Tras desactivar la facturación del proyecto de Gemini (recuperando el nivel
+gratuito), G3 deja de estar bloqueada:** el arnés real supera los tres umbrales
+(concordancia de veredicto **83.3 %**, paráfrasis aceptadas **100 %**, **0**
+citas inventadas). El bloqueo de G3 documentado en dictámenes previos
+(D-061/D-062) era de créditos del proyecto, no de código; queda resuelto.
 
-- **G3 — evals con proveedor real: NO VERIFICADO.** El backend de Render **sí
-  tiene** la clave de Gemini configurada (comprobado: `/mayeutic/*` responde 502
-  del proveedor, no 503 «no configurado»), pero **toda** llamada real devuelve un
-  `400` del proveedor. La causa es del lado del proveedor (clave o acceso al
-  modelo), no del cuerpo de la petición: se calibró contra Gemini y el cuerpo que
-  envía el backend **pasa** su validación de forma (un `response_format` o
-  `max_tokens` inválidos se rechazan _antes_ que la clave; el cuerpo real solo
-  produce «Please pass a valid API key» con una clave falsa). Falta evidencia
-  ejecutada contra el proveedor real, así que G3 queda «no verificado» y
-  **bloquea el GO** por regla explícita del encargo. Las evals del repositorio
-  (32 casos) corren contra el **proveedor falso** y miden la robustez del motor,
-  no la calidad del modelo real. El arnés para cerrarla ya existe
-  (`npm run eval:real`, D-060).
-  **Causa raíz confirmada (2026-11-05, tras habilitar facturación):** una clave
-  de Gemini **válida** (autentica y lista 50 modelos, `gemini-3.8-flash` incluido)
-  devuelve **HTTP 402 `RESOURCE_EXHAUSTED`** en **toda** llamada: «Your
-  prepayment credits are depleted». Habilitar la facturación **no** restaura la
-  cuota gratuita: el proyecto pasa a prepago con **0 créditos**, y sin créditos el
-  modelo no responde. Por tanto el bloqueo no es de código ni de clave mal
-  formada, sino de **créditos del proyecto de Gemini**.
-  **Y no se arregla con otro modelo (D-062):** se probaron **los 47 modelos** que
-  la clave lista (`gemini-2.0/2.5/3.x`, Flash/Pro/Flash-Lite, `gemma-4-*`,
-  embeddings), por el endpoint OpenAI-compatible, por `generateContent` nativo y
-  por `v1`/`v1beta`, con `Bearer` y con `x-goog-api-key`: **los 47 devuelven el
-  mismo 402**. La cuota es **por proyecto, no por clave ni por modelo**, así que
-  ningún nombre de modelo puede esquivar el bloqueo. El modelo por defecto
-  (`gemini-3.8-flash`) **ya es de nivel gratuito** según la tabla oficial.
+**El GO queda bloqueado únicamente por dos puertas que exigen un paso humano o
+una credencial no disponible en este entorno:**
+
 - **G7 — APK por EAS: pendiente del paso humano.** No hay `EXPO_TOKEN` en el
   entorno. Además, el **primer keystore de Android no se puede generar en modo no
   interactivo** (comportamiento documentado de `eas-cli`), así que la primera
   compilación exige que una persona inicie sesión e interactúe. La configuración
   está validada; el artefacto no se ha producido.
-
-G8 (prueba manual en dispositivo) depende de G7, así que también queda pendiente.
+- **G8 — smoke test en dispositivo: pendiente.** Depende de G7.
 
 No se fuerza la versión: se entrega el dictamen NO-GO y el checklist de sprints
 restantes (`docs/release-1.0-checklist.md`).
@@ -67,9 +45,9 @@ dispositivo**. Una puerta no se da por cumplida sin evidencia ejecutada.
 
 | Puerta | Descripción                                                                                | Estado | Nivel de evidencia                       | Evidencia ejecutada                                                                                                                                                                                                                                                |
 | ------ | ------------------------------------------------------------------------------------------ | ------ | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| G1     | `npm run verify` en verde                                                                  | ✅     | Ejecutado                                | 40 suites/332 (core, evals 32/32) + 8/56 (api) + 24/172 (mobile) = **560 pruebas**                                                                                                                                                                                 |
+| G1     | `npm run verify` en verde                                                                  | ✅     | Ejecutado                                | 40 suites/332 (core, evals 32/32) + 8/60 (api) + 24/172 (mobile) = **564 pruebas**                                                                                                                                                                                 |
 | G2     | Recorrido dorado con 3 documentos (TXT/MD/PDF) y coherencia por capa documentada           | ✅     | Ejecutado con proveedor falso            | `packages/core/src/__tests__/goldenPath.test.ts` (12: extracción por formato + ciclo completo en TXT, MD y PDF real) + `apps/mobile/src/__tests__/goldenPath.e2e.test.tsx` (1, pantallas). Los tres formatos → mismos 3 temas/3 conceptos y mismo cierre de sesión |
-| G3     | Evals con proveedor real: ≥30 casos, veredicto ≥80 %, 0 citas inventadas, ≥90 % paráfrasis | ❌     | **No verificado**                        | Backend con clave Gemini, pero el proveedor devuelve 400 en toda llamada (causa del proveedor, no del cuerpo). Arnés listo: `npm run eval:real` (D-060). Evals del repo = 32 casos con proveedor falso (no cuentan para G3)                                        |
+| G3     | Evals con proveedor real: ≥30 casos, veredicto ≥80 %, 0 citas inventadas, ≥90 % paráfrasis | ✅     | **Ejecutado con proveedor real**         | `npm run eval:real` contra el backend con clave Gemini real y rotación de modelos gratuitos: 30 evaluación + 3 generación. Veredicto **83.3 %**, paráfrasis **100 %**, citas inventadas **0**. Evidencia: `docs/release-1.0-g3-evidence.txt` (D-063)               |
 | G4     | Degradación probada en los 4 supuestos de F2                                               | ✅     | Ejecutado                                | `consent.test.ts`, `httpProvider.test.ts` (red, 429/cuota, respuesta inválida), `sessionAsync.test.ts`, `resilience.test.ts`, `llmEngine.test.ts`                                                                                                                  |
 | G5     | Sin secretos en cliente ni en el APK                                                       | ✅     | Ejecutado (bundle)                       | `expo export` + `strings` del bundle `.hbc`: 0 `AIza`, 0 `GEMINI_API_KEY`, 0 `sk-`, 0 `eyJ`. El cliente solo usa token de sesión                                                                                                                                   |
 | G6     | Textos legales alineados y marcados para revisión humana                                   | ✅     | Implementado + revisión humana pendiente | `docs/privacy-policy.md`, `docs/terms-of-use.md`, `privacy-declarations.json`, `storeListing.test.ts`; notas internas marcadas «PENDIENTE DE REVISIÓN HUMANA»                                                                                                      |
@@ -98,23 +76,17 @@ en el recorrido, con proveedor falso.
 
 ## Riesgos abiertos
 
-1. **G3 no verificado (bloqueante).** El backend tiene la clave, pero el
-   proveedor devuelve 400; con una clave válida probada directamente, el
-   proveedor devuelve **402 `RESOURCE_EXHAUSTED`** («prepayment credits are
-   depleted»). **Causa raíz confirmada: el proyecto de Gemini no tiene créditos
-   ni cuota gratuita utilizable** (habilitar facturación pasó el proyecto a
-   prepago con 0 créditos). Sin evals contra un proveedor real en verde no se
-   puede afirmar que la evaluación semántica alcance el 80 % de concordancia ni
-   el 90 % de paráfrasis aceptadas, ni que no invente citas. Mitigación: la
-   heurística es el respaldo probado y el consentimiento es explícito; aun así, la
-   puerta exige evidencia real. **Desbloqueo (humano):** cargar créditos de
-   prepago en el proyecto, o crear una clave en un proyecto de Gemini **sin**
-   facturación (nivel gratuito) y configurarla como `GEMINI_API_KEY` en Render;
-   después, desplegar el backend con la propagación de error (D-060) y ejecutar
-   `npm run eval:real`.
+1. **G3 verificada, con matiz.** La evals reales superan los umbrales
+   (83.3 % / 100 % / 0 citas), pero con **modelos gratuitos** y rotación: la
+   concordancia del 83.3 % está **por encima** del 80 % exigido por un margen
+   estrecho (2 casos). Un modelo de pago probablemente suba el margen; el nivel
+   gratuito es el que permite el coste cero. Riesgo de **varianza**: repeticiones
+   futuras pueden caer justo por debajo del umbral. Mitigación: el motor degrada a
+   la heurística (probada) y el umbral no se toca.
 2. **Primer build de EAS (bloqueante para G7/G8).** El primer keystore exige modo
-   interactivo. Riesgo de cuota: el plan gratuito permite **15 builds de Android
-   al mes** (verificado el 2026-11-04); no se ha consumido ninguno desde aquí.
+   interactivo. Cuota: el plan gratuito permite una cantidad limitada de builds de
+   baja prioridad al mes (reset mensual); no se ha consumido ninguno desde aquí.
+   Respaldo: `docs/build-apk-local.md`.
 3. **APK no inspeccionado como artefacto.** G5 se comprobó sobre el bundle de
    `expo export`, que es la entrada del APK, no sobre el APK final firmado. Se
    recomienda repetir la inspección de `strings` sobre el `.apk` una vez generado.
@@ -128,14 +100,13 @@ en el recorrido, con proveedor falso.
 
 ## Qué haría falta para convertir esto en GO
 
-1. Ejecutar `npm run eval:real` contra el backend con el proveedor real en verde
-   (≥30 casos, veredicto ≥80 %, 0 citas inventadas, ≥90 % paráfrasis). El arnés
-   ya existe (D-060); antes hay que resolver el **402 `RESOURCE_EXHAUSTED`**:
-   cargar créditos de prepago en el proyecto de Gemini o usar una clave de un
-   proyecto sin facturación (nivel gratuito), y configurarla en Render.
-2. Lanzar el primer `eas build` interactivo para generar el keystore y producir el
-   APK de lanzamiento (G7).
-3. Ejecutar `docs/release-1.0-smoke.md` en un teléfono real (G8).
+Solo **dos pasos humanos**; el resto de puertas está en verde.
+
+1. Lanzar el primer `eas build` **interactivo** para generar el keystore y
+   producir el APK de lanzamiento (G7). Comandos exactos en
+   `docs/release-1.0-checklist.md` (Sprint 2). Requiere `EXPO_TOKEN` o sesión
+   interactiva con la cuenta de Expo del propietario.
+2. Ejecutar `docs/release-1.0-smoke.md` en un teléfono real (G8).
 
 Los pasos concretos, con sus comandos exactos, están en
 `docs/release-1.0-checklist.md` y en `docs/release-1.0-smoke.md`.

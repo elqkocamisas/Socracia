@@ -1,0 +1,31 @@
+Evidencia G3 — evals del motor mayéutico contra el proveedor semántico REAL
+
+Fecha:      2026-11-06
+Ejecución:  node scripts/eval-real.mjs (npm run eval:real)
+Backend:    apps/api local (node apps/api/dist/index.js) con GEMINI_API_KEY real
+            y rotación de modelos gratuitos (GEMINI_MODELS); cuenta de prueba efímera.
+Proveedor:  Gemini API (nivel gratuito). La clave vive solo en el servidor; el
+            cliente no la conoce.
+
+--- Salida real de la ejecución ---
+
+Evals reales contra http://127.0.0.1:8796
+
+Informe por categoría
+  evaluación: 30/30 casos con veredicto
+  generación: 3/3 casos
+
+Métricas G3
+  concordancia de veredicto: 83.3 % (≥ 80 %)
+  paráfrasis correctas aceptadas: 100.0 % (≥ 90 %)
+  citas/preguntas inventadas: 0 (= 0)
+
+G3 alcanzada con proveedor real.
+
+--- Umbrales exigidos por la puerta G3 ---
+  minCases             30   → 33 casos ejecutados (30 evaluación + 3 generación)  OK
+  verdictAgreement     0.8  → 0.833                                             OK
+  paraphraseAcceptance 0.9  → 1.000                                             OK
+  inventedCitations    0    → 0                                                 OK
+
+Código de salida: 0 (G3 alcanzada).

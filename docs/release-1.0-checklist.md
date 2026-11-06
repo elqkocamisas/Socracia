@@ -4,89 +4,21 @@ Sprints restantes para convertir el dictamen NO-GO en GO, ordenados por **camino
 crítico**. Cada uno declara objetivo, tareas, puerta de aceptación, tamaño
 (S/M/L), dependencias y responsable (agente o humano).
 
-Contexto: el proceso mayéutico funciona de extremo a extremo (G1, G2, G4, G5, G6,
-G9 en verde). Bloquean el GO **G3** (evals con proveedor real) y **G7/G8** (APK
-por EAS y prueba en dispositivo).
+Contexto: el proceso mayéutico funciona de extremo a extremo y **G1, G2, G3, G4,
+G5, G6 y G9 están en verde**. Bloquean el GO **G7** (APK por EAS) y **G8** (smoke
+test en dispositivo), ambos pendientes de un paso humano.
 
 ## Camino crítico hacia 1.0
 
-| #   | Sprint                               | Objetivo                                                                  | Puerta       | Tamaño | Depende de  | Responsable                            |
-| --- | ------------------------------------ | ------------------------------------------------------------------------- | ------------ | ------ | ----------- | -------------------------------------- |
-| 1   | Evals reales del proveedor semántico | Ejecutar las evals contra el proveedor real y resolver el 400 del backend | **G3**       | M      | —           | Agente (arnés) + humano (clave/acceso) |
-| 2   | Primer build de EAS                  | Generar el keystore inicial y producir el APK de lanzamiento              | **G7**       | M      | Cuenta Expo | **Humano**                             |
-| 3   | Inspección del APK final             | Confirmar que no hay secretos en el APK firmado                           | **G5** (APK) | S      | #2          | Agente                                 |
-| 4   | Smoke test en dispositivo            | Ejecutar el checklist manual en un teléfono real                          | **G8**       | M      | #2          | **Humano**                             |
+| #   | Sprint                    | Objetivo                                                     | Puerta       | Tamaño | Depende de  | Responsable |
+| --- | ------------------------- | ------------------------------------------------------------ | ------------ | ------ | ----------- | ----------- |
+| 1   | Primer build de EAS       | Generar el keystore inicial y producir el APK de lanzamiento | **G7**       | M      | Cuenta Expo | **Humano**  |
+| 2   | Inspección del APK final  | Confirmar que no hay secretos en el APK firmado              | **G5** (APK) | S      | #1          | Agente      |
+| 3   | Smoke test en dispositivo | Ejecutar el checklist manual en un teléfono real             | **G8**       | M      | #1          | **Humano**  |
 
 ---
 
-## Sprint 1 — Evals reales del proveedor semántico (G3)
-
-- **Objetivo:** verificar que el motor semántico alcanza los umbrales de calidad
-  con un modelo real: concordancia de veredicto ≥ 80 %, 0 citas inventadas y
-  ≥ 90 % de paráfrasis correctas aceptadas, sobre ≥ 30 casos.
-- **Estado de partida (real, 2026-11-05):** el backend de Render **tiene** la
-  clave configurada, pero `/mayeutic/generate` y `/mayeutic/evaluate` devuelven
-  **502** con un **400 del proveedor** en toda llamada. La causa es del proveedor
-  (clave, acceso al modelo o cuota), no del cuerpo: se calibró contra Gemini y el
-  cuerpo que envía el backend pasa su validación de forma. El adaptador ahora
-  **propaga el mensaje del proveedor** (D-060), así que la primera llamada tras
-  desplegar ese cambio dirá el motivo exacto.
-- **Actualización (real, 2026-11-05, tras habilitar facturación):** se probó una
-  clave de Gemini **válida** (autentica y lista 50 modelos, incluido
-  `gemini-3.8-flash`) contra la API oficial. **Toda** llamada devuelve ahora
-  **HTTP 402 `RESOURCE_EXHAUSTED`**: «Your prepayment credits are depleted…
-  manage your project and billing». Es decir, habilitar la facturación **no**
-  restaura la cuota gratuita: pasa el proyecto a un plan de prepago con **0
-  créditos**, y sin créditos el modelo no responde. El backend de Render sigue
-  devolviendo **400** (su `GEMINI_API_KEY` sigue siendo la anterior o el código
-  desplegado es el viejo). **Causa raíz confirmada: el proyecto de Gemini no tiene
-  créditos ni cuota gratuita utilizable.**
-- **Y no lo arregla ningún modelo (D-062):** se probaron **los 47 modelos** que la
-  clave lista (Gemini 2.0/2.5/3.x, Flash/Pro/Flash-Lite, `gemma-4-*`,
-  embeddings), por el endpoint OpenAI-compatible, por `generateContent` nativo y
-  por `v1`/`v1beta`, con `Bearer` y con `x-goog-api-key`: **los 47 devuelven el
-  mismo 402**. La cuota es **por proyecto, no por clave ni por modelo**. El modelo
-  por defecto (`gemini-3.8-flash`) ya es de nivel gratuito según la tabla oficial,
-  así que **no hay cambio de modelo que hacer**.
-- **Desbloqueo (humano, una de las dos):**
-  **(a)** desactivar la facturación del proyecto de Gemini para volver al nivel
-  gratuito (<https://docs.cloud.google.com/billing/docs/how-to/modify-project#disable_billing_for_a_project>),
-  o **(b)** cargar créditos de prepago en AI Studio. Después: poner la clave en
-  `GEMINI_API_KEY` en Render, desplegar el backend con la propagación de error
-  (D-060) y ejecutar `npm run eval:real`.
-- **Tareas:**
-  1. **(Humano)** Confirmar/renovar la `GEMINI_API_KEY` en Render y que el
-     proyecto tiene acceso al modelo configurado (`GEMINI_MODEL`, por defecto
-     `gemini-3.8-flash`, con plan gratuito). Guardarla **solo** en el servidor.
-  2. **(Agente, hecho)** Arnés de evals reales: `scripts/eval-real.mjs`
-     (`npm run eval:real`), sin clave en el cliente, contra el backend real
-     (D-060).
-  3. **(Agente, hecho)** El adaptador del backend propaga el mensaje de error del
-     proveedor para poder diagnosticar sin acceso a los logs.
-  4. **(Humano)** Desplegar el backend con ese cambio (Render, «Manual Deploy →
-     Deploy latest commit» de `main` tras fusionar el PR de release).
-  5. **(Humano + agente)** Ejecutar el arnés y registrar el informe por categoría.
-- **Comandos exactos:**
-  ```bash
-  # El backend debe tener GEMINI_API_KEY configurada en Render.
-  npm run eval:real            # usa https://socracia.onrender.com por defecto
-  # O apuntando a otro servicio / cuenta de prueba:
-  SOCRA_REAL_EVAL_BASE_URL=https://<servicio>.onrender.com \
-    SOCRA_REAL_EVAL_EMAIL=<cuenta> SOCRA_REAL_EVAL_PASSWORD=<clave> \
-    npm run eval:real
-  ```
-  Código de salida: `0` = G3 alcanzada; `1` = por debajo del umbral; `2` =
-  proveedor no disponible (G3 no verificada, no fallida).
-- **Puerta de aceptación:** informe real adjunto con ≥ 30 casos, veredicto
-  ≥ 80 %, 0 citas inventadas y ≥ 90 % de paráfrasis aceptadas. Si no se alcanza,
-  ajustar el prompt de evaluación (no el umbral) y repetir.
-- **Tamaño:** M.
-- **Dependencias:** acceso del proyecto de Gemini al modelo; despliegue del
-  backend con el cambio de D-060.
-- **Responsable:** agente (arnés y diagnóstico) + humano (clave, acceso y
-  despliegue).
-
-## Sprint 2 — Primer build de EAS (G7)
+## Sprint 1 — Primer build de EAS (G7)
 
 - **Objetivo:** generar el APK de lanzamiento con el perfil `release-apk`.
 - **Tareas:**
@@ -103,14 +35,15 @@ por EAS y prueba en dispositivo).
   `versionCode` asignado por EAS en remoto (`appVersionSource: remote`).
 - **Tamaño:** M.
 - **Dependencias:** cuenta de Expo con acceso al proyecto; cuota gratuita de EAS
-  disponible (**15 builds de Android al mes**, verificado el 2026-11-04).
+  disponible (builds de baja prioridad al mes, reset mensual; verificado el
+  2026-11-06 en <https://docs.expo.dev/billing/plans/>).
 - **Responsable:** **humano** (interactivo; el agente no puede generar el primer
   keystore).
 - **Respaldo si la cuota está agotada:** compilar en local con
   `docs/build-apk-local.md` (JDK 21, SDK 36). No cuenta como G7 «APK por EAS»,
   pero permite el smoke test.
 
-## Sprint 3 — Inspección del APK final (G5 sobre el artefacto)
+## Sprint 2 — Inspección del APK final (G5 sobre el artefacto)
 
 - **Objetivo:** confirmar que el APK firmado no contiene secretos.
 - **Tareas:**
@@ -121,10 +54,10 @@ por EAS y prueba en dispositivo).
   3. **(Agente)** Registrar el resultado en el dictamen.
 - **Puerta de aceptación:** 0 secretos en el APK firmado.
 - **Tamaño:** S.
-- **Dependencias:** Sprint 2.
+- **Dependencias:** Sprint 1.
 - **Responsable:** agente.
 
-## Sprint 4 — Smoke test en dispositivo (G8)
+## Sprint 3 — Smoke test en dispositivo (G8)
 
 - **Objetivo:** validar la app completa en un teléfono Android real.
 - **Tareas:**
@@ -135,17 +68,18 @@ por EAS y prueba en dispositivo).
      bloqueen el recorrido y repetir.
 - **Puerta de aceptación:** checklist APTO, sin incidencias bloqueantes.
 - **Tamaño:** M.
-- **Dependencias:** Sprint 2.
+- **Dependencias:** Sprint 1.
 - **Responsable:** **humano**.
 
 ---
 
 ## Riesgos abiertos (resumen)
 
-- **G3 sin verificar:** es el mayor riesgo de calidad. La heurística respalda,
-  pero la evidencia real es obligatoria para el GO.
-- **Cuota de EAS:** 15 builds de Android/mes en el plan gratuito. Reservar al
-  menos uno para el APK de lanzamiento; usar la ruta local si se agota.
+- **Margen de G3:** la concordancia de veredicto (83.3 %) supera el 80 % por un
+  margen estrecho, con modelos gratuitos. Repeticiones futuras pueden caer por
+  debajo. Mitigación: el motor degrada a la heurística; el umbral no se toca.
+- **Cuota de EAS:** builds de baja prioridad al mes en el plan gratuito. Reservar
+  al menos uno para el APK de lanzamiento; usar la ruta local si se agota.
 - **Primer keystore:** requiere modo interactivo, no automatizable por el agente.
 - **Recalibración del RAG:** si se adopta un proveedor semántico real, revisar
   `DEFAULT_RELEVANCE.minScore` (hoy 0.2, calibrado para el proveedor léxico).
