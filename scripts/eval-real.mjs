@@ -40,6 +40,13 @@ const THRESHOLDS = {
   minCases: 30,
 };
 
+/**
+ * Pausa entre casos para no agotar la cuota. El nivel gratuito de Gemini limita
+ * a ~5 peticiones por minuto y modelo, así que con 30+ casos hay que espaciar.
+ * Ajustable con `SOCRA_REAL_EVAL_PACE_MS`.
+ */
+const PACE_MS = Number(process.env.SOCRA_REAL_EVAL_PACE_MS ?? 12_500);
+
 /** Veredicto que el núcleo asigna a una puntuación (mismos umbrales que el core). */
 const CORE_THRESHOLDS = { correct: 0.6, partial: 0.3 };
 
@@ -262,22 +269,78 @@ function generationCases() {
   }));
 }
 
-async function post(path, body, token) {
-  const response = await fetch(`${BASE_URL}${path}`, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      ...(token ? { authorization: `Bearer ${token}` } : {}),
-    },
-    body: JSON.stringify(body),
-  });
-  let payload = null;
-  try {
-    payload = await response.json();
-  } catch {
-    // El cuerpo no era JSON: se deja `null` y el llamante decide.
+/** Espera `ms` milisegundos. */
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** Lee del mensaje del proveedor la espera sugerida («retry in 11.4s»). */
+function retryAfterMs(payload) {
+  const message = String(payload?.message ?? '');
+  const match = message.match(/retry in ([\d.]+)s/i);
+  return match ? Math.ceil(Number(match[1]) * 1000) + 1_000 : null;
+}
+
+/**
+ * POST con reintentos ante límite de cuota. El nivel gratuito de Gemini permite
+ * ~5 peticiones por minuto y modelo, así que una suite de 30+ casos lo agota: se
+ * reintenta con la espera que sugiere el proveedor en vez de dar G3 por no
+ * verificada. Solo se reintenta 429/503; el resto de estados se devuelve tal cual.
+ */
+async function post(path, body, token, attempts = 8) {
+  for (let attempt = 1; ; attempt += 1) {
+    const response = await fetch(`${BASE_URL}${path}`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        ...(token ? { authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(body),
+    });
+    let payload = null;
+    try {
+      payload = await response.json();
+    } catch {
+      // El cuerpo no era JSON: se deja `null` y el llamante decide.
+    }
+    if ((response.status === 429 || response.status === 503) && attempt < attempts) {
+      const wait = retryAfterMs(payload) ?? Math.min(2_000 * attempt, 30_000);
+      await sleep(wait);
+      continue;
+    }
+    return { status: response.status, payload };
   }
-  return { status: response.status, payload };
+}
+
+/**
+ * El backend envuelve el 429/503 del proveedor en un 502 cuyo mensaje lleva el
+ * detalle. Se reintenta ese caso concreto; un 502 sin mención de cuota es un
+ * fallo real y se devuelve para que la puerta quede «no verificada».
+ */
+function isQuotaError(response) {
+  if (response.status !== 502 && response.status !== 503) {
+    return false;
+  }
+  return /\b429\b|\b503\b|quota|rate|RESOURCE_EXHAUSTED|high demand/i.test(
+    String(response.payload?.message ?? ''),
+  );
+}
+
+async function postMayeutic(path, body, token, attempts = 8) {
+  for (let attempt = 1; ; attempt += 1) {
+    const response = await post(path, body, token, 1);
+    if (isQuotaError(response) && attempt < attempts) {
+      const wait = retryAfterMs(response.payload) ?? Math.min(6_000 * attempt, 45_000);
+      // Un límite diario no se resuelve esperando: se devuelve para que la puerta
+      // quede «no verificada» en vez de reintentar en vano durante minutos.
+      if (wait > 60_000) {
+        return response;
+      }
+      await sleep(wait);
+      continue;
+    }
+    return response;
+  }
 }
 
 async function authenticate() {
@@ -325,7 +388,8 @@ async function main() {
 
   try {
     for (const testCase of evaluation) {
-      const response = await post(
+      await sleep(PACE_MS);
+      const response = await postMayeutic(
         '/mayeutic/evaluate',
         {
           question: testCase.question,
@@ -358,7 +422,8 @@ async function main() {
 
     if (!providerUnavailable) {
       for (const testCase of generation) {
-        const response = await post(
+        await sleep(PACE_MS);
+        const response = await postMayeutic(
           '/mayeutic/generate',
           { concept: testCase.concept, citation: testCase.citation, maxQuestions: 2 },
           token,
