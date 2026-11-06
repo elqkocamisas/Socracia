@@ -293,7 +293,7 @@ Trampas conocidas:
 - **El primer keystore de Android NO se puede generar en modo no interactivo.**
   Es comportamiento documentado de `eas-cli`. La primera compilación exige un
   humano: `cd apps/mobile && npx eas-cli login && npx eas-cli build --profile
-  release-apk --platform android` (aceptar el keystore cuando lo pida). Sin
+release-apk --platform android` (aceptar el keystore cuando lo pida). Sin
   `EXPO_TOKEN`, el agente no puede lanzarlo.
 - **Plan gratuito de EAS = 15 builds de Android al mes** (verificado 2026-11-04).
   Si se agota, usar la ruta local de `docs/build-apk-local.md`.
