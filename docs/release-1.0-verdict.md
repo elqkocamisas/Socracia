@@ -39,6 +39,13 @@ credencial que no está disponible en este entorno:**
   cuota gratuita: el proyecto pasa a prepago con **0 créditos**, y sin créditos el
   modelo no responde. Por tanto el bloqueo no es de código ni de clave mal
   formada, sino de **créditos del proyecto de Gemini**.
+  **Y no se arregla con otro modelo (D-062):** se probaron **los 47 modelos** que
+  la clave lista (`gemini-2.0/2.5/3.x`, Flash/Pro/Flash-Lite, `gemma-4-*`,
+  embeddings), por el endpoint OpenAI-compatible, por `generateContent` nativo y
+  por `v1`/`v1beta`, con `Bearer` y con `x-goog-api-key`: **los 47 devuelven el
+  mismo 402**. La cuota es **por proyecto, no por clave ni por modelo**, así que
+  ningún nombre de modelo puede esquivar el bloqueo. El modelo por defecto
+  (`gemini-3.8-flash`) **ya es de nivel gratuito** según la tabla oficial.
 - **G7 — APK por EAS: pendiente del paso humano.** No hay `EXPO_TOKEN` en el
   entorno. Además, el **primer keystore de Android no se puede generar en modo no
   interactivo** (comportamiento documentado de `eas-cli`), así que la primera

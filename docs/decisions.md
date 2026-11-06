@@ -1053,6 +1053,38 @@ StudyError>`; el orden de preferencia es proveedor semántico → evaluador LLM
   `GEMINI_API_KEY` en Render y desplegar el backend con la propagación de error
   (D-060); después, `npm run eval:real`.
 
+## D-062 — Ningún modelo gratuito desbloquea G3: el 402 es del proyecto, no del modelo
+
+- **Fecha:** cierre de 1.0 (2026-11-05)
+- **Contexto:** tras habilitar la facturación, se pidió «introducir un modelo
+  gratuito» para la misma clave. Se probaron **los 47 modelos** que la clave
+  puede listar (todos los que soportan `generateContent`: Gemini 2.0, 2.5, 3.x,
+  Flash/Pro/Flash-Lite, `gemini-3.8-flash`, `gemma-4-*`, embeddings…), por el
+  endpoint compatible con OpenAI, por `generateContent` nativo y por
+  `v1`/`v1beta`, con `Authorization: Bearer` y con `x-goog-api-key`. **Los 47
+  devuelven el mismo `HTTP 402 RESOURCE_EXHAUSTED`**: «Your prepayment credits
+  are depleted». La cuota y los límites son **por proyecto, no por clave ni por
+  modelo** (docs oficiales de rate-limits/billing).
+- **Decisión:** no se cambia el modelo por defecto para «esquivar» el 402: el
+  modelo por defecto (`gemini-3.8-flash`) **ya es de nivel gratuito** según la
+  tabla oficial de precios (input y output «Free of charge»). El bloqueo es el
+  **estado de facturación del proyecto**: habilitar la facturación lo pasó a
+  prepago con **0 créditos**, y ese estado desactiva **también** el nivel
+  gratuito. Ningún nombre de modelo puede saltarse un bloqueo de proyecto.
+- **Motivos:** cambiar el modelo sería un cambio de código inútil (y arriesgado)
+  que no aborda la causa. La documentación oficial es explícita: para volver al
+  nivel gratuito hay que **desactivar la facturación** del proyecto; para seguir
+  con facturación, hay que **cargar créditos de prepago**.
+- **Alternativas descartadas:** (a) bajar a un modelo «más barato» o de otra
+  familia: probado, da el mismo 402; (b) usar `gemma` (gratuito por completo):
+  probado, mismo 402; (c) poner la clave en el cliente: rompe D-057/D-058.
+- **Consecuencias:** G3 sigue **no verificada**. Desbloqueo (humano, una de las
+  dos): **(a)** desactivar la facturación del proyecto de Gemini para recuperar
+  el nivel gratuito (<https://docs.cloud.google.com/billing/docs/how-to/modify-project#disable_billing_for_a_project>),
+  o **(b)** cargar créditos de prepago en AI Studio. Después: configurar la clave
+  en Render, desplegar el backend con la propagación de error (D-060) y ejecutar
+  `npm run eval:real`. El modelo por defecto no requiere cambios.
+
 ## Ambigüedades pendientes (no bloqueantes)
 
 - **Vertical inicial (oposiciones vs PAU):** resuelto en el Sprint 1: el corpus

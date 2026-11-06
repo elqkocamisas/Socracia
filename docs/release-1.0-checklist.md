@@ -40,10 +40,20 @@ por EAS y prueba en dispositivo).
   créditos**, y sin créditos el modelo no responde. El backend de Render sigue
   devolviendo **400** (su `GEMINI_API_KEY` sigue siendo la anterior o el código
   desplegado es el viejo). **Causa raíz confirmada: el proyecto de Gemini no tiene
-  créditos ni cuota gratuita utilizable.** Para G3 hace falta una de estas dos
-  cosas, ambas humanas: (a) cargar créditos de prepago en el proyecto, o
-  (b) crear una clave en un proyecto de Gemini **sin** facturación (nivel
-  gratuito) y configurarla como `GEMINI_API_KEY` en Render.
+  créditos ni cuota gratuita utilizable.**
+- **Y no lo arregla ningún modelo (D-062):** se probaron **los 47 modelos** que la
+  clave lista (Gemini 2.0/2.5/3.x, Flash/Pro/Flash-Lite, `gemma-4-*`,
+  embeddings), por el endpoint OpenAI-compatible, por `generateContent` nativo y
+  por `v1`/`v1beta`, con `Bearer` y con `x-goog-api-key`: **los 47 devuelven el
+  mismo 402**. La cuota es **por proyecto, no por clave ni por modelo**. El modelo
+  por defecto (`gemini-3.8-flash`) ya es de nivel gratuito según la tabla oficial,
+  así que **no hay cambio de modelo que hacer**.
+- **Desbloqueo (humano, una de las dos):**
+  **(a)** desactivar la facturación del proyecto de Gemini para volver al nivel
+  gratuito (<https://docs.cloud.google.com/billing/docs/how-to/modify-project#disable_billing_for_a_project>),
+  o **(b)** cargar créditos de prepago en AI Studio. Después: poner la clave en
+  `GEMINI_API_KEY` en Render, desplegar el backend con la propagación de error
+  (D-060) y ejecutar `npm run eval:real`.
 - **Tareas:**
   1. **(Humano)** Confirmar/renovar la `GEMINI_API_KEY` en Render y que el
      proyecto tiene acceso al modelo configurado (`GEMINI_MODEL`, por defecto
