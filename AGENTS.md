@@ -58,6 +58,29 @@ npm run generate:assets # regenera iconos y capturas base
 
 ## Trampas conocidas
 
+- **Dos tipos de «workflow», y no se leen desde el mismo sitio.** Los de GitHub
+  Actions van en `.github/workflows/` (los ejecuta GitHub); los de **EAS** van en
+  `.eas/workflows/`, **al mismo nivel que `eas.json`** (aquí `apps/mobile/.eas/`,
+  porque el `eas.json` del monorepo está ahí). La pestaña _Workflows_ del panel
+  de Expo solo lista los segundos: si sale vacía, es que falta ese directorio.
+  Añadir un `.yml` en `.github/` **no** la llena. Validar con
+  `eas workflow:validate .eas/workflows/<fichero>.yml`.
+- **El workflow `Expo EAS` de Actions falla sin el secreto `EXPO_TOKEN`.** No es
+  que no se ejecute: corre y falla en el primer paso con «Falta el secreto
+  EXPO_TOKEN». Hay que crearlo en expo.dev (Account → Access tokens) y guardarlo
+  en Settings → Secrets → Actions. El workflow de EAS (`.eas/workflows/`) no
+  necesita ese secreto: lo lanza el servidor de EAS con la sesión del panel.
+- **`npm run format` reescribe ficheros que no ha tocado.** Hay deriva de
+  formato preexistente en `main` (22 ficheros, sobre todo
+  `packages/core/src/llm/`): CI no ejecuta `format:check`, así que no se
+  detecta. Al formatear, **revierta los ficheros ajenos al cambio** antes de
+  commitear (`git checkout -- <rutas>`) o el PR saldrá irrevisable.
+- **El `environment` del build es implícito si no se declara.** Un job `build`
+  sin `environment` lo infiere del perfil, y un perfil sin el campo usa:
+  `production` si `distribution` es `store`, `preview` en el resto. Como
+  `EXPO_PUBLIC_API_BASE_URL` solo existe en el entorno `production`, un build de
+  preview saldría apuntando a `localhost:8787` **sin ningún aviso**. Por eso los
+  perfiles lo declaran explícito y una prueba lo exige.
 - **`@testing-library/react-native` 14:** `render` es **asíncrono** y devuelve un
   objeto sin queries. Usar `await render(<C/>)` y luego `screen.getByText(...)`.
   No usar `const { getByText } = render(...)`.
