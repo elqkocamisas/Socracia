@@ -4,8 +4,9 @@ import { HashingEmbeddingProvider } from '../rag/embeddings';
 import { RagEngine } from '../rag/engine';
 import { InMemoryVectorStore } from '../rag/vectorStore';
 import { inMemoryStorage } from '../storage/inMemory';
-import { StudyService } from '../app/studyService';
+import { StudyService, DEFAULT_STUDY_OPTIONS } from '../app/studyService';
 import { MayeuticSessionController } from '../app/sessionController';
+import { ok } from '../result';
 
 const NOW = 1_700_000_000_000;
 const USER = 'u1';
@@ -126,6 +127,64 @@ describe('MayeuticSessionController.answer', () => {
       return;
     }
     expect(answered.error.code).toBe('sesion-no-iniciada');
+  });
+
+  it('la explicación del modelo llega a la vista tras fallos repetidos', async () => {
+    const storage = inMemoryStorage();
+    const rag = new RagEngine(new InMemoryVectorStore(), new HashingEmbeddingProvider(256));
+    // El motor produce la explicación en `enrichTurn`; la vista debe copiarla o
+    // se pierde por el camino (mismo camino que la decisión D-064).
+    const study = new StudyService(rag, storage, {
+      ...DEFAULT_STUDY_OPTIONS,
+      session: {
+        ...DEFAULT_STUDY_OPTIONS.session,
+        // El evaluador es lo que activa el camino con modelo (`usesModel`); sin
+        // él la sesión iría por la heurística y no se pediría la explicación.
+        evaluator: {
+          id: 'fake-evaluator',
+          evaluate: async (question) =>
+            ok({
+              questionId: question.id,
+              conceptId: question.conceptId,
+              verdict: 'incorrecta' as const,
+              score: 0,
+              matchedKeyTerms: [],
+              missingKeyTerms: question.keyTerms,
+              feedback: 'Evaluación del modelo.',
+            }),
+        },
+        explainer: {
+          id: 'fake-explainer',
+          explain: async () => ok({ text: 'explicación del modelo', citations: [] }),
+        },
+      },
+    });
+    await rag.ingestDocument(SAMPLE_DOCUMENT, SAMPLE_CURRICULUM_TEXT);
+    const curriculum = extractCurriculum(SAMPLE_CURRICULUM_TEXT);
+    await storage.documents.saveDocument(SAMPLE_DOCUMENT);
+    await storage.documents.saveCurriculum({
+      id: DOC,
+      title: SAMPLE_DOCUMENT.title,
+      topics: curriculum.topics,
+      concepts: curriculum.concepts,
+      createdAt: NOW,
+    });
+    const controller = new MayeuticSessionController(study, storage, USER);
+    const started = await controller.start(DOC, NOW, 's1');
+    if (!started.ok) {
+      throw new Error('no arrancó');
+    }
+
+    const explanations: (string | null)[] = [];
+    for (let i = 0; i < 4; i += 1) {
+      const answered = await controller.answer('no lo sé', 300, NOW + i + 1);
+      if (!answered.ok) {
+        throw new Error('no respondió');
+      }
+      explanations.push(answered.value.explanation);
+    }
+
+    expect(explanations).toContain('explicación del modelo');
   });
 });
 

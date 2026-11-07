@@ -1033,6 +1033,70 @@ app-bundle`), que es el formato que Google Play exige **para subir**, no un
   auditoría (`--all`, informa sin bloquear), porque los tres incumplimientos ya
   están fusionados en `main` y reescribirlos está prohibido.
 
+## D-064 — El proveedor semántico evalúa, pero el enriquecimiento del turno sigue su curso
+
+- **Fecha:** Sprint 5 (módulo LLM como motor principal)
+- **Contexto:** con el proveedor semántico (Gemini) como motor principal, `StudyService.answer`
+  obtenía la evaluación del proveedor y luego llamaba a `engine.submit(text, latency, now, assessment)`.
+  `submit` es el camino **síncrono** y **no** ejecuta `enrichTurn`, que es el único punto
+  donde se piden la repregunta (`followUp`) y la explicación (`explainer`) al modelo. La
+  consecuencia: justo cuando el documento estaba autorizado y el modelo disponible, el
+  alumno **perdía** la repregunta redactada y la explicación, que `docs/llm-engine.md`
+  promete. La paradoja era que el recorrido **sin** autorización (heurístico, vía
+  `submitAsync`) sí las pedía. Ninguna prueba lo cubría: `npm run verify` seguía verde con
+  el fallo presente.
+- **Decisión:** el enriquecimiento del turno es **independiente de quién evalúa**. Tanto si
+  el veredicto viene del proveedor semántico como del evaluador LLM o de la heurística, el
+  turno pasa por `submitAsync`, que es el único camino que llama a `enrichTurn`. Para no
+  evaluar dos veces, `submitAsync` acepta el `assessment` ya obtenido y, si viene, respeta
+  su juicio sin volver a pedirlo al modelo. `submit` queda como camino síncrono puro y sin
+  modelo: se le retira el parámetro `assessment` para que no pueda volver a desactivar el
+  enriquecimiento en silencio.
+- **Motivos:** el diseño de `docs/llm-engine.md` separa dos responsabilidades —decidir el
+  veredicto y mejorar el texto del turno— y el bug las había acoplado por accidente. Con el
+  arreglo, el orden de preferencia de D-058 se mantiene intacto y solo se restaura la
+  capacidad que se había perdido. El coste es una llamada más por turno con fallo, y solo
+  cuando el motor está activo; sin modelo no se pide nada.
+- **Alternativas descartadas:** (a) dejar que `submit` llame también a `enrichTurn`:
+  convierte un método síncrono en asíncrono y obliga a cambiar a todos sus llamantes
+  (pruebas incluidas) por un caso que ya cubre `submitAsync`; (b) enriquecer en
+  `StudyService.answer` en lugar del motor: saca del motor una decisión que es suya y
+  duplica la lógica de umbral de fallos; (c) no hacer nada: mantiene una capacidad
+  anunciada en la documentación que no llega nunca al alumno.
+- **Consecuencias:** `MayeuticSessionEngine.submitAsync(text, latencyMs, now, assessment?)`
+  gana un cuarto parámetro opcional; `submit(text, latencyMs, now)` pierde el suyo. La
+  prueba de regresión vive en `packages/core/src/__tests__/studyService.test.ts` (bloque
+  «el proveedor semántico no desactiva el enriquecimiento») y se comprobó que falla con el
+  código anterior y pasa con el arreglo.
+
+## D-065 — La explicación del modelo llega a la vista: se cierra el camino D-064
+
+- **Fecha:** Sprint 5 (módulo LLM como motor principal)
+- **Contexto:** el arreglo de D-064 devolvió al motor la capacidad de pedir la
+  explicación. Al verificar el recorrido completo apareció el último eslabón roto
+  del mismo camino: `SessionController.buildView` construía `StudyViewState` sin
+  copiar `turn.explanation`, y el contrato de la vista ni siquiera tenía ese campo.
+  La explicación se producía, se descartaba y el alumno no la veía nunca; ninguna
+  prueba lo cubría porque todas comprobaban el turno del motor, no la vista.
+- **Decisión:** `StudyViewState` incorpora `explanation: string | null` y
+  `buildView` lo rellena desde `turn.explanation`. La pantalla de estudio pinta un
+  bloque «Explicación» cuando el campo no es nulo, con el mismo tratamiento visual
+  que el feedback y el andamiaje.
+- **Motivos:** el contrato de la vista es el único punto por el que el estado del
+  motor llega a la interfaz. Si un dato del turno no está ahí, no existe para el
+  alumno, por bien que lo calcule el núcleo. Declarar el campo como obligatorio
+  (aunque nullable) hace que el compilador impida volver a olvidarlo: quitar la
+  asignación en `buildView` rompe la compilación.
+- **Alternativas descartadas:** (a) pasar `SessionTurn` entero a la vista: filtra
+  detalle interno del motor y acopla la UI al núcleo; (b) mostrar la explicación
+  dentro del feedback existente: mezcla dos textos con propósitos distintos
+  (corrección inmediata frente a explicación tras fallos repetidos).
+- **Consecuencias:** dos pruebas nuevas fijan el comportamiento en ambos extremos
+  del camino: `sessionController.test.ts` comprueba que la vista lleva la
+  explicación y `StudyScreen.test.tsx` que la pantalla la pinta. Ambas se
+  verificaron en los dos sentidos: fallan sin el arreglo y pasan con él.
+  `npm run verify` queda en 548 pruebas (321 core, 56 api, 171 móvil).
+
 ## Ambigüedades pendientes (no bloqueantes)
 
 - **Vertical inicial (oposiciones vs PAU):** resuelto en el Sprint 1: el corpus
