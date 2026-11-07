@@ -32,16 +32,16 @@ implementa `HttpSyncClient`, en las pruebas un servidor en memoria.
 
 ## Endpoints
 
-| Método  | Ruta             | Cuerpo                                   | Respuesta                    |
-| ------- | ---------------- | ---------------------------------------- | ---------------------------- |
+| Método  | Ruta             | Cuerpo                                   | Respuesta                               |
+| ------- | ---------------- | ---------------------------------------- | --------------------------------------- |
 | GET     | `/health`        | —                                        | `{ status, version, commit, provider }` |
-| POST    | `/auth/register` | `{ email, password }`                    | `{ token, userId }`          |
-| POST    | `/auth/login`    | `{ email, password }`                    | `{ token, userId }`          |
-| POST    | `/auth/logout`   | — (con `Authorization`)                  | `{ "status": "cerrado" }`    |
-| DELETE  | `/account`       | — (con `Authorization`)                  | `{ "status": "eliminada" }`  |
-| POST    | `/sync/push`     | `ProgressSnapshot` (con `Authorization`) | `ProgressSnapshot` fusionada |
-| GET     | `/sync/pull`     | — (con `Authorization`)                  | `ProgressSnapshot` guardada  |
-| OPTIONS | cualquiera       | —                                        | `204` sin cuerpo (preflight) |
+| POST    | `/auth/register` | `{ email, password }`                    | `{ token, userId }`                     |
+| POST    | `/auth/login`    | `{ email, password }`                    | `{ token, userId }`                     |
+| POST    | `/auth/logout`   | — (con `Authorization`)                  | `{ "status": "cerrado" }`               |
+| DELETE  | `/account`       | — (con `Authorization`)                  | `{ "status": "eliminada" }`             |
+| POST    | `/sync/push`     | `ProgressSnapshot` (con `Authorization`) | `ProgressSnapshot` fusionada            |
+| GET     | `/sync/pull`     | — (con `Authorization`)                  | `ProgressSnapshot` guardada             |
+| OPTIONS | cualquiera       | —                                        | `204` sin cuerpo (preflight)            |
 
 Autenticación por `Authorization: Bearer <token>`. Códigos de error:
 

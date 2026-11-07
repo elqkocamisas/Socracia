@@ -34,7 +34,12 @@ export function makeServices(
   llm?: LlmEngineBundle | null,
 ): AppServices {
   const reader: FileBytesReader = { read: async () => ok(encoder.encode(TEMARIO)) };
-  return createServices({ storage, picker: NO_PICKER, reader, ...(llm !== undefined ? { llm } : {}) });
+  return createServices({
+    storage,
+    picker: NO_PICKER,
+    reader,
+    ...(llm !== undefined ? { llm } : {}),
+  });
 }
 
 /**

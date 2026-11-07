@@ -133,7 +133,11 @@ export class MayeuticSessionEngine {
   public submit(text: string, latencyMs: number, now: Timestamp): SessionTurn {
     const step = this.requireCurrentStep();
     const answer = this.newAnswer(step.question, text, now, latencyMs);
-    return this.registerAnswer(step, answer, evaluateAnswer(step.question, answer, this.options.thresholds));
+    return this.registerAnswer(
+      step,
+      answer,
+      evaluateAnswer(step.question, answer, this.options.thresholds),
+    );
   }
 
   /**

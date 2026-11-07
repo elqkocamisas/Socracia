@@ -398,7 +398,11 @@ describe('StudyService: el proveedor semántico no desactiva el enriquecimiento'
           id: 'fake-followup',
           followUp: async () => {
             calls.followUp += 1;
-            return ok({ kind: 'orientar' as const, prompt: 'repregunta del modelo', hints: ['pista'] });
+            return ok({
+              kind: 'orientar' as const,
+              prompt: 'repregunta del modelo',
+              hints: ['pista'],
+            });
           },
         },
         explainer: {
