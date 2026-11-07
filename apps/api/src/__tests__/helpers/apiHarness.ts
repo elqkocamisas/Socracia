@@ -44,7 +44,7 @@ export function testServer(
   const cfg =
     typeof options === 'object' && options !== null && 'generateQuestions' in options
       ? { mayeuticAi: options as MayeuticAiService }
-      : (options as { cors?: CorsOptions; mayeuticAi?: MayeuticAiService } | undefined) ?? {};
+      : ((options as { cors?: CorsOptions; mayeuticAi?: MayeuticAiService } | undefined) ?? {});
 
   const server = createApiServer({
     auth: new AuthService(),

@@ -14,7 +14,15 @@ import type { CognitiveLevel, SocraticMove, SocraticQuestion } from '../domain/t
 import { DEFAULT_QUALITY_OPTIONS, assessQuestionQuality } from '../mayeu/questionQuality';
 import type { Result } from '../result';
 import { err, ok } from '../result';
-import { describeSchemaError, extractJsonObject, nonEmptyString, numberInRange, oneOf, record, type SchemaError } from './json';
+import {
+  describeSchemaError,
+  extractJsonObject,
+  nonEmptyString,
+  numberInRange,
+  oneOf,
+  record,
+  type SchemaError,
+} from './json';
 import type { QuestionGeneratorPort } from './ports';
 import { generationPrompt } from './prompts';
 import type { LlmError, LlmPassage, LlmProvider } from './types';
@@ -100,7 +108,10 @@ export class LlmQuestionGenerator implements QuestionGeneratorPort {
 
     const parsed = parseQuestion(completion.value.text, target, passage, this.options);
     if (!parsed.ok) {
-      return err<LlmError>({ code: 'respuesta-invalida', message: describeSchemaError(parsed.error) });
+      return err<LlmError>({
+        code: 'respuesta-invalida',
+        message: describeSchemaError(parsed.error),
+      });
     }
     if (parsed.value === null) {
       return ok([]);

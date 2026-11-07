@@ -84,7 +84,9 @@ describe('StudyScreen', () => {
       await waitFor(() => expect(screen.getByText(/^[1-9]\d* \/ \d+ respuestas$/)).toBeTruthy());
     }
 
-    expect(screen.getByText('Explicación')).toBeTruthy();
+    // La etiqueta la fija el recorrido dorado de 1.0 («Te lo explico»); esta
+    // prueba cubre el mismo bloque de la pantalla.
+    expect(screen.getByText('Te lo explico')).toBeTruthy();
     expect(screen.getByText('explicación del modelo')).toBeTruthy();
   });
 });

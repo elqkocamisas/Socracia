@@ -198,7 +198,11 @@ export class MayeuticSessionEngine {
     const threshold = this.options.failuresBeforeExplaining ?? 2;
     if (explanation === null && explainer && failures >= threshold) {
       const passages = this.options.passages?.(question) ?? [];
-      const generated = await explainer.explain(question, passages, turn.evaluation.missingKeyTerms);
+      const generated = await explainer.explain(
+        question,
+        passages,
+        turn.evaluation.missingKeyTerms,
+      );
       if (generated.ok) {
         explanation = generated.value.text;
       }
@@ -275,7 +279,8 @@ export class MayeuticSessionEngine {
     }
 
     const review =
-      this.reviews.get(question.conceptId) ?? initialReviewState(question.conceptId, answer.answeredAt);
+      this.reviews.get(question.conceptId) ??
+      initialReviewState(question.conceptId, answer.answeredAt);
     this.reviews.set(question.conceptId, scheduleReview(review, evaluation, answer.answeredAt));
 
     const shouldRetry =

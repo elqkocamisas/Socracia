@@ -169,7 +169,7 @@ export function StudyScreen({
 
           {view.explanation ? (
             <View style={styles.explanation}>
-              <Text style={styles.explanationLabel}>Explicación</Text>
+              <Text style={styles.explanationLabel}>Te lo explico</Text>
               <Text style={styles.explanationText}>{view.explanation}</Text>
             </View>
           ) : null}
@@ -301,12 +301,12 @@ const styles = StyleSheet.create({
   explanation: {
     backgroundColor: colors.surface,
     borderLeftWidth: 3,
-    borderLeftColor: colors.border,
+    borderLeftColor: colors.primary,
     borderRadius: radius.sm,
     padding: spacing.md,
   },
   explanationLabel: {
-    color: colors.textSecondary,
+    color: colors.primary,
     fontSize: 12,
     fontWeight: '700',
     textTransform: 'uppercase',

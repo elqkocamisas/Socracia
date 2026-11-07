@@ -17,7 +17,13 @@
 
 import type { Result } from '../result';
 import { err, ok } from '../result';
-import type { LlmCompletion, LlmCompletionRequest, LlmError, LlmProvider, LlmPurpose } from './types';
+import type {
+  LlmCompletion,
+  LlmCompletionRequest,
+  LlmError,
+  LlmProvider,
+  LlmPurpose,
+} from './types';
 
 /** Opciones de resiliencia; todas con valor por defecto razonable. */
 export interface ResilienceOptions {
@@ -104,9 +110,7 @@ export class ResilientLlmProvider implements LlmProvider {
     this.model = inner.model;
   }
 
-  public async complete(
-    request: LlmCompletionRequest,
-  ): Promise<Result<LlmCompletion, LlmError>> {
+  public async complete(request: LlmCompletionRequest): Promise<Result<LlmCompletion, LlmError>> {
     const cached = this.cache.get(cacheKey(request));
     if (cached) {
       this.cacheHits += 1;

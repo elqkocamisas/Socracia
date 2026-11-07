@@ -1,0 +1,65 @@
+# Changelog
+
+Todos los cambios relevantes de Socracia. El formato sigue
+[Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y el proyecto usa
+[Versionado Semántico](https://semver.org/lang/es/).
+
+## [1.0.0] — 2026-11-04
+
+Primera versión completa del producto: app móvil de un solo usuario, local-first.
+
+### Añadido
+
+- **Motor mayéutico de extremo a extremo:** extracción de conceptos, generación
+  de preguntas no triviales ancladas a una cita, evaluación con cita, repregunta
+  que ataca el error concreto, modo «explícame» tras fallos repetidos, detección
+  de lagunas y repaso espaciado SM-2.
+- **Ingesta de documentos PDF, TXT y MD** con RAG on-device y persistencia local
+  en SQLite; el índice vectorial se rehidrata al abrir la app.
+- **Proveedor semántico opcional** (Gemini) con consentimiento por documento y
+  clave en el servidor, y la heurística local como respaldo permanente.
+- **Recorrido dorado automatizado** que prueba el ciclo completo sobre tres
+  documentos (TXT, MD y un PDF con texto real), en el núcleo y en la interfaz.
+- **Perfil de EAS `release-apk`** que extiende de producción y entrega un APK
+  instalable de distribución interna.
+- **Arnés de evals con proveedor real** (`npm run eval:real`): ejercita el
+  backend real, sin clave en el cliente, y calcula las métricas de la puerta G3
+  (concordancia de veredicto, paráfrasis aceptadas y citas inventadas).
+
+### Cambiado
+
+- La extracción de PDF conserva los límites de bloque: un encabezado ya no queda
+  pegado al párrafo siguiente, de modo que TXT, MD y PDF producen los mismos
+  conceptos.
+- Los encabezados Markdown (`## Tema 1. X`) se limpian igual que los de texto
+  plano, así que el formato del documento no altera los títulos de tema.
+- La pantalla de estudio muestra la explicación directa («Te lo explico») cuando
+  el motor la produce; antes se calculaba y se descartaba.
+- Versión unificada a 1.0.0 en la raíz, los workspaces, `app.json` y la ficha de
+  tienda.
+- **El proveedor semántico rota entre modelos gratuitos.** Ante un fallo de cuota
+  (429) o de disponibilidad (503), pasa al siguiente modelo de la lista
+  (`GEMINI_MODEL` + `GEMINI_MODELS`), porque el nivel gratuito de Gemini limita
+  por modelo. El modelo por defecto pasa a `gemini-3.6-flash` (`gemini-3.8-flash`
+  devuelve 503 «high demand» en el nivel gratuito).
+- **Parseo tolerante de la salida del modelo:** se acepta `{questions:[…]}` o un
+  array suelto, y una pregunta mal formada ya no invalida el lote entero.
+- **El motivo del proveedor ya no se pierde:** el endpoint OpenAI-compatible
+  devuelve el error dentro de un array (`[{error:{…}}]`) y ahora se desenvuelve,
+  de modo que un 429 muestra la pista de reintento en vez de parecer un fallo de
+  red.
+- El arnés de evals reales espacia los casos y reintenta ante 429/503; ante un
+  límite diario se detiene y deja la puerta «no verificada» en vez de esperar en
+  vano.
+
+### Notas
+
+- El `versionCode` lo gestiona EAS en remoto (`appVersionSource: remote`); no se
+  edita a mano.
+- La multitenencia está documentada (D-053 a D-056) pero **no implementada**:
+  queda fuera del alcance de 1.0 y no hay código que activar.
+- Los textos legales están alineados con el comportamiento real y marcados como
+  **pendiente de revisión humana**.
+- **G3 verificada con el proveedor real** (2026-11-06): 30 casos de evaluación +
+  3 de generación; concordancia de veredicto 83.3 %, paráfrasis aceptadas 100 %,
+  0 citas inventadas. Evidencia en `docs/release-1.0-g3-evidence.txt` (D-063).

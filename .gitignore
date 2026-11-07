@@ -43,3 +43,7 @@ yarn-error.log*
 .vscode/*
 !.vscode/extensions.json
 *.swp
+
+# Artefactos de entrega / pruebas locales
+Socracia-web-test.zip
+*.zip

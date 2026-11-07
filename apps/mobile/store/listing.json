@@ -2,7 +2,7 @@
   "app": {
     "nombre": "Socracia",
     "bundleId": "com.socracia.app",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "idiomaPrincipal": "es-ES",
     "categoriaAppStore": "Education",
     "categoriaAppStoreSecundaria": "Productivity",

@@ -294,3 +294,45 @@ Trampas conocidas:
   `packages/core/src`, hay que `npm run build --workspace @socracia/core` antes
   de `npm run verify`, o el typecheck de móvil usará los `.d.ts` antiguos y
   dará errores que el código fuente no tiene.
+
+## Cierre de 1.0 (2026-11-04)
+
+- **El proceso mayéutico está demostrado de extremo a extremo.** El recorrido
+  dorado vive en `packages/core/src/__tests__/goldenPath.test.ts` (servicio +
+  controlador, 12 casos) y `apps/mobile/src/__tests__/goldenPath.e2e.test.tsx`
+  (pantallas, 1 caso). Usa el mismo temario de tres formas (TXT, MD y PDF real
+  con `buildPdf`), exige que las tres produzcan los mismos 3 temas/3 conceptos y
+  cierra el ciclo completo (importar → pregunta anclada → parafrasear → errar →
+  explicar → lagunas → repaso) en los tres formatos.
+- **Defectos corregidos en F1:** (a) el extractor de PDF aplanaba los espacios y
+  pegaba el encabezado al párrafo → un PDF daba 1 tema en vez de 3; ahora respeta
+  los límites de bloque `BT…ET`. (b) El controlador calculaba la explicación y la
+  descartaba; ahora `StudyViewState.explanation` la propaga y `StudyScreen` la
+  muestra («Te lo explico»). (c) `## Tema 1. X` no se limpiaba como `Tema 1. X`;
+  ahora `cleanHeading` unifica MD y TXT.
+- **El perfil de EAS `release-apk`** extiende de `production` y cambia solo
+  `distribution: internal` y `android.buildType: apk` (D-059). No tocar
+  `production` a APK: Google Play exige AAB.
+- **El primer keystore de Android NO se puede generar en modo no interactivo.**
+  Es comportamiento documentado de `eas-cli`. La primera compilación exige un
+  humano: `cd apps/mobile && npx eas-cli login && npx eas-cli build --profile
+release-apk --platform android` (aceptar el keystore cuando lo pida). Sin
+  `EXPO_TOKEN`, el agente no puede lanzarlo.
+- **Plan gratuito de EAS = 15 builds de Android al mes** (verificado 2026-11-04).
+  Si se agota, usar la ruta local de `docs/build-apk-local.md`.
+- **La versión vive en 6 sitios + el lockfile.** Al subirla: `package.json`
+  (raíz y 3 workspaces), `apps/mobile/app.json`, `apps/mobile/store/listing.json`
+  y `package-lock.json` (entradas raíz y de cada workspace). **No** hacer
+  `sed` ciego sobre `package-lock.json`: hay dependencias cuya versión también es
+  `0.1.0` (`bplist-creator`, `get-package-type`, `yocto-queue`) y se corrompen.
+  El `versionCode` lo gestiona EAS en remoto; no se toca a mano.
+- **`npm run format` reformatea ficheros antiguos** (p. ej. `app.json`, tablas
+  Markdown) porque la versión de Prettier cambió respecto al baseline. No es una
+  puerta (`verify` = lint + typecheck + test): formatear solo los ficheros
+  propios para no meter ruido en el diff.
+- **El dictamen es NO-GO hasta que existan G3 (evals con proveedor real) y
+  G7/G8 (APK + smoke).** El resto de puertas están verdes. Estado y evidencia en
+  `docs/release-1.0-verdict.md`; sprints restantes en
+  `docs/release-1.0-checklist.md`; prueba manual en `docs/release-1.0-smoke.md`.
+- **La multitenencia no está implementada.** No hay código `MULTITENANT` en el
+  árbol: solo documentación (D-053…D-058). Inerte por construcción.

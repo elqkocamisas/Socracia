@@ -160,6 +160,22 @@ Gemini se carga por JavaScript y las cifras cambian con frecuencia.
 `statusFor` en `apps/api/src/llm.ts`), la app cae a la heurística y la sesión no
 se rompe.
 
+### 7.1 Compilaciones — EAS Build (plan gratuito)
+
+El APK de lanzamiento se compila con **EAS Build** (Expo). El plan gratuito
+incluye una cantidad limitada de **compilaciones de baja prioridad al mes**, que
+se reinicia el primer día de cada mes natural; al agotarse, no hay sobrecoste,
+pero las nuevas compilaciones quedan en espera hasta el reinicio
+(<https://docs.expo.dev/billing/plans/> y
+<https://docs.expo.dev/billing/faq/>, verificado el 2026-11-06).
+
+- **Regla de ahorro:** reservar al menos una compilación al mes para el APK de
+  lanzamiento; para iterar, usar _development builds_ + Expo Update en lugar de
+  recompilar.
+- **Respaldo sin coste:** si la cuota se agota, compilar en local con
+  `docs/build-apk-local.md` (JDK 21, SDK 36). No cuenta como «APK por EAS», pero
+  permite el smoke test en dispositivo.
+
 ## 8. Comportamiento degradado por límite
 
 Cada límite tiene una respuesta probada, no una promesa (regla 2):

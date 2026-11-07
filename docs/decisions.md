@@ -1026,12 +1026,170 @@ app-bundle`), que es el formato que Google Play exige **para subir**, no un
   de privacidad y niega la indicación del usuario; (c) mantener ambos caminos
   duplicando `StudyService`: dos fuentes de verdad para el mismo dominio.
 - **Consecuencias:** un solo `StudyService.answer` devuelve `Result<SessionTurn,
-  StudyError>`; el orden de preferencia es proveedor semántico → evaluador LLM
+StudyError>`; el orden de preferencia es proveedor semántico → evaluador LLM
   (`submitAsync`) → heurística local. `ActiveStudySession` lleva `documents`
   (para localizar la fuente) y `usesModel` (para elegir el camino). La convención
   de commits pasa a distinguir el modo estricto (rangos, `--message-file`) del de
   auditoría (`--all`, informa sin bloquear), porque los tres incumplimientos ya
   están fusionados en `main` y reescribirlos está prohibido.
+
+## D-059 — La APK de 1.0 se genera con un perfil de EAS que extiende de producción
+
+- **Fecha:** Sprint de cierre de 1.0 (2026-11-04)
+- **Contexto:** la entrega de 1.0 exige un APK instalable para probar en
+  dispositivo, pero el perfil `production` genera un **AAB** (`app-bundle`),
+  que Google Play consume y un teléfono no instala directamente. Los perfiles
+  `development` y `preview` sí generan APK, pero con `developmentClient` o sin el
+  canal de producción, y no son lo que se quiere entregar como build de
+  lanzamiento.
+- **Decisión:** se añade el perfil **`release-apk`** que **extiende de
+  `production`** (`extends: "production"`) y solo cambia lo necesario:
+  `distribution: "internal"` y `android.buildType: "apk"`. Hereda el canal de
+  producción, la versión remota y `autoIncrement: true`.
+- **Motivos:** extender de `production` mantiene una sola fuente de verdad para
+  el canal y la numeración; el APK de lanzamiento no es una configuración
+  paralela que pueda divergir. `distribution: "internal"` evita cualquier envío a
+  tienda: el artefacto es para instalación directa. El `versionCode` sigue
+  gestionado por EAS en remoto (`appVersionSource: "remote"`), como exige el
+  alcance de 1.0; no se toca a mano.
+- **Alternativas descartadas:** (a) reutilizar `preview`: no comparte canal con
+  producción y arrastra su configuración de previsualización; (b) cambiar
+  `production` a APK: rompería la entrega a Google Play, que exige AAB;
+  (c) generar el APK solo en local con `docs/build-apk-local.md`: válido como
+  respaldo, pero no es «APK generado por EAS», que es lo que pide la puerta G7.
+- **Consecuencias:** `eas build --profile release-apk --platform android` produce
+  un APK de lanzamiento. La prueba `buildConfig.test.ts` fija que el perfil
+  extiende de producción, distribuye internamente y genera APK, para que un
+  cambio futuro no lo degrade en silencio. El primer keystore de Android no se
+  puede generar en modo no interactivo (issue de `eas-cli`), así que la primera
+  compilación exige un paso humano: ver `docs/release-1.0-smoke.md`.
+
+## D-060 — Las evals de G3 se ejecutan contra el backend real, sin clave en el cliente
+
+- **Fecha:** cierre de 1.0 (2026-11-05)
+- **Contexto:** la puerta G3 exige evals contra el proveedor semántico **real**
+  (≥ 30 casos, concordancia de veredicto ≥ 80 %, 0 citas inventadas, ≥ 90 % de
+  paráfrasis correctas aceptadas). Las 32 evals del repositorio corren con
+  respuestas **simuladas**: miden la robustez del motor, no la calidad del modelo
+  real, así que no cuentan para G3. Faltaba un arnés que llamara al proveedor.
+- **Decisión:** se añade `scripts/eval-real.mjs` (`npm run eval:real`), que
+  ejercita el backend real (`/mayeutic/generate` y `/mayeutic/evaluate`), no la
+  API del proveedor. El script **no contiene ninguna clave**: crea una cuenta de
+  prueba efímera, llama al backend y la borra al terminar. La clave del proveedor
+  vive solo en el servidor, coherente con D-057/D-058.
+- **Motivos:** llamar al backend y no a Gemini directamente reproduce el camino
+  de producción (autenticación, validación de entrada, adaptador) y mantiene el
+  principio de coste cero y de «ninguna clave en el cliente». Además, el script
+  distingue «proveedor no disponible» (503/502 → G3 **no verificada**) de «por
+  debajo del umbral» (→ G3 **fallida**), que son diagnósticos distintos.
+- **Alternativas descartadas:** (a) llamar a la API del proveedor desde el
+  script: exigiría una clave en el entorno de ejecución y duplicaría el adaptador;
+  (b) ampliar las evals simuladas: seguirían sin ser evidencia real.
+- **Consecuencias:** el adaptador del backend (`apps/api/src/mayeutic.ts`) ahora
+  **propaga el mensaje de error del proveedor** en su respuesta (antes solo decía
+  «respondió 400»), para que un fallo de clave o de modelo sea diagnosticable sin
+  acceso a los logs del servidor. La clave del proveedor nunca se incluye en el
+  mensaje. G3 se cierra ejecutando `npm run eval:real` contra el backend con el
+  proveedor configurado.
+
+## D-061 — El bloqueo de G3 es de créditos del proyecto de Gemini, no de código
+
+- **Fecha:** cierre de 1.0 (2026-11-05)
+- **Contexto:** tras habilitar la facturación en el proyecto de Gemini, se probó
+  una clave **válida** (autentica contra `generativelanguage.googleapis.com` y
+  lista 50 modelos, `gemini-3.8-flash` incluido) directamente contra la API
+  oficial, tanto por el endpoint compatible con OpenAI como por
+  `generateContent`. **Toda** llamada devuelve **HTTP 402
+  `RESOURCE_EXHAUSTED`**: «Your prepayment credits are depleted… manage your
+  project and billing».
+- **Decisión:** se registra que la causa raíz del bloqueo de G3 es la **ausencia
+  de créditos en el proyecto de Gemini** (el paso a prepago con 0 créditos
+  sustituye a la cuota gratuita), no un defecto del cliente, del cuerpo de la
+  petición ni de la forma de la clave. El backend de Render, además, sigue
+  sirviendo el código viejo (su mensaje no incluye el detalle del proveedor),
+  así que su `400` y el `402` real conviven hasta que se despliegue D-060.
+- **Motivos:** sin esta distinción, el siguiente intento volvería a confundir un
+  problema de facturación/cuota con un bug de integración. La calibración contra
+  Gemini confirma que el cuerpo que envía el backend pasa la validación de forma
+  (un `temperature`/`max_tokens` fuera de rango se rechaza antes que la clave).
+- **Alternativas descartadas:** (a) tocar el umbral o el prompt para «pasar» G3:
+  no produce evidencia real; (b) llamar a la API desde el script con una clave en
+  el entorno: rompe D-060 y el principio de «ninguna clave en el cliente».
+- **Consecuencias:** G3 sigue **no verificada** y bloquea el GO. Desbloqueo
+  (humano): cargar créditos de prepago en el proyecto de Gemini, o usar una clave
+  de un proyecto **sin** facturación (nivel gratuito), configurarla como
+  `GEMINI_API_KEY` en Render y desplegar el backend con la propagación de error
+  (D-060); después, `npm run eval:real`.
+
+## D-062 — Ningún modelo gratuito desbloquea G3: el 402 es del proyecto, no del modelo
+
+- **Fecha:** cierre de 1.0 (2026-11-05)
+- **Contexto:** tras habilitar la facturación, se pidió «introducir un modelo
+  gratuito» para la misma clave. Se probaron **los 47 modelos** que la clave
+  puede listar (todos los que soportan `generateContent`: Gemini 2.0, 2.5, 3.x,
+  Flash/Pro/Flash-Lite, `gemini-3.8-flash`, `gemma-4-*`, embeddings…), por el
+  endpoint compatible con OpenAI, por `generateContent` nativo y por
+  `v1`/`v1beta`, con `Authorization: Bearer` y con `x-goog-api-key`. **Los 47
+  devuelven el mismo `HTTP 402 RESOURCE_EXHAUSTED`**: «Your prepayment credits
+  are depleted». La cuota y los límites son **por proyecto, no por clave ni por
+  modelo** (docs oficiales de rate-limits/billing).
+- **Decisión:** no se cambia el modelo por defecto para «esquivar» el 402: el
+  modelo por defecto (`gemini-3.8-flash`) **ya es de nivel gratuito** según la
+  tabla oficial de precios (input y output «Free of charge»). El bloqueo es el
+  **estado de facturación del proyecto**: habilitar la facturación lo pasó a
+  prepago con **0 créditos**, y ese estado desactiva **también** el nivel
+  gratuito. Ningún nombre de modelo puede saltarse un bloqueo de proyecto.
+- **Motivos:** cambiar el modelo sería un cambio de código inútil (y arriesgado)
+  que no aborda la causa. La documentación oficial es explícita: para volver al
+  nivel gratuito hay que **desactivar la facturación** del proyecto; para seguir
+  con facturación, hay que **cargar créditos de prepago**.
+- **Alternativas descartadas:** (a) bajar a un modelo «más barato» o de otra
+  familia: probado, da el mismo 402; (b) usar `gemma` (gratuito por completo):
+  probado, mismo 402; (c) poner la clave en el cliente: rompe D-057/D-058.
+- **Consecuencias:** G3 sigue **no verificada**. Desbloqueo (humano, una de las
+  dos): **(a)** desactivar la facturación del proyecto de Gemini para recuperar
+  el nivel gratuito (<https://docs.cloud.google.com/billing/docs/how-to/modify-project#disable_billing_for_a_project>),
+  o **(b)** cargar créditos de prepago en AI Studio. Después: configurar la clave
+  en Render, desplegar el backend con la propagación de error (D-060) y ejecutar
+  `npm run eval:real`. El modelo por defecto no requiere cambios.
+
+## D-063 — El proveedor rota entre modelos gratuitos y tolera salidas irregulares
+
+- **Fecha:** cierre de 1.0 (2026-11-06)
+- **Contexto:** tras desactivar la facturación (recuperando el nivel gratuito de
+  Gemini), la clave vuelve a responder. Al ejecutar el arnés de G3 se observaron
+  dos hechos del nivel gratuito: **(1)** el límite es **por modelo** —~5
+  peticiones por minuto y ~20 por día— así que 33 casos agotan enseguida un solo
+  modelo; **(2)** `gemini-3.8-flash` devuelve **503 «high demand»** de forma
+  sistemática, y `gemini-3.5-flash-lite` devuelve a veces un **array suelto** en
+  vez de `{questions:[…]}`.
+- **Decisión:**
+  1. **Rotación de modelos.** `GeminiMayeuticService` usa una **lista** de
+     modelos (`GEMINI_MODEL` + `GEMINI_MODELS`, con respaldos gratuitos por
+     defecto: `gemini-3.5-flash-lite`, `gemini-3.1-flash-lite`). Solo cambia de
+     modelo ante fallos de **cuota o disponibilidad** (429/500/502/503 o error de
+     red); un error de formato o de datos no se reintenta con otro modelo. Modelo
+     por defecto: `gemini-3.6-flash` (responde y respeta el esquema).
+  2. **Parseo tolerante.** `readQuestionDrafts` acepta `{questions:[…]}` o un
+     array suelto, y **descarta solo la pregunta mal formada** en vez de tumbar el
+     lote entero. `providerErrorDetail` desenvuelve el error que el endpoint
+     OpenAI-compatible devuelve **dentro de un array** (`[{error:{…}}]`), sin lo
+     cual el motivo —y la pista de reintento— se perdía.
+  3. **Arnés con ritmo y reintento.** `scripts/eval-real.mjs` espacia los casos
+     (`PACE_MS`) y reintenta ante 429/503; ante un límite **diario** (espera
+     > 60 s) se detiene y deja la puerta «no verificada» en vez de esperar en vano.
+- **Motivos:** el nivel gratuito exige repartir la carga entre varios modelos
+  para sostener una sesión real sin coste; la tolerancia evita perder respuestas
+  válidas por la envoltura o por una sola pregunta defectuosa. Todo respeta el
+  principio de «la heurística es el respaldo» y no introduce dependencias.
+- **Alternativas descartadas:** (a) subir a un plan de pago: rompe la regla de
+  coste cero; (b) fijar un solo modelo: agota su cuota diaria en una sesión;
+  (c) rechazar el lote entero ante una pregunta inválida: pérdida innecesaria.
+- **Consecuencias:** **G3 queda verificada con el proveedor real** (30 casos de
+  evaluación + 3 de generación): concordancia de veredicto **83.3 %** (≥ 80 %),
+  paráfrasis correctas **100 %** (≥ 90 %), **0** citas inventadas. Evidencia:
+  `docs/release-1.0-g3-evidence.txt`. El motor sigue funcionando con la heurística
+  cuando no hay clave, no hay red o se agota la cuota (D-043, D-058).
 
 ## D-064 — El proveedor semántico evalúa, pero el enriquecimiento del turno sigue su curso
 

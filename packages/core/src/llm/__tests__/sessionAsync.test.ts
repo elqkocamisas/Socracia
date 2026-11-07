@@ -68,7 +68,10 @@ const GOOD = concept.definition;
 class StubEvaluator implements AnswerEvaluatorPort {
   public readonly id = 'stub';
   public calls = 0;
-  public constructor(private readonly outcome: 'ok' | LlmError, private readonly score = 0.95) {}
+  public constructor(
+    private readonly outcome: 'ok' | LlmError,
+    private readonly score = 0.95,
+  ) {}
   public async evaluate(): Promise<Result<AnswerEvaluation, LlmError>> {
     this.calls += 1;
     if (this.outcome === 'ok') {

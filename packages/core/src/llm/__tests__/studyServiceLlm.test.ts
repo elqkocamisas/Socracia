@@ -15,9 +15,11 @@ const USER = 'u1';
 
 /** Recupera el pasaje más relevante del RAG como cita para el concepto. */
 function makePassageRetriever(rag: RagEngine, title: string) {
-  return async (
-    concept: { readonly label: string; readonly definition: string; readonly keywords: readonly string[] },
-  ): Promise<readonly LlmPassage[]> => {
+  return async (concept: {
+    readonly label: string;
+    readonly definition: string;
+    readonly keywords: readonly string[];
+  }): Promise<readonly LlmPassage[]> => {
     const query = `${concept.label} ${concept.definition} ${concept.keywords.join(' ')}`;
     const hits = await rag.retrieveRelevant(query, { topK: 1, minScore: 0.05 });
     if (!hits.ok || hits.value.length === 0) {
@@ -42,9 +44,7 @@ function makePassageRetriever(rag: RagEngine, title: string) {
   };
 }
 
-async function setup(
-  buildOptions?: (rag: RagEngine) => Partial<typeof DEFAULT_STUDY_OPTIONS>,
-) {
+async function setup(buildOptions?: (rag: RagEngine) => Partial<typeof DEFAULT_STUDY_OPTIONS>) {
   const storage = inMemoryStorage();
   const rag = new RagEngine(new InMemoryVectorStore(), new HashingEmbeddingProvider(256));
   await rag.ingestDocument(SAMPLE_DOCUMENT, SAMPLE_CURRICULUM_TEXT);

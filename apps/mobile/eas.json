@@ -29,6 +29,13 @@
         "resourceClass": "m-medium"
       },
       "environment": "production"
+    },
+    "release-apk": {
+      "extends": "production",
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      }
     }
   },
   "submit": {

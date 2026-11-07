@@ -13,6 +13,22 @@ import type { Result } from '@socracia/core';
 const MAX_SOURCE_CHARS = 12_000;
 const MAX_ANSWER_CHARS = 6_000;
 
+/**
+ * Modelo gratuito por defecto. `gemini-3.8-flash` quedó fuera: en el nivel
+ * gratuito devuelve 503 («high demand») de forma sistemática. `gemini-3.6-flash`
+ * responde, respeta el esquema de salida y su cuota gratuita es suficiente.
+ */
+const DEFAULT_MODEL = 'gemini-3.6-flash';
+
+/**
+ * Modelos de respaldo por defecto. El nivel gratuito de Gemini limita a ~5
+ * peticiones por minuto y ~20 por día **y modelo**, así que una sola sesión de
+ * estudio —o una suite de evals— agota un modelo enseguida. Rotar entre varios
+ * modelos gratuitos mantiene el motor disponible sin coste. Configurable con
+ * `GEMINI_MODELS` (lista separada por comas).
+ */
+const DEFAULT_FALLBACK_MODELS = ['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite'];
+
 /** Proveedor configurable para generar preguntas y evaluar respuestas. */
 export interface MayeuticAiService {
   generateQuestions(
@@ -31,14 +47,20 @@ export interface MayeuticAiService {
  * backend; no se registran cuerpos, respuestas ni material de estudio en logs.
  */
 export class GeminiMayeuticService implements MayeuticAiService {
-  private readonly model: string;
+  private readonly models: readonly string[];
 
   public constructor(
     private readonly apiKey = process.env.GEMINI_API_KEY,
-    model = process.env.GEMINI_MODEL ?? 'gemini-3.8-flash',
+    model = process.env.GEMINI_MODEL ?? DEFAULT_MODEL,
     private readonly fetchImpl: typeof fetch = fetch,
   ) {
-    this.model = model;
+    const configured = (process.env.GEMINI_MODELS ?? '')
+      .split(',')
+      .map((name) => name.trim())
+      .filter((name) => name.length > 0);
+    // El primero es el principal; los demás solo se usan si aquel agota cuota o
+    // no está disponible. Sin lista explícita se usan los respaldos por defecto.
+    this.models = [model, ...(configured.length > 0 ? configured : DEFAULT_FALLBACK_MODELS)];
   }
 
   public async generateQuestions(
@@ -125,6 +147,27 @@ export class GeminiMayeuticService implements MayeuticAiService {
       return err(new Error('El proveedor semántico no está configurado en el servidor.'));
     }
 
+    let lastError: Error | null = null;
+    for (const model of this.models) {
+      const attempt = await this.completeWithModel(model, system, input);
+      if (attempt.ok) {
+        return attempt;
+      }
+      lastError = attempt.error;
+      // Solo se prueba el siguiente modelo si el fallo es de cuota o de
+      // disponibilidad; un error de formato no mejora cambiando de modelo.
+      if (!isRetryableProviderError(attempt.error.message)) {
+        return attempt;
+      }
+    }
+    return err(lastError ?? new Error('El proveedor semántico no está disponible.'));
+  }
+
+  private async completeWithModel(
+    model: string,
+    system: string,
+    input: unknown,
+  ): Promise<Result<unknown, Error>> {
     let response: Response;
     try {
       response = await this.fetchImpl(
@@ -136,7 +179,7 @@ export class GeminiMayeuticService implements MayeuticAiService {
             'content-type': 'application/json',
           },
           body: JSON.stringify({
-            model: this.model,
+            model,
             temperature: 0.2,
             max_tokens: 1200,
             response_format: { type: 'json_object' },
@@ -158,14 +201,29 @@ export class GeminiMayeuticService implements MayeuticAiService {
       );
     }
 
-    if (!response.ok) {
-      return err(new Error(`El proveedor semántico respondió ${response.status}.`));
-    }
-
     let body: unknown;
+    let parsed = true;
     try {
       body = await response.json();
     } catch {
+      body = null;
+      parsed = false;
+    }
+
+    if (!response.ok) {
+      // Se propaga el motivo del proveedor: sin él, un 400 de clave o de modelo
+      // es indistinguible de un fallo de red y no se puede diagnosticar.
+      const detail = providerErrorDetail(body);
+      return err(
+        new Error(
+          detail
+            ? `El proveedor semántico respondió ${response.status}: ${detail}`
+            : `El proveedor semántico respondió ${response.status}.`,
+        ),
+      );
+    }
+
+    if (!parsed) {
       return err(new Error('El proveedor semántico devolvió una respuesta inválida.'));
     }
 
@@ -181,57 +239,81 @@ export class GeminiMayeuticService implements MayeuticAiService {
   }
 }
 
+/**
+ * Un fallo de cuota (429), de disponibilidad (503) o de red justifica probar otro
+ * modelo; un error de formato o de datos no. Se decide por el mensaje ya
+ * propagado porque el estado HTTP original no llega hasta aquí.
+ */
+function isRetryableProviderError(message: string): boolean {
+  return /respondió (429|500|502|503)|No se pudo contactar|quota|RESOURCE_EXHAUSTED|high demand|UNAVAILABLE/i.test(
+    message,
+  );
+}
+
+/** Valida una pregunta suelta; devuelve `null` si no cumple el esquema. */
+function readQuestionDraft(item: unknown): SemanticQuestionDraft | null {
+  if (
+    !isRecord(item) ||
+    !isOneOf(item.move, [
+      'definir',
+      'problematizar',
+      'contraejemplo',
+      'causa',
+      'consecuencia',
+      'comparar',
+      'justificar',
+      'aplicar-caso',
+    ]) ||
+    !isOneOf(item.level, ['comprender', 'aplicar', 'analizar', 'evaluar']) ||
+    typeof item.prompt !== 'string' ||
+    item.prompt.trim().length < 12 ||
+    item.prompt.length > 500 ||
+    typeof item.expectedAnswer !== 'string' ||
+    item.expectedAnswer.trim().length < 40 ||
+    item.expectedAnswer.length > 1_500 ||
+    !Array.isArray(item.keyTerms) ||
+    item.keyTerms.length === 0 ||
+    item.keyTerms.length > 12 ||
+    !item.keyTerms.every((term) => typeof term === 'string' && term.length <= 80) ||
+    typeof item.difficulty !== 'number' ||
+    !Number.isFinite(item.difficulty) ||
+    item.difficulty < 0 ||
+    item.difficulty > 1
+  ) {
+    return null;
+  }
+  return {
+    prompt: item.prompt.trim(),
+    move: item.move,
+    level: item.level,
+    expectedAnswer: item.expectedAnswer.trim(),
+    keyTerms: item.keyTerms.map((term) => term.trim()).filter(Boolean),
+    difficulty: item.difficulty,
+  };
+}
+
 function readQuestionDrafts(
   value: unknown,
   maxQuestions: number,
 ): Result<readonly SemanticQuestionDraft[], Error> {
-  if (!isRecord(value) || !Array.isArray(value.questions)) {
+  // Algunos modelos gratuitos devuelven un array suelto en vez de `{questions}`;
+  // se aceptan ambas formas para no perder una respuesta válida por la envoltura.
+  const raw = Array.isArray(value) ? value : isRecord(value) ? value.questions : undefined;
+  if (!Array.isArray(raw)) {
     return err(new Error('La respuesta semántica no contiene preguntas.'));
-  }
-  if (value.questions.length === 0 || value.questions.length > maxQuestions) {
-    return err(new Error('El proveedor devolvió un número de preguntas no válido.'));
   }
 
   const questions: SemanticQuestionDraft[] = [];
-  for (const item of value.questions) {
-    if (
-      !isRecord(item) ||
-      !isOneOf(item.move, [
-        'definir',
-        'problematizar',
-        'contraejemplo',
-        'causa',
-        'consecuencia',
-        'comparar',
-        'justificar',
-        'aplicar-caso',
-      ]) ||
-      !isOneOf(item.level, ['comprender', 'aplicar', 'analizar', 'evaluar']) ||
-      typeof item.prompt !== 'string' ||
-      item.prompt.trim().length < 12 ||
-      item.prompt.length > 500 ||
-      typeof item.expectedAnswer !== 'string' ||
-      item.expectedAnswer.trim().length < 40 ||
-      item.expectedAnswer.length > 1_500 ||
-      !Array.isArray(item.keyTerms) ||
-      item.keyTerms.length === 0 ||
-      item.keyTerms.length > 12 ||
-      !item.keyTerms.every((term) => typeof term === 'string' && term.length <= 80) ||
-      typeof item.difficulty !== 'number' ||
-      !Number.isFinite(item.difficulty) ||
-      item.difficulty < 0 ||
-      item.difficulty > 1
-    ) {
-      return err(new Error('El proveedor devolvió una pregunta con formato no válido.'));
+  for (const item of raw.slice(0, maxQuestions)) {
+    const draft = readQuestionDraft(item);
+    // Una pregunta mal formada no debe invalidar el lote entero: se descarta esa
+    // y se conservan las válidas. El motor funciona con las que sobrevivan.
+    if (draft) {
+      questions.push(draft);
     }
-    questions.push({
-      prompt: item.prompt.trim(),
-      move: item.move,
-      level: item.level,
-      expectedAnswer: item.expectedAnswer.trim(),
-      keyTerms: item.keyTerms.map((term) => term.trim()).filter(Boolean),
-      difficulty: item.difficulty,
-    });
+  }
+  if (questions.length === 0) {
+    return err(new Error('El proveedor devolvió una pregunta con formato no válido.'));
   }
   if (
     new Set(questions.map((question) => question.prompt.toLowerCase())).size !== questions.length
@@ -275,6 +357,22 @@ function responseContent(value: unknown): string | null {
     return null;
   }
   return typeof choice.message.content === 'string' ? choice.message.content : null;
+}
+
+/**
+ * Extrae el mensaje de error del proveedor (formato OpenAI/Gemini) para poder
+ * diagnosticar. Nunca incluye la clave: el proveedor no la repite en el cuerpo.
+ */
+function providerErrorDetail(value: unknown): string | null {
+  // El endpoint OpenAI-compatible devuelve el error dentro de un array
+  // (`[{ error: { message } }]`), a diferencia del nativo. Sin desenvolverlo se
+  // pierde el motivo —y la pista de reintento— y un 429 parece un fallo de red.
+  const record = Array.isArray(value) ? value.find(isRecord) : value;
+  if (!isRecord(record) || !isRecord(record.error)) {
+    return null;
+  }
+  const { message } = record.error;
+  return typeof message === 'string' && message.trim().length > 0 ? message.trim() : null;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

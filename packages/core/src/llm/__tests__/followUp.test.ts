@@ -117,7 +117,12 @@ describe('integración con el motor de sesión', () => {
 
   it('la explicación no se ofrece antes del umbral y sí después', async () => {
     const provider = new FakeLlmProvider([
-      { text: JSON.stringify({ explanation: 'Porque sin ley previa no hay actuación válida.', citations: ['d1:0'] }) },
+      {
+        text: JSON.stringify({
+          explanation: 'Porque sin ley previa no hay actuación válida.',
+          citations: ['d1:0'],
+        }),
+      },
     ]);
     const explainer = new LlmExplainer(provider);
     const engine = makeEngine({
