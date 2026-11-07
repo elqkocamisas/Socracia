@@ -31,6 +31,13 @@ const DEFAULT_FALLBACK_MODELS = ['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite
 
 /** Proveedor configurable para generar preguntas y evaluar respuestas. */
 export interface MayeuticAiService {
+  /**
+   * Identificador del modelo principal, si el proveedor lo conoce. Se expone en
+   * `/health` para saber qué modelo sirve cada revisión; nunca la clave.
+   */
+  readonly modelId?: string;
+  /** Si el proveedor tiene credencial y puede atender peticiones. */
+  readonly configured?: boolean;
   generateQuestions(
     concept: Concept,
     citation: Citation,
@@ -61,6 +68,16 @@ export class GeminiMayeuticService implements MayeuticAiService {
     // El primero es el principal; los demás solo se usan si aquel agota cuota o
     // no está disponible. Sin lista explícita se usan los respaldos por defecto.
     this.models = [model, ...(configured.length > 0 ? configured : DEFAULT_FALLBACK_MODELS)];
+  }
+
+  /** Modelo principal; se publica en `/health` (nunca la clave). */
+  public get modelId(): string {
+    return this.models[0] ?? DEFAULT_MODEL;
+  }
+
+  /** Hay credencial: el proveedor puede intentar atender peticiones. */
+  public get configured(): boolean {
+    return Boolean(this.apiKey);
   }
 
   public async generateQuestions(

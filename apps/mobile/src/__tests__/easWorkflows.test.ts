@@ -34,7 +34,7 @@ interface Workflow {
 }
 
 interface EasConfig {
-  build: Record<string, { environment?: string }>;
+  build: Record<string, { environment?: string; extends?: string }>;
 }
 
 function readWorkflow(name: string): Workflow {
@@ -76,14 +76,35 @@ describe('workflows de EAS', () => {
   it('cada perfil que compila declara un entorno con la URL del backend', () => {
     // Un job `build` sin `environment` lo infiere del perfil, y sin la opcion
     // explicita en eas.json un perfil puede caer en un entorno sin variables:
-    // el build saldria con la URL por defecto (localhost) sin avisar.
+    // el build saldria con la URL por defecto (localhost) sin avisar. Un perfil
+    // que extiende de otro hereda su `environment`, asi que se resuelve la
+    // herencia antes de comprobar: `release-apk` extiende de `production`.
     const build = readEasConfig().build;
+    const environmentOf = (perfil: string): string | undefined => {
+      const config = build[perfil];
+      if (!config) return undefined;
+      if (config.environment !== undefined) return config.environment;
+      return config.extends ? environmentOf(config.extends) : undefined;
+    };
 
-    for (const [perfil, config] of Object.entries(build)) {
-      expect({ perfil, entorno: config.environment }).toEqual({
-        perfil,
-        entorno: perfil === 'development' ? undefined : perfil,
-      });
+    for (const perfil of Object.keys(build)) {
+      const declarado = build[perfil]?.environment;
+      const entorno = environmentOf(perfil);
+      if (perfil === 'development') {
+        // El perfil de desarrollo no compila contra el backend: sin entorno.
+        expect({ perfil, entorno }).toEqual({ perfil, entorno: undefined });
+      } else if (declarado !== undefined) {
+        // Si el perfil declara su entorno, debe llevar su nombre.
+        expect({ perfil, entorno }).toEqual({ perfil, entorno: perfil });
+      } else {
+        // Si lo hereda por `extends`, basta con que resuelva a un entorno real
+        // (release-apk hereda el de production): nunca a ninguno, que sería
+        // volver a la URL por defecto.
+        expect({ perfil, resuelto: typeof entorno === 'string' && entorno.length > 0 }).toEqual({
+          perfil,
+          resuelto: true,
+        });
+      }
     }
   });
 
