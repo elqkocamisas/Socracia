@@ -28,7 +28,10 @@
       "ios": {
         "resourceClass": "m-medium"
       },
-      "environment": "production"
+      "environment": "production",
+      "env": {
+        "EXPO_PUBLIC_CLOUD_PROCESSING": "1"
+      }
     },
     "release-apk": {
       "extends": "production",

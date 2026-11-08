@@ -1289,6 +1289,47 @@ StudyError>`; el orden de preferencia es proveedor semántico → evaluador LLM
   onboarding y el consentimiento por documento se guardan en `app_meta` y se
   rehidratan al arrancar.
 
+## D-067 — El modo conectado se activa en el perfil de build, no en la cuenta de EAS
+
+- **Fecha:** introducción del motor semántico en el build de 1.0 (2026-11-08)
+- **Contexto:** el motor mayéutico con modelo (Gemini) estaba **implementado y
+  cableado** desde el Sprint 4/5 (D-043, D-057, D-058): `packages/core/src/llm/`,
+  `apps/mobile/src/services/llmEngine.ts`, `apps/api/src/mayeutic.ts`, la insignia
+  `EngineBadge` y el ajuste «Cuenta → Privacidad». Pero el build de EAS corría
+  **siempre en modo heurístico local**: el log del build mostraba que el entorno
+  `production` solo cargaba `EXPO_PUBLIC_API_BASE_URL`, sin
+  `EXPO_PUBLIC_CLOUD_PROCESSING`. `CLOUD_PROCESSING_AVAILABLE` se calcula de
+  `process.env.EXPO_PUBLIC_CLOUD_PROCESSING === '1'`, así que el APK nacía sin
+  motor: el ajuste de nube ni aparecía y todo se evaluaba con la heurística. El
+  motor existía en el código y no llegaba nunca al usuario.
+- **Decisión:** declarar `env: { EXPO_PUBLIC_CLOUD_PROCESSING: "1" }` en el
+  perfil **`production`** de `eas.json` (fuente única; `release-apk` lo hereda por
+  `extends`, D-059). La variable se resuelve en el repositorio, no en la cuenta de
+  Expo, de modo que el modo conectado es reproducible y queda bajo control de
+  versiones. Una prueba (`buildConfig.test.ts`) fija que el APK de lanzamiento
+  resuelve la variable a `1`, para que un cambio futuro no lo degrade en silencio.
+- **Motivos:** `EXPO_PUBLIC_*` no son secretos (se incrustan en el bundle) y su
+  lugar natural para un valor que se commitea es el `env` del perfil, como indica
+  la documentación de `eas.json`. Ponerlo en la cuenta de EAS lo dejaría fuera del
+  repositorio, sin prueba que lo proteja y dependiente de un paso manual. El
+  **motor sigue siendo opcional en ejecución**: la variable solo hace que la app
+  _ofrezca_ el modo conectado; para que responda el modelo hacen falta además
+  sesión iniciada, ajuste en «allow-cloud» y consentimiento por documento
+  (D-043/D-058). Sin esas condiciones, la heurística responde igual que antes.
+- **Alternativas descartadas:** (a) `eas env:create --environment production`:
+  requiere cuenta de Expo e interactividad, y no queda en el repositorio; (b)
+  poner la variable solo en `release-apk`: rompe la fuente única de D-059 y
+  dejaría `production` (AAB de tienda) sin motor; (c) una `.env` versionada: EAS
+  no la lee para builds remotos (debe estar en `.gitignore`), así que no tendría
+  efecto.
+- **Consecuencias:** el APK de lanzamiento ofrece el modo conectado. Sigue siendo
+  **opt-in** y local-first por defecto: nada sale del dispositivo sin que el
+  usuario inicie sesión y lo autorice. El backend debe tener una clave de
+  proveedor válida (`/health` → `provider.configured: true`) para que el motor
+  responda; si no, la app degrada a la heurística con el motivo visible. Como el
+  build declara la capacidad de transmitir, las declaraciones de tienda y la
+  política de privacidad ya la describen (D-044); no cambian por esta decisión.
+
 ## Ambigüedades pendientes (no bloqueantes)
 
 - **Vertical inicial (oposiciones vs PAU):** resuelto en el Sprint 1: el corpus

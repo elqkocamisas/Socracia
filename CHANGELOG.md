@@ -17,7 +17,10 @@ Primera versión completa del producto: app móvil de un solo usuario, local-fir
 - **Ingesta de documentos PDF, TXT y MD** con RAG on-device y persistencia local
   en SQLite; el índice vectorial se rehidrata al abrir la app.
 - **Proveedor semántico opcional** (Gemini) con consentimiento por documento y
-  clave en el servidor, y la heurística local como respaldo permanente.
+  clave en el servidor, y la heurística local como respaldo permanente. El perfil
+  de build `production` (y su APK de lanzamiento) activa el modo conectado con
+  `EXPO_PUBLIC_CLOUD_PROCESSING=1`, así que el motor con modelo llega al usuario
+  en cuanto inicia sesión y lo autoriza (D-067).
 - **Recorrido dorado automatizado** que prueba el ciclo completo sobre tres
   documentos (TXT, MD y un PDF con texto real), en el núcleo y en la interfaz.
 - **Perfil de EAS `release-apk`** que extiende de producción y entrega un APK

@@ -53,11 +53,13 @@ interface EasConfig {
       developmentClient?: boolean;
       autoIncrement?: boolean;
       android: { buildType: string };
+      env?: Record<string, string>;
     };
     'release-apk': {
       extends: string;
       distribution: string;
       android: { buildType: string };
+      env?: Record<string, string>;
     };
   };
   submit: { production: { android: { track: string } } };
@@ -140,5 +142,18 @@ describe('Configuración de build y tienda', () => {
     expect(apk.extends).toBe('production');
     expect(apk.distribution).toBe('internal');
     expect(apk.android.buildType).toBe('apk');
+  });
+
+  it('el APK de lanzamiento activa el motor semántico (modo conectado)', () => {
+    // El motor con modelo está en el código, pero solo se ofrece si el bundle
+    // trae `EXPO_PUBLIC_CLOUD_PROCESSING=1`. Sin esta variable el APK queda en
+    // modo heurístico local y el ajuste «Cuenta → Privacidad» desaparece: el
+    // motor existiría sin llegar nunca al usuario. La prueba lo fija para que
+    // no se degrade en silencio. El perfil `release-apk` hereda la variable de
+    // `production` (fuente única, D-059), así que se resuelve la herencia.
+    const production = easJson.build.production;
+    const apk = easJson.build['release-apk'];
+    const effective = { ...production.env, ...apk.env };
+    expect(effective.EXPO_PUBLIC_CLOUD_PROCESSING).toBe('1');
   });
 });
