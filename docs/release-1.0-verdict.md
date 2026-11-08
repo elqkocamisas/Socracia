@@ -1,6 +1,6 @@
 # Dictamen de release — Socracia 1.0.0
 
-**Fecha:** 6 de noviembre de 2026
+**Fecha:** 6 de noviembre de 2026 (re-verificado el 8 de noviembre de 2026)
 **Versión evaluada:** `1.0.0` (raíz, workspaces, `app.json` y ficha de tienda)
 **Alcance:** app móvil de un solo usuario, local-first; importación de documentos;
 motor mayéutico; proveedor semántico opcional con consentimiento; APK por EAS.
@@ -9,21 +9,30 @@ tiendas.
 
 ## Veredicto
 
-## ⚠️ NO-GO (bloqueado solo por pasos humanos: G7/G8)
+### ⚠️ NO-GO (bloqueado por G3, G7 y G8)
 
-El proceso mayéutico **funciona de extremo a extremo** y está demostrado con
-pruebas ejecutadas: recorrido dorado sobre TXT, MD y PDF real (núcleo e
-interfaz), **y evals contra el proveedor semántico real** (G3). La versión 1.0.0
-está preparada y el perfil de APK de EAS está definido y validado.
+El proceso mayéutico **funciona de extremo a extremo con proveedor falso** y está
+demostrado con pruebas ejecutadas en la re-verificación de esta sesión: recorrido
+dorado sobre TXT, MD y PDF real (núcleo e interfaz). La versión 1.0.0 está
+preparada y el perfil de APK de EAS está definido y validado.
 
-**Tras desactivar la facturación del proyecto de Gemini (recuperando el nivel
-gratuito), G3 deja de estar bloqueada:** el arnés real supera los tres umbrales
-(concordancia de veredicto **83.3 %**, paráfrasis aceptadas **100 %**, **0**
-citas inventadas). El bloqueo de G3 documentado en dictámenes previos
-(D-061/D-062) era de créditos del proyecto, no de código; queda resuelto.
+**G3 (evals con proveedor real) NO se ha podido reproducir en esta sesión.** El
+arnés `npm run eval:real` contra el backend desplegado
+(`https://socracia.onrender.com`) devuelve:
 
-**El GO queda bloqueado únicamente por dos puertas que exigen un paso humano o
-una credencial no disponible en este entorno:**
+> Proveedor semántico NO disponible: El proveedor semántico respondió 400:
+> Please pass a valid API key
+
+La clave del proveedor configurada en el backend desplegado **ya no es válida**
+(revocada, agotada o reemplazada). La evidencia de G3 de dictámenes previos
+(`docs/release-1.0-g3-evidence.txt`, 83.3 % / 100 % / 0 citas) **no es
+reproducible hoy**: se conserva como registro histórico, pero la puerta queda
+**«no verificada»** en el estado actual. Según las reglas de la misión («sin
+clave real: G3 queda no verificado y bloquea el GO»), esto **bloquea el GO** hasta
+que un proveedor real vuelva a responder y se repita el arnés.
+
+**El GO queda además bloqueado por dos puertas que exigen un paso humano o una
+credencial no disponible en este entorno:**
 
 - **G7 — APK por EAS: pendiente del paso humano.** No hay `EXPO_TOKEN` en el
   entorno. Además, el **primer keystore de Android no se puede generar en modo no
@@ -41,35 +50,41 @@ Se distingue con precisión qué está **documentado**, **implementado**,
 **probado con proveedor falso** y **validado con proveedor real o en
 dispositivo**. Una puerta no se da por cumplida sin evidencia ejecutada.
 
-## Estado de la integración (actualización 2026-11-04)
+## Estado de la integración (actualización 2026-11-04; re-verificación 2026-11-08)
 
 El trabajo de identidad visual (tema claro/oscuro), visibilidad del motor,
-onboarding y consentimiento por documento está en la rama `integration/1.0`
-(PR **#18**, 31 commits sobre `main`). Se añadieron 6 suites de pruebas
-(`themeContrast`, `themeTokens`, `engineStatus`, `healthProbe`,
-`themeAndConsent`, `studyEngineBadge`) y `npm run verify` quedó en **609
-pruebas** verdes, con el recorrido dorado (G2) todavía en verde. Ninguna firma
-pública del dominio cambió.
+onboarding y consentimiento por documento, junto con los sprints 0–5, **ya está
+fusionado en `main`** (PR **#18**, merge `41b5f5e`). Sobre `main` hay además dos
+commits integrados: el perfil `release-apk` de EAS (`76f960b`) y la activación
+del modo conectado en el perfil de producción (`d8e877f`, D-067), que es el HEAD
+de la rama de trabajo.
 
-> **Aviso de integración:** en este entorno el token de GitHub es **de solo
-> lectura** (`x-oauth-scopes` vacío), así que los dos commits nuevos **no se han
-> podido empujar** a `origin/integration/1.0`. Quedan commiteados en local,
-> listos para un `git push` con un token de escritura. Ver «Qué haría falta para
-> convertir esto en GO».
+En la re-verificación del **2026-11-08** (árbol limpio en `d8e877f`) `npm run
+verify` volvió a quedar en verde: **40 suites/341 (core, evals 32/32) + 8/60
+(api) + 31/216 (mobile) = 617 pruebas**. Ninguna firma pública del dominio cambió
+y no hay pruebas omitidas (`skip`/`todo`). El backend desplegado
+(`https://socracia.onrender.com/health`) informa `version 1.0.0`, `commit 76f960b`
+y `provider.configured: true`.
+
+> **Aviso de integración:** en este entorno el `GITHUB_TOKEN` es de **solo
+> lectura**, así que el commit `d8e877f` (y el `76f960b` si no estuviera ya
+> empujado) **no se ha podido empujar**. Queda commiteado en local, listo para un
+> `git push` con un token de escritura. Ver «Qué haría falta para convertir esto
+> en GO».
 
 ## Tabla de puertas G1–G9
 
-| Puerta | Descripción                                                                                | Estado | Nivel de evidencia                          | Evidencia ejecutada                                                                                                                                                                                                                                                            |
-| ------ | ------------------------------------------------------------------------------------------ | ------ | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| G1     | `npm run verify` en verde                                                                  | ✅     | Ejecutado                                   | 40 suites/334 (core, evals 32/32) + 8/60 (api) + 31/215 (mobile) = **609 pruebas**                                                                                                                                                                                             |
-| G2     | Recorrido dorado con 3 documentos (TXT/MD/PDF) y coherencia por capa documentada           | ✅     | Ejecutado con proveedor falso               | `packages/core/src/__tests__/goldenPath.test.ts` (12: extracción por formato + ciclo completo en TXT, MD y PDF real) + `apps/mobile/src/__tests__/goldenPath.e2e.test.tsx` (1, pantallas). Los tres formatos → mismos 3 temas/3 conceptos y mismo cierre de sesión             |
-| G3     | Evals con proveedor real: ≥30 casos, veredicto ≥80 %, 0 citas inventadas, ≥90 % paráfrasis | ✅     | **Ejecutado con proveedor real**            | `npm run eval:real` contra el backend con clave Gemini real y rotación de modelos gratuitos: 30 evaluación + 3 generación. Veredicto **83.3 %**, paráfrasis **100 %**, citas inventadas **0**. Evidencia: `docs/release-1.0-g3-evidence.txt` (D-063)                           |
-| G4     | Degradación probada en los 4 supuestos de F2                                               | ✅     | Ejecutado                                   | `consent.test.ts`, `httpProvider.test.ts` (red, 429/cuota, respuesta inválida), `sessionAsync.test.ts`, `resilience.test.ts`, `llmEngine.test.ts`                                                                                                                              |
-| G5     | Sin secretos en cliente ni en el APK                                                       | ✅     | Ejecutado (APK firmado)                     | Inspección del **APK firmado real** (`unzip` + `strings` del bundle): 0 `AIza`, 0 `GEMINI_API_KEY`, 0 `sk-`, 0 `eyJ`, 0 `api_key`. Solo aparece `password` como prop de autocompletado de React Native. El cliente solo usa token de sesión                                    |
-| G6     | Textos legales alineados y marcados para revisión humana                                   | ✅     | Implementado + revisión humana pendiente    | `docs/privacy-policy.md`, `docs/terms-of-use.md`, `privacy-declarations.json`, `storeListing.test.ts`; notas internas marcadas «PENDIENTE DE REVISIÓN HUMANA»                                                                                                                  |
-| G7     | APK generado por EAS, instalable, versión 1.0.0                                            | ⚠️     | **APK 1.0.0 instalable producido en local** | Artefacto `dist/socracia-1.0.0.apk` (73 MB, `com.socracia.app`, `versionName 1.0.0`, `versionCode 1`, `targetSdk 36`, 4 ABIs, ZIP íntegro, firmado con clave de depuración). **No producido por EAS** (sin `EXPO_TOKEN`); la ruta EAS sigue pendiente del keystore interactivo |
-| G8     | Smoke test humano en dispositivo real                                                      | ⏳     | Pendiente (desbloqueado: ya hay APK)        | Checklist listo: `docs/release-1.0-smoke.md`. Ya se puede instalar el APK local sin esperar a EAS                                                                                                                                                                              |
-| G9     | Documentación y paquete fuente reproducibles                                               | ✅     | Ejecutado                                   | `npm run package:source` produce `dist/socracia-1.0.0-fuente.tar.gz` + manifiesto con huellas; `npm ci && npm run verify` reproducible                                                                                                                                         |
+| Puerta | Descripción                                                                                | Estado | Nivel de evidencia                          | Evidencia ejecutada                                                                                                                                                                                                                                                                                                                                                                    |
+| ------ | ------------------------------------------------------------------------------------------ | ------ | ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| G1     | `npm run verify` en verde                                                                  | ✅     | Ejecutado (re-verificado 2026-11-08)        | Árbol limpio en `d8e877f`: 40 suites/**341** (core, evals 32/32) + 8/**60** (api) + 31/**216** (mobile) = **617 pruebas**                                                                                                                                                                                                                                                              |
+| G2     | Recorrido dorado con 3 documentos (TXT/MD/PDF) y coherencia por capa documentada           | ✅     | Ejecutado con proveedor falso               | `packages/core/src/__tests__/goldenPath.test.ts` (14: extracción por formato + ciclo completo en TXT, MD y PDF real) + `apps/mobile/src/__tests__/goldenPath.e2e.test.tsx` (1, pantallas). Los tres formatos → mismos 3 temas/3 conceptos y mismo cierre de sesión                                                                                                                     |
+| G3     | Evals con proveedor real: ≥30 casos, veredicto ≥80 %, 0 citas inventadas, ≥90 % paráfrasis | ❌     | **NO verificado (no reproducible hoy)**     | Re-ejecución 2026-11-08 de `npm run eval:real` contra `https://socracia.onrender.com`: el backend responde **400 «Please pass a valid API key»**. La clave del proveedor desplegado ya no es válida. La evidencia histórica (`docs/release-1.0-g3-evidence.txt`, 83.3 %/100 %/0) no se ha podido reproducir: **bloquea el GO**                                                         |
+| G4     | Degradación probada en los 4 supuestos de F2                                               | ✅     | Ejecutado                                   | `consent.test.ts`, `httpProvider.test.ts` (red, 429/cuota, respuesta inválida), `sessionAsync.test.ts`, `resilience.test.ts`, `llmEngine.test.ts`                                                                                                                                                                                                                                      |
+| G5     | Sin secretos en cliente ni en el APK                                                       | ✅     | Ejecutado (APK firmado, re-verificado)      | Inspección 2026-11-08 del **APK firmado real** (`dist/socracia-1.0.0.apk`, ZIP válido, 1158 entradas, firma **v2/v3**): 0 `AIza`, 0 `GEMINI_API_KEY`, 0 `sk-`, 0 JWT, 0 clave privada en el bundle y en el APK completo. El único acierto de `api_key` es el pool de nombres de propiedad minificados de React Native, no un valor. El cliente solo usa token de sesión                |
+| G6     | Textos legales alineados y marcados para revisión humana                                   | ✅     | Implementado + revisión humana pendiente    | `docs/privacy-policy.md`, `docs/terms-of-use.md`, `privacy-declarations.json`, `storeListing.test.ts`; notas internas marcadas «PENDIENTE DE REVISIÓN HUMANA»                                                                                                                                                                                                                          |
+| G7     | APK generado por EAS, instalable, versión 1.0.0                                            | ⚠️     | **APK 1.0.0 instalable producido en local** | Artefacto `dist/socracia-1.0.0.apk` (72 MB, `com.socracia.app`, `versionName 1.0.0`, `versionCode 1`, firma **v2/v3**, ZIP íntegro). **No producido por EAS** (sin `EXPO_TOKEN`); la ruta EAS sigue pendiente del keystore interactivo. Nota: el APK local es **anterior** al commit D-067, así que su bundle **no** activa el modo conectado (cae a heurística, degradación correcta) |
+| G8     | Smoke test humano en dispositivo real                                                      | ⏳     | Pendiente (desbloqueado: ya hay APK)        | Checklist listo: `docs/release-1.0-smoke.md`. Ya se puede instalar el APK local sin esperar a EAS                                                                                                                                                                                                                                                                                      |
+| G9     | Documentación y paquete fuente reproducibles                                               | ✅     | Ejecutado (re-verificado 2026-11-08)        | `npm run package:source` reproduce `dist/socracia-1.0.0-fuente.tar.gz` (**253 ficheros**) + manifiesto con huellas; el tarball no contiene secretos; `npm ci && npm run verify` está documentado como reproducible (la verificación de esta sesión fue sobre el árbol ya instalado)                                                                                                    |
 
 Leyenda: ✅ cumplida · ⚠️ parcial (requiere paso humano) · ❌ no verificada · ⏳ pendiente.
 
@@ -92,20 +107,25 @@ en el recorrido, con proveedor falso.
 
 ## Riesgos abiertos
 
-1. **G3 verificada, con matiz.** La evals reales superan los umbrales
-   (83.3 % / 100 % / 0 citas), pero con **modelos gratuitos** y rotación: la
-   concordancia del 83.3 % está **por encima** del 80 % exigido por un margen
-   estrecho (2 casos). Un modelo de pago probablemente suba el margen; el nivel
-   gratuito es el que permite el coste cero. Riesgo de **varianza**: repeticiones
-   futuras pueden caer justo por debajo del umbral. Mitigación: el motor degrada a
-   la heurística (probada) y el umbral no se toca.
+1. **G3 NO reproducida (bloqueante).** La re-ejecución del 2026-11-08 contra el
+   backend desplegado devuelve **400 «Please pass a valid API key»**: la clave
+   del proveedor configurada en Render ya no es válida. La evidencia histórica
+   (83.3 % / 100 % / 0 citas, `docs/release-1.0-g3-evidence.txt`) **no se ha
+   podido reproducir hoy**. Mitigación mientras no haya clave: el motor degrada a
+   la heurística (probada en G4). Para cerrar G3 hay que reponer una clave válida
+   en el servidor (nunca en el cliente) y repetir `npm run eval:real`.
 2. **Primer build de EAS (bloqueante para G7/G8).** El primer keystore exige modo
-   interactivo. Cuota: el plan gratuito permite una cantidad limitada de builds de
-   baja prioridad al mes (reset mensual); no se ha consumido ninguno desde aquí.
-   Respaldo: `docs/build-apk-local.md`.
-3. **APK no inspeccionado como artefacto.** G5 se comprobó sobre el bundle de
-   `expo export`, que es la entrada del APK, no sobre el APK final firmado. Se
-   recomienda repetir la inspección de `strings` sobre el `.apk` una vez generado.
+   interactivo (confirmado en la documentación vigente: «you will be prompted to
+   generate credentials»). Cuota verificada el 2026-11-08 en
+   <https://expo.dev/pricing>: el plan gratuito incluye **15 builds Android + 15
+   iOS** de baja prioridad al mes (reset mensual); no se ha consumido ninguno
+   desde aquí. Respaldo si se agota: `docs/build-apk-local.md`.
+3. **APK local anterior a D-067.** El APK de `dist/` se compiló antes del commit
+   que activa el modo conectado, así que su bundle **no** ofrece el motor
+   semántico (cae a heurística). El smoke test en dispositivo con este APK valida
+   la app y la degradación, pero **no** el modo conectado. Para validar el modo
+   conectado hace falta recompilar (local o EAS) en `d8e877f` y un backend con
+   clave válida.
 4. **Textos legales pendientes de revisión humana.** Coherentes con el
    comportamiento, pero no validados por asesoría jurídica (G6).
 5. **Umbral de relevancia del RAG** calibrado para el proveedor léxico
@@ -116,13 +136,19 @@ en el recorrido, con proveedor falso.
 
 ## Qué haría falta para convertir esto en GO
 
-Solo **dos pasos humanos**; el resto de puertas está en verde.
+Tres pasos, de los cuales dos son humanos y uno exige una clave válida.
 
-1. Lanzar el primer `eas build` **interactivo** para generar el keystore y
+1. **Restaurar G3 (bloqueante principal).** Reponer en el backend desplegado una
+   clave de proveedor **válida** (Gemini u otro compatible; nivel gratuito, coste
+   cero) como variable de entorno **solo del servidor** y ejecutar
+   `npm run eval:real` contra él. Debe superar ≥30 casos, veredicto ≥80 %,
+   paráfrasis ≥90 % y 0 citas inventadas. Sin esto, G3 queda «no verificada» y el
+   GO no es honesto.
+2. **Lanzar el primer `eas build` interactivo** para generar el keystore y
    producir el APK de lanzamiento (G7). Comandos exactos en
-   `docs/release-1.0-checklist.md` (Sprint 2). Requiere `EXPO_TOKEN` o sesión
+   `docs/release-1.0-checklist.md` (Sprint 1). Requiere `EXPO_TOKEN` o sesión
    interactiva con la cuenta de Expo del propietario.
-2. Ejecutar `docs/release-1.0-smoke.md` en un teléfono real (G8).
+3. **Ejecutar `docs/release-1.0-smoke.md`** en un teléfono real (G8).
 
 Los pasos concretos, con sus comandos exactos, están en
 `docs/release-1.0-checklist.md` y en `docs/release-1.0-smoke.md`.

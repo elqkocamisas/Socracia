@@ -1,5 +1,11 @@
 Evidencia G3 — evals del motor mayéutico contra el proveedor semántico REAL
 
+⚠️ REGISTRO HISTÓRICO — NO REPRODUCIBLE HOY (2026-11-08). El backend desplegado
+responde ahora 400 «Please pass a valid API key»: la clave del proveedor ya no
+es válida. La puerta G3 queda «no verificada» y bloquea el GO (ver D-068 y
+docs/release-1.0-verdict.md). Se conserva este registro como referencia de que
+el motor superó los umbrales cuando el proveedor respondía.
+
 Fecha:      2026-11-06
 Ejecución:  node scripts/eval-real.mjs (npm run eval:real)
 Backend:    apps/api local (node apps/api/dist/index.js) con GEMINI_API_KEY real

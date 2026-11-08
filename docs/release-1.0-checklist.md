@@ -4,24 +4,33 @@ Sprints restantes para convertir el dictamen NO-GO en GO, ordenados por **camino
 crítico**. Cada uno declara objetivo, tareas, puerta de aceptación, tamaño
 (S/M/L), dependencias y responsable (agente o humano).
 
-Contexto: el proceso mayéutico funciona de extremo a extremo y **G1, G2, G3, G4,
-G5, G6 y G9 están en verde**. Ya existe un **APK 1.0.0 instalable compilado en
-local** (`dist/socracia-1.0.0.apk`), de modo que **G8 queda desbloqueado**. Siguen
-abiertos **G7** (APK «oficial» por EAS, pendiente del primer keystore interactivo)
-y el **redespliegue de Render** para que el motor semántico funcione de verdad en
-el APK.
+Contexto: el proceso mayéutico funciona de extremo a extremo y **G1, G2, G4, G5,
+G6 y G9 están en verde** (re-verificados el 2026-11-08). Ya existe un **APK 1.0.0
+instalable compilado en local** (`dist/socracia-1.0.0.apk`), aunque es **anterior**
+al commit que activa el modo conectado, así que su smoke test no valida el motor
+semántico. Siguen abiertos:
+
+- **G3** (evals con proveedor real): la clave del backend desplegado ya **no es
+  válida** (400 «Please pass a valid API key»), así que la puerta queda **no
+  verificada** y **bloquea el GO**. Es el camino crítico principal.
+- **G7** (APK «oficial» por EAS): pendiente del primer keystore interactivo.
+- **G8** (smoke en dispositivo): pendiente; puede empezar con el APK local, pero
+  para validar el modo conectado hay que recompilar en `d8e877f`.
 
 ## Camino crítico hacia 1.0
 
-| #   | Sprint                    | Objetivo                                                         | Puerta       | Tamaño | Depende de     | Responsable |
-| --- | ------------------------- | ---------------------------------------------------------------- | ------------ | ------ | -------------- | ----------- |
-| 0   | Integrar y redesplegar    | Fusionar el PR #18 y redesplegar Render con el código de 1.0     | (motor real) | S      | PAT escritura  | **Humano**  |
-| 1   | Primer build de EAS       | Generar el keystore inicial y producir el APK de lanzamiento EAS | **G7**       | M      | Cuenta Expo    | **Humano**  |
-| 2   | Inspección del APK final  | Confirmar que no hay secretos en el APK firmado                  | **G5** (APK) | S      | #1             | Agente      |
-| 3   | Smoke test en dispositivo | Ejecutar el checklist manual en un teléfono real                 | **G8**       | M      | #0 (APK local) | **Humano**  |
+| #   | Sprint                    | Objetivo                                                                      | Puerta       | Tamaño | Depende de     | Responsable |
+| --- | ------------------------- | ----------------------------------------------------------------------------- | ------------ | ------ | -------------- | ----------- |
+| 0   | Integrar y redesplegar    | Fusionar el PR #18 y redesplegar Render con el código de 1.0                  | (motor real) | S      | PAT escritura  | **Humano**  |
+| 1   | Restaurar G3              | Reponer una clave de proveedor válida (solo servidor) y repetir el arnés real | **G3**       | S      | Clave válida   | **Humano**  |
+| 2   | Primer build de EAS       | Generar el keystore inicial y producir el APK de lanzamiento EAS              | **G7**       | M      | Cuenta Expo    | **Humano**  |
+| 3   | Inspección del APK final  | Confirmar que no hay secretos en el APK firmado                               | **G5** (APK) | S      | #2             | Agente      |
+| 4   | Smoke test en dispositivo | Ejecutar el checklist manual en un teléfono real                              | **G8**       | M      | #0 (APK local) | **Humano**  |
 
-> El APK local (`dist/socracia-1.0.0.apk`) ya permite hacer el Sprint 3 sin
-> esperar al Sprint 1. El Sprint 1 solo es necesario para el APK «oficial» de EAS.
+> El APK local (`dist/socracia-1.0.0.apk`) ya permite hacer el Sprint 4 sin
+> esperar al Sprint 2, pero **solo valida el modo heurístico** (es anterior a
+> D-067). Para validar el modo conectado hace falta un APK recompilado en
+> `d8e877f` **y** un backend con clave válida (Sprint 1).
 
 ---
 
@@ -47,7 +56,30 @@ el APK.
 
 ---
 
-## Sprint 1 — Primer build de EAS (G7)
+## Sprint 1 — Restaurar G3 (evals con proveedor real)
+
+- **Objetivo:** volver a tener evidencia real de que el motor semántico responde
+  dentro de los umbrales de G3.
+- **Contexto:** el arnés `npm run eval:real` contra el backend desplegado devuelve
+  **400 «Please pass a valid API key»**: la clave configurada en Render ya no es
+  válida. Sin clave real, G3 queda «no verificada» y **bloquea el GO**.
+- **Tareas:**
+  1. **(Humano)** Obtener una clave válida del proveedor en su **nivel gratuito**
+     (coste cero; ver `docs/free-stack.md`) y guardarla **solo** como variable de
+     entorno del servidor (Render → Environment). Nunca en el cliente.
+  2. **(Humano)** Redesplegar el backend para que tome la variable.
+  3. **(Agente/Humano)** Ejecutar
+     `SOCRA_REAL_EVAL_BASE_URL=https://socracia.onrender.com npm run eval:real`.
+  4. **(Agente)** Adjuntar la salida real a `docs/release-1.0-g3-evidence.txt`.
+- **Puerta de aceptación:** ≥30 casos, concordancia de veredicto ≥80 %,
+  paráfrasis aceptadas ≥90 %, 0 citas inventadas.
+- **Tamaño:** S.
+- **Dependencias:** una clave de proveedor válida (coste cero) y el backend
+  desplegado con el código de 1.0.
+- **Responsable:** **humano** (obtener/desplegar la clave); agente (ejecutar el
+  arnés y registrar la evidencia).
+
+## Sprint 2 — Primer build de EAS (G7)
 
 - **Objetivo:** generar el APK de lanzamiento con el perfil `release-apk`.
 - **Tareas:**
@@ -64,15 +96,15 @@ el APK.
   `versionCode` asignado por EAS en remoto (`appVersionSource: remote`).
 - **Tamaño:** M.
 - **Dependencias:** cuenta de Expo con acceso al proyecto; cuota gratuita de EAS
-  disponible (builds de baja prioridad al mes, reset mensual; verificado el
-  2026-11-06 en <https://docs.expo.dev/billing/plans/>).
+  disponible (verificado el 2026-11-08 en <https://expo.dev/pricing>: **15 builds
+  Android + 15 iOS** de baja prioridad al mes, reset mensual).
 - **Responsable:** **humano** (interactivo; el agente no puede generar el primer
   keystore).
 - **Respaldo si la cuota está agotada:** compilar en local con
   `docs/build-apk-local.md` (JDK 21, SDK 36). No cuenta como G7 «APK por EAS»,
   pero permite el smoke test.
 
-## Sprint 2 — Inspección del APK final (G5 sobre el artefacto)
+## Sprint 3 — Inspección del APK final (G5 sobre el artefacto)
 
 - **Objetivo:** confirmar que el APK firmado no contiene secretos.
 - **Tareas:**
@@ -83,10 +115,10 @@ el APK.
   3. **(Agente)** Registrar el resultado en el dictamen.
 - **Puerta de aceptación:** 0 secretos en el APK firmado.
 - **Tamaño:** S.
-- **Dependencias:** Sprint 1.
+- **Dependencias:** Sprint 2.
 - **Responsable:** agente.
 
-## Sprint 3 — Smoke test en dispositivo (G8)
+## Sprint 4 — Smoke test en dispositivo (G8)
 
 - **Objetivo:** validar la app completa en un teléfono Android real.
 - **Tareas:**
@@ -97,19 +129,23 @@ el APK.
      bloqueen el recorrido y repetir.
 - **Puerta de aceptación:** checklist APTO, sin incidencias bloqueantes.
 - **Tamaño:** M.
-- **Dependencias:** Sprint 1.
+- **Dependencias:** Sprint 0 (APK local) o Sprint 2 (APK EAS). Para validar el
+  modo conectado, además el Sprint 1 (clave válida) y un APK recompilado en
+  `d8e877f`.
 - **Responsable:** **humano**.
 
 ---
 
 ## Riesgos abiertos (resumen)
 
-- **Margen de G3:** la concordancia de veredicto (83.3 %) supera el 80 % por un
-  margen estrecho, con modelos gratuitos. Repeticiones futuras pueden caer por
-  debajo. Mitigación: el motor degrada a la heurística; el umbral no se toca.
-- **Cuota de EAS:** builds de baja prioridad al mes en el plan gratuito. Reservar
-  al menos uno para el APK de lanzamiento; usar la ruta local si se agota.
+- **G3 no reproducida (bloqueante):** la clave del backend desplegado ya no es
+  válida; sin evidencia real, la puerta queda «no verificada». Reponer clave y
+  repetir el arnés.
+- **Cuota de EAS:** 15 builds Android + 15 iOS al mes en el plan gratuito
+  (verificado 2026-11-08). Reservar al menos uno para el APK de lanzamiento; usar
+  la ruta local si se agota.
 - **Primer keystore:** requiere modo interactivo, no automatizable por el agente.
+- **APK local anterior a D-067:** valida el modo heurístico, no el conectado.
 - **Recalibración del RAG:** si se adopta un proveedor semántico real, revisar
   `DEFAULT_RELEVANCE.minScore` (hoy 0.2, calibrado para el proveedor léxico).
 - **Textos legales:** coherentes con el comportamiento, pero pendientes de

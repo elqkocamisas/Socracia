@@ -1330,6 +1330,35 @@ StudyError>`; el orden de preferencia es proveedor semántico → evaluador LLM
   build declara la capacidad de transmitir, las declaraciones de tienda y la
   política de privacidad ya la describen (D-044); no cambian por esta decisión.
 
+## D-068 — G3 no se declara cumplida sin evidencia reproducible
+
+- **Fecha:** re-verificación de release 1.0 (2026-11-08)
+- **Contexto:** dictámenes previos daban **G3 por cumplida** con la evidencia de
+  `docs/release-1.0-g3-evidence.txt` (83.3 % de concordancia, 100 % de paráfrasis,
+  0 citas inventadas). Al re-ejecutar el arnés `npm run eval:real` contra el
+  backend desplegado (`https://socracia.onrender.com`), este responde
+  **400 «Please pass a valid API key»**: la clave del proveedor configurada en
+  Render ya no es válida (revocada, agotada o reemplazada). La evidencia histórica
+  no se ha podido **reproducir**.
+- **Decisión:** la puerta G3 se marca **«no verificada»** y **bloquea el GO**.
+  Una puerta no se da por cumplida por evidencia histórica que no puede repetirse
+  hoy. La evidencia previa se conserva como registro, pero el dictamen vigente
+  refleja el estado real.
+- **Motivos:** la misión exige distinguir «probado con proveedor falso» de
+  «validado con proveedor real» y no declarar 1.0 sin G3 real. Declarar GO con una
+  evidencia no reproducible sería deshonesto. El backend responde
+  `provider.configured: true` en `/health` (la variable existe), pero la clave
+  **no autentica**: `configured` no implica `valid`.
+- **Consecuencias:** el camino crítico a 1.0 empieza por reponer una clave de
+  proveedor **válida** (nivel gratuito, coste cero) **solo en el servidor** y
+  repetir `npm run eval:real`. Mientras tanto, el motor degrada a la heurística
+  (probada en G4) y la app sigue funcionando local-first. No se toca el umbral de
+  G3 ni se activa nada nuevo.
+- **Alternativas descartadas:** (a) dar G3 por buena con la evidencia previa: viola
+  la honestidad exigida; (b) poner una clave en el cliente o en el repositorio:
+  prohibido por la misión y por la política de privacidad (D-044); (c) bajar los
+  umbrales: no resuelve la causa (clave inválida) y debilita la puerta.
+
 ## Ambigüedades pendientes (no bloqueantes)
 
 - **Vertical inicial (oposiciones vs PAU):** resuelto en el Sprint 1: el corpus

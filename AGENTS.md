@@ -373,10 +373,9 @@ Trampas conocidas:
   humano: `cd apps/mobile && npx eas-cli login && npx eas-cli build --profile
 release-apk --platform android` (aceptar el keystore cuando lo pida). Sin
   `EXPO_TOKEN`, el agente no puede lanzarlo.
-- **Plan gratuito de EAS: builds de baja prioridad limitadas al mes** (se
-  reinician el día 1; sin sobrecoste). La documentación oficial **no publica una
-  cifra fija** para el plan gratuito; comprobar el consumo en Expo → Billing →
-  Usage antes de lanzar. Si se agota, usar la ruta local de
+- **Plan gratuito de EAS: 15 builds Android + 15 iOS de baja prioridad al mes**
+  (se reinician el día 1; sin sobrecoste). Verificado el 2026-11-08 en
+  <https://expo.dev/pricing>. Si se agota, usar la ruta local de
   `docs/build-apk-local.md`.
 - **La versión vive en 6 sitios + el lockfile.** Al subirla: `package.json`
   (raíz y 3 workspaces), `apps/mobile/app.json`, `apps/mobile/store/listing.json`
@@ -394,3 +393,14 @@ release-apk --platform android` (aceptar el keystore cuando lo pida). Sin
   `docs/release-1.0-checklist.md`; prueba manual en `docs/release-1.0-smoke.md`.
 - **La multitenencia no está implementada.** No hay código `MULTITENANT` en el
   árbol: solo documentación (D-053…D-058). Inerte por construcción.
+- **`provider.configured: true` no implica clave válida.** El `/health` del
+  backend desplegado informa `configured: true` aunque la clave esté revocada; el
+  único modo de comprobarlo es llamar a `/mayeutic/evaluate`. El 2026-11-08 la
+  clave de Render devolvió **400 «Please pass a valid API key»**, así que **G3
+  quedó no verificada** y bloquea el GO (D-068). Antes de dar G3 por buena,
+  re-ejecutar `npm run eval:real` contra el backend real; una evidencia histórica
+  que no se reproduce hoy no vale como puerta.
+- **La cuota gratuita de EAS son 15 builds Android + 15 iOS/mes** (baja
+  prioridad, reset mensual; verificado 2026-11-08 en <https://expo.dev/pricing>).
+  El primer keystore de Android exige modo interactivo («you will be prompted to
+  generate credentials»): no se puede generar en CI no interactivo.

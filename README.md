@@ -32,14 +32,15 @@ hay código multitenante que activar ni que apagar.
 
 El dictamen de la versión y la evidencia de cada puerta de aceptación están en
 [`docs/release-1.0-verdict.md`](docs/release-1.0-verdict.md). El proceso
-mayéutico está verificado de extremo a extremo, incluida la puerta **G3** (evals
-contra el proveedor semántico real: 83.3 % de concordancia de veredicto, 100 % de
-paráfrasis aceptadas, 0 citas inventadas; evidencia en
-[`docs/release-1.0-g3-evidence.txt`](docs/release-1.0-g3-evidence.txt)). Solo
-restan dos pasos humanos: generar el APK por EAS y ejecutar la prueba manual en
-dispositivo, que sigue el checklist
-[`docs/release-1.0-smoke.md`](docs/release-1.0-smoke.md). Los pasos exactos están
-en [`docs/release-1.0-checklist.md`](docs/release-1.0-checklist.md).
+mayéutico está verificado de extremo a extremo con proveedor falso (recorrido
+dorado sobre TXT, MD y PDF). El dictamen vigente es **NO-GO**: la puerta **G3**
+(evals contra el proveedor real) **no se ha podido reproducir** —la clave del
+backend desplegado ya no es válida— y siguen pendientes el **APK por EAS** (G7,
+primer keystore interactivo) y el **smoke test en dispositivo** (G8). Hay un APK
+1.0.0 instalable compilado en local (`dist/socracia-1.0.0.apk`), pero es anterior
+al commit que activa el modo conectado. Los pasos exactos están en
+[`docs/release-1.0-checklist.md`](docs/release-1.0-checklist.md) y el checklist
+manual en [`docs/release-1.0-smoke.md`](docs/release-1.0-smoke.md).
 
 ## Stack
 
