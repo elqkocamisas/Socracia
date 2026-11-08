@@ -325,6 +325,21 @@ Trampas conocidas:
   `packages/core/src`, hay que `npm run build --workspace @socracia/core` antes
   de `npm run verify`, o el typecheck de móvil usará los `.d.ts` antiguos y
   dará errores que el código fuente no tiene.
+- **`userInterfaceStyle: automatic` no hace nada en Android sin
+  `expo-system-ui`.** Sin ese paquete, `useColorScheme()` no sigue la apariencia
+  del sistema y el tema «automático» queda fijo. El prebuild lo avisa con
+  `Install expo-system-ui in your project to enable this feature`. Instalado en
+  la 1.0 (`expo-system-ui` en `apps/mobile/package.json`).
+- **El APK local se firma con la clave de depuración.** `assembleRelease` sobre
+  un prebuild limpio usa el keystore de debug: sirve para probar, no para
+  publicar. Además, `expo prebuild` reescribe los scripts `android`/`ios` a
+  `expo run:*`; hay que revertir ese cambio (el resto de cambios del prebuild en
+  `android/` no se versionan, está en `.gitignore`).
+- **Las variables `EXPO_PUBLIC_*` se incrustan en el bundle al compilar.** No son
+  secretos: `EXPO_PUBLIC_API_BASE_URL` fija el backend del APK y
+  `EXPO_PUBLIC_CLOUD_PROCESSING=1` habilita el asistente con modelo. Si se
+  exportan en la shell de pruebas, **rompen suites que asumen modo local**
+  (`privacySettings`, `studyEngineBadge`): limpiarlas antes de `npm run verify`.
 
 ## Cierre de 1.0 (2026-11-04)
 
@@ -349,8 +364,11 @@ Trampas conocidas:
   humano: `cd apps/mobile && npx eas-cli login && npx eas-cli build --profile
 release-apk --platform android` (aceptar el keystore cuando lo pida). Sin
   `EXPO_TOKEN`, el agente no puede lanzarlo.
-- **Plan gratuito de EAS = 15 builds de Android al mes** (verificado 2026-11-04).
-  Si se agota, usar la ruta local de `docs/build-apk-local.md`.
+- **Plan gratuito de EAS: builds de baja prioridad limitadas al mes** (se
+  reinician el día 1; sin sobrecoste). La documentación oficial **no publica una
+  cifra fija** para el plan gratuito; comprobar el consumo en Expo → Billing →
+  Usage antes de lanzar. Si se agota, usar la ruta local de
+  `docs/build-apk-local.md`.
 - **La versión vive en 6 sitios + el lockfile.** Al subirla: `package.json`
   (raíz y 3 workspaces), `apps/mobile/app.json`, `apps/mobile/store/listing.json`
   y `package-lock.json` (entradas raíz y de cada workspace). **No** hacer
