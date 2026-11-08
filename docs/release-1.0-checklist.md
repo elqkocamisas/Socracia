@@ -5,16 +5,45 @@ crítico**. Cada uno declara objetivo, tareas, puerta de aceptación, tamaño
 (S/M/L), dependencias y responsable (agente o humano).
 
 Contexto: el proceso mayéutico funciona de extremo a extremo y **G1, G2, G3, G4,
-G5, G6 y G9 están en verde**. Bloquean el GO **G7** (APK por EAS) y **G8** (smoke
-test en dispositivo), ambos pendientes de un paso humano.
+G5, G6 y G9 están en verde**. Ya existe un **APK 1.0.0 instalable compilado en
+local** (`dist/socracia-1.0.0.apk`), de modo que **G8 queda desbloqueado**. Siguen
+abiertos **G7** (APK «oficial» por EAS, pendiente del primer keystore interactivo)
+y el **redespliegue de Render** para que el motor semántico funcione de verdad en
+el APK.
 
 ## Camino crítico hacia 1.0
 
-| #   | Sprint                    | Objetivo                                                     | Puerta       | Tamaño | Depende de  | Responsable |
-| --- | ------------------------- | ------------------------------------------------------------ | ------------ | ------ | ----------- | ----------- |
-| 1   | Primer build de EAS       | Generar el keystore inicial y producir el APK de lanzamiento | **G7**       | M      | Cuenta Expo | **Humano**  |
-| 2   | Inspección del APK final  | Confirmar que no hay secretos en el APK firmado              | **G5** (APK) | S      | #1          | Agente      |
-| 3   | Smoke test en dispositivo | Ejecutar el checklist manual en un teléfono real             | **G8**       | M      | #1          | **Humano**  |
+| #   | Sprint                    | Objetivo                                                         | Puerta       | Tamaño | Depende de     | Responsable |
+| --- | ------------------------- | ---------------------------------------------------------------- | ------------ | ------ | -------------- | ----------- |
+| 0   | Integrar y redesplegar    | Fusionar el PR #18 y redesplegar Render con el código de 1.0     | (motor real) | S      | PAT escritura  | **Humano**  |
+| 1   | Primer build de EAS       | Generar el keystore inicial y producir el APK de lanzamiento EAS | **G7**       | M      | Cuenta Expo    | **Humano**  |
+| 2   | Inspección del APK final  | Confirmar que no hay secretos en el APK firmado                  | **G5** (APK) | S      | #1             | Agente      |
+| 3   | Smoke test en dispositivo | Ejecutar el checklist manual en un teléfono real                 | **G8**       | M      | #0 (APK local) | **Humano**  |
+
+> El APK local (`dist/socracia-1.0.0.apk`) ya permite hacer el Sprint 3 sin
+> esperar al Sprint 1. El Sprint 1 solo es necesario para el APK «oficial» de EAS.
+
+---
+
+## Sprint 0 — Integrar y redesplegar (motor semántico real)
+
+- **Objetivo:** que el APK hable con un backend que ejecute el código de 1.0.
+- **Tareas:**
+  1. **(Humano)** Empujar los commits locales y fusionar el **PR #18** (con un PAT
+     con permiso de escritura; el token de este entorno es de solo lectura).
+  2. **(Humano)** Render → servicio `socracia-api` → _Manual Deploy_ (o dejar que
+     Auto-Deploy lo dispare la fusión de `main`).
+  3. **(Agente/Humano)** Comprobar `GET /health`:
+     `{"status":"ok","version":"1.0.0","commit":"…","provider":{"configured":true,...}}`.
+- **Puerta de aceptación:** `/health` informa `version 1.0.0` y
+  `provider.configured: true`; el APK responde con el motor semántico (con cuenta
+  y consentimiento).
+- **Tamaño:** S.
+- **Dependencias:** PAT con escritura de contenidos y pull requests.
+- **Responsable:** **humano**.
+
+> Sin este paso, el APK funciona en **modo heurístico local** (que es una
+> degradación correcta y probada), pero no ejerce el proveedor semántico real.
 
 ---
 

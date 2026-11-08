@@ -5,9 +5,12 @@ lanzamiento. Marca cada casilla con la evidencia observada (captura, nota o
 «OK»). Si algo falla, anota el paso exacto y detente: no continúes como si
 hubiera pasado.
 
-- **Build:** `release-apk` (APK, distribución interna)
-- **Versión esperada:** `1.0.0` (el `versionCode` lo asigna EAS en remoto)
-- **Preparación:** instala el APK (`adb install -r socracia-*.apk`) y abre la
+- **Build:** `release-apk` (APK, distribución interna). Hay un **APK 1.0.0 ya
+  compilado en local** (`dist/socracia-1.0.0.apk`, `com.socracia.app`, firmado
+  con clave de depuración) que sirve para este smoke test sin esperar a EAS.
+- **Versión esperada:** `1.0.0` (el `versionCode` lo asigna EAS en remoto; el
+  APK local trae `versionCode 1`)
+- **Preparación:** instala el APK (`adb install -r socracia-1.0.0.apk`) y abre la
   app con el dispositivo **sin conexión** para el bloque 1.
 
 ## 0. Preparación
@@ -89,6 +92,29 @@ hubiera pasado.
 
 ## Cómo generar el APK
 
+### Ruta local (ya ejecutada; produce un APK instalable de inmediato)
+
+No necesita cuenta ni cuota; firma con la clave de depuración (vale para probar,
+no para publicar). Ver [`docs/build-apk-local.md`](build-apk-local.md):
+
+```bash
+cd apps/mobile
+npx expo prebuild --platform android --no-install --clean
+cd android
+EXPO_PUBLIC_API_BASE_URL=https://socracia-api.onrender.com \
+  EXPO_PUBLIC_CLOUD_PROCESSING=1 \
+  GRADLE_USER_HOME=/tmp/gradle-home ./gradlew assembleRelease --no-daemon
+# Sale en app/build/outputs/apk/release/app-release.apk (copiado a dist/socracia-1.0.0.apk)
+```
+
+> Las variables `EXPO_PUBLIC_*` se **incrustan en el bundle** en el momento de
+> compilar; no son secretos. `EXPO_PUBLIC_API_BASE_URL` apunta al backend y
+> `EXPO_PUBLIC_CLOUD_PROCESSING=1` habilita el asistente con modelo (siempre con
+> cuenta y consentimiento). Sin ellas, el APK usa `localhost:8787` y el motor
+> queda en modo heurístico local.
+
+### Ruta EAS (APK «oficial» de lanzamiento)
+
 Primera vez (requiere paso humano: el primer keystore de Android **no** se puede
 crear en modo no interactivo):
 
@@ -113,5 +139,7 @@ npx eas-cli build:download --profile release-apk --platform android
 adb install -r socracia-1.0.0.apk
 ```
 
-Si la cuota gratuita de EAS (15 builds de Android al mes) está agotada, usa la
-ruta local de [`docs/build-apk-local.md`](build-apk-local.md).
+El plan gratuito de EAS incluye una cantidad limitada de builds de baja prioridad
+al mes (se reinician el día 1; sin sobrecoste). Verifica el consumo en Expo →
+Billing → Usage antes de lanzar. Si la cuota está agotada, usa la ruta local de
+[`docs/build-apk-local.md`](build-apk-local.md).
