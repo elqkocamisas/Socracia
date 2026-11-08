@@ -16,7 +16,7 @@ on:
         description: Perfil de eas.json
         type: choice
         default: preview
-        options: [development, preview, production]
+        options: [development, preview, production, release-apk]
       enviar:
         description: Enviar a las tiendas tras compilar (solo perfil production)
         type: boolean
