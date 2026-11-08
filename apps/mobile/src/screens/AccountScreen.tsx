@@ -17,9 +17,13 @@ import {
   setProcessingPolicy,
   type PrivacySettings,
 } from '../services/privacySettings';
+import { describeCloudConditions } from '../services/engineStatus';
+import type { HealthReport } from '../services/healthProbe';
 import type { AppServices } from '../services/appServices';
 import type { AccountSession } from '../services/httpSyncClient';
-import { colors, radius, spacing } from '../theme/tokens';
+import { useTheme } from '../theme/ThemeProvider';
+import type { ThemePreference } from '../theme/themePreference';
+import { minTouchTarget, radius, spacing, type ThemeColors } from '../theme/tokens';
 
 /** Propiedades de la pantalla de cuenta. */
 export interface AccountScreenProps {
@@ -39,25 +43,32 @@ type ScreenState =
 type Notice = { readonly tone: 'ok' | 'error'; readonly message: string } | null;
 
 /**
- * Pantalla de cuenta y sincronización.
+ * Pantalla de cuenta, ajustes y diagnóstico.
  *
- * Es opcional por diseño: la app funciona sin cuenta y el progreso vive en el
- * dispositivo. Aquí el usuario decide si crea una cuenta para llevar su
- * progreso a otro dispositivo; al hacerlo se sincroniza de inmediato.
+ * La cuenta es opcional: la app funciona sin ella y el progreso vive en el
+ * dispositivo. Aquí el usuario también elige el tema, ajusta la privacidad y ve
+ * el diagnóstico del motor: las cuatro condiciones que habilitan la nube y el
+ * estado real del backend (`/health`), sin exponer ninguna clave.
  */
 export function AccountScreen({
   services,
   now = Date.now,
   onOpenLegal,
 }: AccountScreenProps): React.JSX.Element {
+  const { theme, preference, setPreference } = useTheme();
+  const colors = theme.colors;
+  const styles = makeStyles(colors);
   const [state, setState] = useState<ScreenState>({ kind: 'cargando' });
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [notice, setNotice] = useState<Notice>(null);
-  /** Confirmación en dos pasos del borrado de cuenta (acción irreversible). */
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [privacy, setPrivacy] = useState<PrivacySettings>(() => readPrivacySettings(services));
   const [privacyBusy, setPrivacyBusy] = useState(false);
+  const [hasConsentDocument, setHasConsentDocument] = useState(false);
+  const [health, setHealth] = useState<HealthReport | null>(null);
+  const [healthError, setHealthError] = useState<string | null>(null);
+  const [healthBusy, setHealthBusy] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -71,20 +82,40 @@ export function AccountScreen({
     };
   }, [services]);
 
+  const refreshConsent = useCallback(async () => {
+    const documents = await services.storage.documents.listDocuments();
+    setHasConsentDocument(documents.some((document) => document.cloudConsent));
+  }, [services]);
+
+  useEffect(() => {
+    void refreshConsent();
+  }, [refreshConsent]);
+
   const onToggleCloud = useCallback(
     async (mode: 'local-only' | 'allow-cloud') => {
       setPrivacyBusy(true);
       try {
         await setProcessingPolicy(services, mode);
       } finally {
-        // Se relee el ajuste guardado, no el que se creía haber pedido: si el
-        // guardado falla, la pantalla debe mostrar el estado real.
         setPrivacy(readPrivacySettings(services));
         setPrivacyBusy(false);
       }
     },
     [services],
   );
+
+  const checkHealth = useCallback(async () => {
+    setHealthBusy(true);
+    setHealthError(null);
+    const result = await services.health.check();
+    if (result.ok) {
+      setHealth(result.value);
+    } else {
+      setHealth(null);
+      setHealthError(result.error.message);
+    }
+    setHealthBusy(false);
+  }, [services]);
 
   const withAuth = useCallback(
     async (action: 'login' | 'register') => {
@@ -136,21 +167,12 @@ export function AccountScreen({
     setNotice({ tone: 'ok', message: 'Sesión cerrada. Tu progreso sigue en este dispositivo.' });
   }, [services]);
 
-  /**
-   * Borra la cuenta y sus datos en el servidor.
-   *
-   * El progreso local no se toca: el usuario sigue estudiando sin cuenta. Si el
-   * servidor falla, se avisa y **no** se limpia la sesión, para que pueda
-   * reintentar en lugar de creer que sus datos se borraron.
-   */
   const onDeleteAccount = useCallback(async () => {
     setNotice(null);
     setState({ kind: 'enviando' });
     const result = await services.account.deleteAccount();
     setConfirmDelete(false);
     if (!result.ok) {
-      // Las credenciales solo se borran si el servidor confirma, así que la
-      // sesión sigue viva y se restaura para que el usuario pueda reintentar.
       const session = await services.account.restore();
       setState(session ? { kind: 'sesion', session } : { kind: 'sin-sesion' });
       setNotice({ tone: 'error', message: result.error.message });
@@ -175,10 +197,16 @@ export function AccountScreen({
   const busy = state.kind === 'enviando';
   const privacyDescription = describeCurrentPolicy(privacy.policy);
   const cloudToggleVisible = isCloudToggleVisible(services) && state.kind === 'sesion';
+  const conditions = describeCloudConditions({
+    buildWithEngine: services.cloudAvailable,
+    signedIn: state.kind === 'sesion',
+    policyAllowsCloud: privacy.policy.mode === 'allow-cloud',
+    documentConsent: hasConsentDocument,
+  });
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>Cuenta</Text>
+      <Text style={styles.title}>Cuenta y ajustes</Text>
       <Text style={styles.subtitle}>
         Sin cuenta, tu progreso vive solo en este dispositivo. Con cuenta, puedes continuar en otro.
       </Text>
@@ -298,6 +326,34 @@ export function AccountScreen({
       </View>
 
       <View style={styles.card}>
+        <Text style={styles.cardTitle}>Tema</Text>
+        <Text style={styles.cardBody}>Elige el aspecto de la app.</Text>
+        <View style={styles.themeRow}>
+          {(
+            [
+              ['system', 'Sistema'],
+              ['light', 'Claro'],
+              ['dark', 'Oscuro'],
+            ] as const
+          ).map(([value, label]) => (
+            <Pressable
+              key={value}
+              accessibilityRole="button"
+              accessibilityState={{ selected: preference === value }}
+              onPress={() => setPreference(value as ThemePreference)}
+              style={[styles.themeChip, preference === value && styles.themeChipActive]}
+            >
+              <Text
+                style={[styles.themeChipLabel, preference === value && styles.themeChipLabelActive]}
+              >
+                {label}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      </View>
+
+      <View style={styles.card}>
         <Text style={styles.cardTitle}>Privacidad</Text>
         <Text style={styles.cardBody}>{privacyDescription}</Text>
         <Text style={styles.providerLine}>
@@ -339,6 +395,37 @@ export function AccountScreen({
       </View>
 
       <View style={styles.card}>
+        <Text style={styles.cardTitle}>Diagnóstico del motor</Text>
+        <Text style={styles.cardBody}>
+          El motor semántico (IA en la nube) se activa solo si se cumplen las cuatro condiciones:
+        </Text>
+        {conditions.map((condition) => (
+          <Text key={condition.label} style={styles.conditionLine}>
+            {condition.met ? '✓' : '✗'} {condition.label}
+          </Text>
+        ))}
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => void checkHealth()}
+          disabled={healthBusy}
+          style={[styles.secondaryButton, healthBusy && styles.buttonDisabled]}
+        >
+          <Text style={styles.secondaryLabel}>
+            {healthBusy ? 'Comprobando…' : 'Comprobar conexión con la API'}
+          </Text>
+        </Pressable>
+        {health ? (
+          <Text style={styles.providerLine}>
+            Servidor: {health.status} · versión {health.version ?? '—'} · proveedor{' '}
+            {health.providerConfigured
+              ? `configurado (${health.providerModel ?? 'modelo'})`
+              : 'sin configurar'}
+          </Text>
+        ) : null}
+        {healthError ? <Text style={styles.providerWarn}>{healthError}</Text> : null}
+      </View>
+
+      <View style={styles.card}>
         <Text style={styles.cardTitle}>Legal y privacidad</Text>
         <Text style={styles.cardBody}>
           Consulta aquí mismo qué datos trata la app. No hace falta conexión.
@@ -358,159 +445,210 @@ export function AccountScreen({
           <Text style={styles.legalLinkLabel}>Términos de uso</Text>
         </Pressable>
       </View>
+
+      <Text style={styles.versionLine}>Socracia 1.0.0</Text>
     </ScrollView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  content: {
-    padding: spacing.lg,
-    paddingTop: spacing.xl,
-  },
-  centered: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.background,
-    gap: spacing.sm,
-  },
-  muted: {
-    color: colors.textSecondary,
-    fontSize: 15,
-  },
-  title: {
-    color: colors.textPrimary,
-    fontSize: 32,
-    fontWeight: '700',
-  },
-  subtitle: {
-    color: colors.textSecondary,
-    fontSize: 15,
-    marginTop: spacing.sm,
-    lineHeight: 22,
-  },
-  notice: {
-    marginTop: spacing.md,
-  },
-  okBox: {
-    marginTop: spacing.md,
-    backgroundColor: colors.surface,
-    borderLeftWidth: 3,
-    borderLeftColor: colors.primary,
-    borderRadius: radius.sm,
-    padding: spacing.md,
-  },
-  okText: {
-    color: colors.textPrimary,
-    fontSize: 15,
-  },
-  card: {
-    marginTop: spacing.md,
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: spacing.lg,
-  },
-  cardTitle: {
-    color: colors.accent,
-    fontSize: 14,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  cardBody: {
-    color: colors.textPrimary,
-    fontSize: 15,
-    marginTop: spacing.sm,
-    lineHeight: 22,
-  },
-  input: {
-    marginTop: spacing.md,
-    backgroundColor: colors.background,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    color: colors.textPrimary,
-    fontSize: 15,
-  },
-  button: {
-    marginTop: spacing.md,
-    backgroundColor: colors.primary,
-    borderRadius: radius.md,
-    paddingVertical: spacing.md,
-    alignItems: 'center',
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  buttonLabel: {
-    color: colors.primaryContrast,
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  secondaryButton: {
-    marginTop: spacing.sm,
-    paddingVertical: spacing.sm,
-    alignItems: 'center',
-  },
-  secondaryLabel: {
-    color: colors.primary,
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  dangerLabel: {
-    color: colors.danger,
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  dangerBox: {
-    marginTop: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.danger,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    backgroundColor: colors.background,
-  },
-  dangerText: {
-    color: colors.textSecondary,
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  dangerButton: {
-    marginTop: spacing.md,
-    backgroundColor: colors.danger,
-    borderRadius: radius.md,
-    paddingVertical: spacing.md,
-    alignItems: 'center',
-  },
-  dangerButtonLabel: {
-    color: colors.background,
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  legalLink: {
-    paddingVertical: spacing.sm,
-  },
-  legalLinkLabel: {
-    color: colors.primary,
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  providerLine: {
-    color: colors.textSecondary,
-    fontSize: 13,
-    marginTop: spacing.sm,
-  },
-  providerWarn: {
-    color: colors.accent,
-    fontSize: 13,
-    marginTop: spacing.xs,
-  },
-});
+const makeStyles = (colors: ThemeColors): ReturnType<typeof StyleSheet.create> =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    content: {
+      padding: spacing.lg,
+      paddingTop: spacing.xl,
+    },
+    centered: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.background,
+      gap: spacing.sm,
+    },
+    muted: {
+      color: colors.textSecondary,
+      fontSize: 15,
+    },
+    title: {
+      color: colors.textPrimary,
+      fontSize: 32,
+      fontWeight: '700',
+    },
+    subtitle: {
+      color: colors.textSecondary,
+      fontSize: 15,
+      marginTop: spacing.sm,
+      lineHeight: 22,
+    },
+    notice: {
+      marginTop: spacing.md,
+    },
+    okBox: {
+      marginTop: spacing.md,
+      backgroundColor: colors.surface,
+      borderLeftWidth: 3,
+      borderLeftColor: colors.primary,
+      borderRadius: radius.sm,
+      padding: spacing.md,
+    },
+    okText: {
+      color: colors.textPrimary,
+      fontSize: 15,
+    },
+    card: {
+      marginTop: spacing.md,
+      backgroundColor: colors.surface,
+      borderRadius: radius.lg,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: spacing.lg,
+    },
+    cardTitle: {
+      color: colors.accent,
+      fontSize: 14,
+      fontWeight: '600',
+      textTransform: 'uppercase',
+      letterSpacing: 1,
+    },
+    cardBody: {
+      color: colors.textPrimary,
+      fontSize: 15,
+      marginTop: spacing.sm,
+      lineHeight: 22,
+    },
+    input: {
+      marginTop: spacing.md,
+      backgroundColor: colors.background,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radius.md,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+      color: colors.textPrimary,
+      fontSize: 15,
+      minHeight: minTouchTarget,
+    },
+    button: {
+      marginTop: spacing.md,
+      backgroundColor: colors.primary,
+      borderRadius: radius.md,
+      paddingVertical: spacing.md,
+      alignItems: 'center',
+      minHeight: minTouchTarget,
+      justifyContent: 'center',
+    },
+    buttonDisabled: {
+      opacity: 0.6,
+    },
+    buttonLabel: {
+      color: colors.primaryContrast,
+      fontSize: 16,
+      fontWeight: '600',
+    },
+    secondaryButton: {
+      marginTop: spacing.sm,
+      paddingVertical: spacing.sm,
+      alignItems: 'center',
+      minHeight: minTouchTarget,
+      justifyContent: 'center',
+    },
+    secondaryLabel: {
+      color: colors.primary,
+      fontSize: 15,
+      fontWeight: '600',
+    },
+    dangerLabel: {
+      color: colors.danger,
+      fontSize: 15,
+      fontWeight: '600',
+    },
+    dangerBox: {
+      marginTop: spacing.md,
+      borderWidth: 1,
+      borderColor: colors.danger,
+      borderRadius: radius.md,
+      padding: spacing.md,
+      backgroundColor: colors.background,
+    },
+    dangerText: {
+      color: colors.textSecondary,
+      fontSize: 14,
+      lineHeight: 20,
+    },
+    dangerButton: {
+      marginTop: spacing.md,
+      backgroundColor: colors.danger,
+      borderRadius: radius.md,
+      paddingVertical: spacing.md,
+      alignItems: 'center',
+      minHeight: minTouchTarget,
+      justifyContent: 'center',
+    },
+    dangerButtonLabel: {
+      color: colors.dangerContrast,
+      fontSize: 16,
+      fontWeight: '700',
+    },
+    legalLink: {
+      paddingVertical: spacing.sm,
+      minHeight: minTouchTarget,
+      justifyContent: 'center',
+    },
+    legalLinkLabel: {
+      color: colors.primary,
+      fontSize: 15,
+      fontWeight: '600',
+    },
+    providerLine: {
+      color: colors.textSecondary,
+      fontSize: 13,
+      marginTop: spacing.sm,
+    },
+    providerWarn: {
+      color: colors.danger,
+      fontSize: 13,
+      marginTop: spacing.xs,
+    },
+    conditionLine: {
+      color: colors.textPrimary,
+      fontSize: 15,
+      marginTop: spacing.xs,
+    },
+    themeRow: {
+      flexDirection: 'row',
+      gap: spacing.sm,
+      marginTop: spacing.md,
+    },
+    themeChip: {
+      flex: 1,
+      paddingVertical: spacing.sm,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.background,
+      minHeight: minTouchTarget,
+    },
+    themeChipActive: {
+      backgroundColor: colors.primary,
+      borderColor: colors.primary,
+    },
+    themeChipLabel: {
+      color: colors.textPrimary,
+      fontSize: 15,
+      fontWeight: '600',
+    },
+    themeChipLabelActive: {
+      color: colors.primaryContrast,
+    },
+    versionLine: {
+      color: colors.textSecondary,
+      fontSize: 13,
+      textAlign: 'center',
+      marginTop: spacing.lg,
+    },
+  });

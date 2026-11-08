@@ -6,7 +6,8 @@ import {
   parseLegalMarkdown,
   type LegalBlock,
 } from '../legal/parseLegalMarkdown';
-import { colors, radius, spacing } from '../theme/tokens';
+import { useThemeColors } from '../theme/ThemeProvider';
+import { minTouchTarget, radius, spacing, type ThemeColors } from '../theme/tokens';
 
 /** Propiedades de la pantalla legal. */
 export interface LegalScreenProps {
@@ -30,6 +31,8 @@ export function LegalScreen({
   onBack,
   documents = LEGAL_DOCUMENTS,
 }: LegalScreenProps): React.JSX.Element {
+  const colors = useThemeColors();
+  const styles = makeStyles(colors);
   const document = findLegalDocument(documents, documentId);
 
   if (!document) {
@@ -57,7 +60,7 @@ export function LegalScreen({
       <ScrollView contentContainerStyle={styles.scroll} testID="legal-scroll">
         <Text style={styles.title}>{document.heading || document.title}</Text>
         {blocks.map((block, index) => (
-          <LegalBlockView key={`${block.kind}-${index}`} block={block} />
+          <LegalBlockView key={`${block.kind}-${index}`} block={block} styles={styles} />
         ))}
       </ScrollView>
       <Pressable
@@ -72,7 +75,15 @@ export function LegalScreen({
   );
 }
 
-function LegalBlockView({ block }: { readonly block: LegalBlock }): React.JSX.Element {
+type LegalStyles = ReturnType<typeof StyleSheet.create>;
+
+function LegalBlockView({
+  block,
+  styles,
+}: {
+  readonly block: LegalBlock;
+  readonly styles: LegalStyles;
+}): React.JSX.Element {
   if (block.kind === 'heading') {
     return <Text style={block.level === 1 ? styles.heading1 : styles.heading2}>{block.text}</Text>;
   }
@@ -90,63 +101,66 @@ function LegalBlockView({ block }: { readonly block: LegalBlock }): React.JSX.El
   return <Text style={styles.paragraph}>{block.text}</Text>;
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  scroll: {
-    padding: spacing.md,
-    paddingBottom: spacing.xl,
-    gap: spacing.sm,
-  },
-  title: {
-    color: colors.textPrimary,
-    fontSize: 22,
-    fontWeight: '700',
-    marginBottom: spacing.sm,
-  },
-  heading1: {
-    color: colors.textPrimary,
-    fontSize: 20,
-    fontWeight: '700',
-    marginTop: spacing.md,
-  },
-  heading2: {
-    color: colors.primary,
-    fontSize: 16,
-    fontWeight: '700',
-    marginTop: spacing.md,
-  },
-  paragraph: {
-    color: colors.textSecondary,
-    fontSize: 15,
-    lineHeight: 22,
-  },
-  bullets: {
-    gap: spacing.xs,
-    paddingLeft: spacing.sm,
-  },
-  bullet: {
-    color: colors.textSecondary,
-    fontSize: 15,
-    lineHeight: 22,
-  },
-  muted: {
-    color: colors.textSecondary,
-    fontSize: 15,
-    marginBottom: spacing.md,
-  },
-  backButton: {
-    margin: spacing.md,
-    paddingVertical: spacing.md,
-    alignItems: 'center',
-    borderRadius: radius.md,
-    backgroundColor: colors.surface,
-  },
-  backLabel: {
-    color: colors.primary,
-    fontSize: 16,
-    fontWeight: '600',
-  },
-});
+const makeStyles = (colors: ThemeColors): LegalStyles =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    scroll: {
+      padding: spacing.md,
+      paddingBottom: spacing.xl,
+      gap: spacing.sm,
+    },
+    title: {
+      color: colors.textPrimary,
+      fontSize: 22,
+      fontWeight: '700',
+      marginBottom: spacing.sm,
+    },
+    heading1: {
+      color: colors.textPrimary,
+      fontSize: 20,
+      fontWeight: '700',
+      marginTop: spacing.md,
+    },
+    heading2: {
+      color: colors.primary,
+      fontSize: 16,
+      fontWeight: '700',
+      marginTop: spacing.md,
+    },
+    paragraph: {
+      color: colors.textSecondary,
+      fontSize: 15,
+      lineHeight: 22,
+    },
+    bullets: {
+      gap: spacing.xs,
+      paddingLeft: spacing.sm,
+    },
+    bullet: {
+      color: colors.textSecondary,
+      fontSize: 15,
+      lineHeight: 22,
+    },
+    muted: {
+      color: colors.textSecondary,
+      fontSize: 15,
+      marginBottom: spacing.md,
+    },
+    backButton: {
+      margin: spacing.md,
+      paddingVertical: spacing.md,
+      alignItems: 'center',
+      borderRadius: radius.md,
+      backgroundColor: colors.surface,
+      minHeight: minTouchTarget,
+      justifyContent: 'center',
+    },
+    backLabel: {
+      color: colors.primary,
+      fontSize: 16,
+      fontWeight: '600',
+    },
+  });

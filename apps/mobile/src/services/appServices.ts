@@ -26,6 +26,9 @@ import {
 } from '@socracia/core';
 
 import { buildLlmEngine, withLlmEngine, type LlmEngineBundle } from './llmEngine';
+import { HttpHealthProbe, type HealthProbe } from './healthProbe';
+import { InMemoryThemeStore, SqliteThemeStore, type ThemeStore } from '../theme/themePreference';
+import { InMemoryOnboardingStore, SqliteOnboardingStore, type OnboardingStore } from './onboarding';
 
 import { openLocalDatabase } from '../storage/sqliteStorage';
 import { AccountService } from './accountService';
@@ -148,6 +151,25 @@ export interface AppServices {
    * consentimiento por documento, si una respuesta se evalúa con Gemini.
    */
   readonly cloudProcessingEnabled: () => boolean;
+  /** Sonda de salud del backend, para el calentamiento y el diagnóstico. */
+  readonly health: HealthProbe;
+  /** `true` si hay sesión de cuenta activa (la nube la exige). */
+  readonly hasSession: () => boolean;
+  /** Lee el consentimiento de nube de un documento. */
+  readonly documentConsent: (documentId: string) => Promise<boolean>;
+  /**
+   * Fija el consentimiento de nube de un documento y lo persiste.
+   *
+   * No cambia la semántica del campo `cloudConsent`: solo permite concederlo o
+   * retirarlo después de importar, que es lo que la interfaz necesita para el
+   * control por documento. Autorizar exige que la nube esté disponible y la
+   * sesión iniciada; sin eso, el documento se queda sin permiso.
+   */
+  readonly setDocumentConsent: (documentId: string, consent: boolean) => Promise<boolean>;
+  /** Persistencia de la preferencia de tema. */
+  readonly themeStore: ThemeStore;
+  /** Persistencia del estado del onboarding. */
+  readonly onboardingStore: OnboardingStore;
 }
 
 /** Opciones de creación del runtime. */
@@ -185,6 +207,12 @@ export interface CreateServicesOptions {
   readonly nativeModule?: EdgeLlmNativeModule | null;
   /** `fetch` inyectable; lo usa el motor con modelo en las pruebas. */
   readonly fetchImpl?: typeof fetch;
+  /** Sonda de salud inyectable; por defecto, HTTP contra `apiBaseUrl`. */
+  readonly healthProbe?: HealthProbe;
+  /** Persistencia de la preferencia de tema; por defecto, en memoria. */
+  readonly themeStore?: ThemeStore;
+  /** Persistencia del estado del onboarding; por defecto, en memoria. */
+  readonly onboardingStore?: OnboardingStore;
 }
 
 /**
@@ -215,6 +243,28 @@ export function createServices(options: CreateServicesOptions): AppServices {
   const cloudAvailable = options.cloudAvailable ?? CLOUD_PROCESSING_AVAILABLE;
   const cloudProcessingEnabled = (): boolean =>
     cloudAvailable && syncClient.hasSession() && allowsCloudProcessing(policy.current());
+  const health =
+    options.healthProbe ??
+    new HttpHealthProbe({ baseUrl: options.apiBaseUrl ?? DEFAULT_API_BASE_URL });
+  const hasSession = (): boolean => syncClient.hasSession();
+  const documentConsent = async (documentId: string): Promise<boolean> => {
+    const document = await options.storage.documents.getDocument(documentId);
+    return document?.cloudConsent === true;
+  };
+  const setDocumentConsent = async (documentId: string, consent: boolean): Promise<boolean> => {
+    const document = await options.storage.documents.getDocument(documentId);
+    if (!document) {
+      return false;
+    }
+    // Autorizar exige que la nube sea posible: sin backend, sin sesión o con
+    // política local, un `true` no tendría efecto y la insignia mentiría.
+    const granted = consent && cloudProcessingEnabled();
+    if (document.cloudConsent === granted) {
+      return granted;
+    }
+    await options.storage.documents.saveDocument({ ...document, cloudConsent: granted });
+    return granted;
+  };
   // Gemini es el motor principal cuando el documento está autorizado y hay
   // sesión; sin sesión o sin permiso, `canProcess` devuelve `false` y el estudio
   // cae a la heurística local sin cambiar de camino.
@@ -251,6 +301,12 @@ export function createServices(options: CreateServicesOptions): AppServices {
     policyStore: options.policyStore ?? new InMemoryProcessingPolicyStore(),
     cloudAvailable,
     cloudProcessingEnabled,
+    health,
+    hasSession,
+    documentConsent,
+    setDocumentConsent,
+    themeStore: options.themeStore ?? new InMemoryThemeStore(),
+    onboardingStore: options.onboardingStore ?? new InMemoryOnboardingStore(),
   };
 }
 
@@ -313,6 +369,8 @@ export async function bootstrap(
     policyStore,
     policy: initialPolicy,
     llm,
+    themeStore: options.themeStore ?? new SqliteThemeStore(db),
+    onboardingStore: options.onboardingStore ?? new SqliteOnboardingStore(db),
   });
   await rehydrateIndex(services);
   await services.account.restore();

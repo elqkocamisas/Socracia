@@ -3,9 +3,10 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import type { ProgressOverview } from '@socracia/core';
 
-import { EmptyState, ErrorNotice, LoadingState, ProgressBar } from '../components/States';
+import { EmptyState, ErrorNotice, LoadingState, ProgressBar, Skeleton } from '../components/States';
 import type { AppServices } from '../services/appServices';
-import { colors, radius, spacing } from '../theme/tokens';
+import { useThemeColors } from '../theme/ThemeProvider';
+import { minTouchTarget, radius, spacing, type ThemeColors } from '../theme/tokens';
 
 /** Progreso con la sugerencia de siguiente acción. */
 export type ProgressView = ProgressOverview & { readonly hint: string };
@@ -27,14 +28,17 @@ type ScreenState =
 /**
  * Pantalla de progreso.
  *
- * Muestra el dominio alcanzado, las lagunas detectadas con su severidad y el
- * repaso pendiente. No calcula nada: pinta la vista que devuelve el núcleo.
+ * Muestra el dominio alcanzado, el repaso de hoy destacado, las lagunas
+ * priorizadas en lenguaje claro y el repaso pendiente. No calcula nada: pinta
+ * la vista que devuelve el núcleo.
  */
 export function ProgressScreen({
   services,
   now = Date.now,
   onBack,
 }: ProgressScreenProps): React.JSX.Element {
+  const colors = useThemeColors();
+  const styles = makeStyles(colors);
   const [state, setState] = useState<ScreenState>({ kind: 'cargando' });
 
   const refresh = useCallback(async () => {
@@ -55,6 +59,8 @@ export function ProgressScreen({
     return (
       <View style={styles.container}>
         <LoadingState message="Calculando tu progreso…" />
+        <Skeleton height={80} />
+        <Skeleton height={48} />
       </View>
     );
   }
@@ -71,6 +77,7 @@ export function ProgressScreen({
   }
 
   const { mastery, gaps, dueForReview, hint } = state.view;
+  const dueToday = dueForReview.length;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -85,14 +92,27 @@ export function ProgressScreen({
         />
       ) : (
         <>
+          <View style={styles.reviewCard}>
+            <Text style={styles.reviewLabel}>Repaso de hoy</Text>
+            <Text style={styles.reviewBig}>
+              {dueToday === 0 ? 'Nada pendiente' : `${dueToday} concepto(s)`}
+            </Text>
+            <Text style={styles.reviewBody}>
+              {dueToday === 0
+                ? 'Vas al día. Vuelve mañana para consolidar lo aprendido.'
+                : 'Repasar hoy fija lo aprendido y evita que se te olvide.'}
+            </Text>
+          </View>
+
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Dominio</Text>
             <Text style={styles.big}>{mastery.masteredPercent}%</Text>
             <ProgressBar percent={mastery.masteredPercent} />
-            <Text style={styles.cardBody}>
-              {mastery.conceptsMastered} dominados · {mastery.conceptsInGap} con lagunas ·{' '}
-              {mastery.conceptsNotEvaluated} sin evaluar
-            </Text>
+            <View style={styles.legend}>
+              <Text style={styles.legendItem}>● {mastery.conceptsMastered} dominados</Text>
+              <Text style={styles.legendItem}>● {mastery.conceptsInGap} con lagunas</Text>
+              <Text style={styles.legendItem}>● {mastery.conceptsNotEvaluated} sin evaluar</Text>
+            </View>
           </View>
 
           <View style={styles.hint}>
@@ -133,98 +153,139 @@ export function ProgressScreen({
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  content: {
-    padding: spacing.lg,
-    paddingTop: spacing.xl * 1.5,
-    gap: spacing.md,
-  },
-  title: {
-    color: colors.textPrimary,
-    fontSize: 32,
-    fontWeight: '700',
-  },
-  sectionTitle: {
-    color: colors.textSecondary,
-    fontSize: 13,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    marginTop: spacing.md,
-  },
-  card: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: spacing.lg,
-    gap: spacing.sm,
-  },
-  cardTitle: {
-    color: colors.accent,
-    fontSize: 13,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  big: {
-    color: colors.textPrimary,
-    fontSize: 40,
-    fontWeight: '700',
-  },
-  cardBody: {
-    color: colors.textPrimary,
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  hint: {
-    backgroundColor: colors.surface,
-    borderLeftWidth: 3,
-    borderLeftColor: colors.primary,
-    borderRadius: radius.sm,
-    padding: spacing.md,
-  },
-  hintText: {
-    color: colors.textPrimary,
-    fontSize: 15,
-    lineHeight: 22,
-  },
-  muted: {
-    color: colors.textSecondary,
-    fontSize: 15,
-  },
-  row: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: spacing.md,
-  },
-  rowText: {
-    color: colors.textPrimary,
-    fontSize: 15,
-  },
-  rowMeta: {
-    color: colors.textSecondary,
-    fontSize: 13,
-  },
-  button: {
-    marginTop: spacing.md,
-    backgroundColor: colors.primary,
-    borderRadius: radius.md,
-    paddingVertical: spacing.md,
-    alignItems: 'center',
-  },
-  buttonLabel: {
-    color: colors.primaryContrast,
-    fontSize: 16,
-    fontWeight: '600',
-  },
-});
+const makeStyles = (colors: ThemeColors): ReturnType<typeof StyleSheet.create> =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+      padding: spacing.md,
+      gap: spacing.sm,
+    },
+    content: {
+      padding: spacing.lg,
+      paddingTop: spacing.xl * 1.5,
+      gap: spacing.md,
+    },
+    title: {
+      color: colors.textPrimary,
+      fontSize: 32,
+      fontWeight: '700',
+    },
+    sectionTitle: {
+      color: colors.textSecondary,
+      fontSize: 13,
+      fontWeight: '600',
+      textTransform: 'uppercase',
+      letterSpacing: 1,
+      marginTop: spacing.md,
+    },
+    reviewCard: {
+      backgroundColor: colors.primary,
+      borderRadius: radius.lg,
+      padding: spacing.lg,
+      gap: spacing.xs,
+    },
+    reviewLabel: {
+      color: colors.primaryContrast,
+      fontSize: 12,
+      fontWeight: '700',
+      textTransform: 'uppercase',
+      letterSpacing: 1,
+      opacity: 0.9,
+    },
+    reviewBig: {
+      color: colors.primaryContrast,
+      fontSize: 26,
+      fontWeight: '700',
+    },
+    reviewBody: {
+      color: colors.primaryContrast,
+      fontSize: 14,
+      lineHeight: 20,
+      opacity: 0.9,
+    },
+    card: {
+      backgroundColor: colors.surface,
+      borderRadius: radius.lg,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: spacing.lg,
+      gap: spacing.sm,
+    },
+    cardTitle: {
+      color: colors.accent,
+      fontSize: 13,
+      fontWeight: '600',
+      textTransform: 'uppercase',
+      letterSpacing: 1,
+    },
+    big: {
+      color: colors.textPrimary,
+      fontSize: 40,
+      fontWeight: '700',
+    },
+    cardBody: {
+      color: colors.textPrimary,
+      fontSize: 14,
+      lineHeight: 20,
+    },
+    legend: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: spacing.sm,
+    },
+    legendItem: {
+      color: colors.textSecondary,
+      fontSize: 13,
+    },
+    hint: {
+      backgroundColor: colors.surface,
+      borderLeftWidth: 3,
+      borderLeftColor: colors.primary,
+      borderRadius: radius.sm,
+      padding: spacing.md,
+    },
+    hintText: {
+      color: colors.textPrimary,
+      fontSize: 15,
+      lineHeight: 22,
+    },
+    muted: {
+      color: colors.textSecondary,
+      fontSize: 15,
+    },
+    row: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      backgroundColor: colors.surface,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: spacing.md,
+      gap: spacing.sm,
+    },
+    rowText: {
+      flex: 1,
+      color: colors.textPrimary,
+      fontSize: 15,
+    },
+    rowMeta: {
+      color: colors.textSecondary,
+      fontSize: 13,
+    },
+    button: {
+      marginTop: spacing.md,
+      backgroundColor: colors.primary,
+      borderRadius: radius.md,
+      paddingVertical: spacing.md,
+      alignItems: 'center',
+      minHeight: minTouchTarget,
+      justifyContent: 'center',
+    },
+    buttonLabel: {
+      color: colors.primaryContrast,
+      fontSize: 16,
+      fontWeight: '600',
+    },
+  });
