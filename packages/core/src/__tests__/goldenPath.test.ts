@@ -1,4 +1,4 @@
-import { buildPdf } from '../__fixtures__/buildPdf';
+import { buildPdf, buildPdfWithTjArrays } from '../__fixtures__/buildPdf';
 import { extractCurriculum } from '../ingest/conceptExtractor';
 import { defaultRegistry } from '../ingest/extractors';
 import { DocumentIngestionService } from '../ingest/ingestionService';
@@ -56,6 +56,15 @@ const MD = TXT.replace(/^Tema /gm, '## Tema ');
 function pdfBytes(): Uint8Array {
   const lines = TXT.split('\n\n').flatMap((paragraph) => paragraph.split('\n'));
   return buildPdf(lines, { compress: true });
+}
+
+/**
+ * El mismo temario como PDF «de verdad»: arrays `TJ` con kerning y cadena de
+ * filtros ASCII85 + FlateDecode, que es lo que emiten Word, Chrome y LaTeX.
+ */
+function pdfBytesRealistic(): Uint8Array {
+  const lines = TXT.split('\n\n').flatMap((paragraph) => paragraph.split('\n'));
+  return buildPdfWithTjArrays(lines, { compress: true, ascii85: true });
 }
 
 /** Paráfrasis correcta de cada concepto, con vocabulario propio del alumno. */
@@ -168,6 +177,7 @@ describe('recorrido dorado mayéutico (servicio + controlador)', () => {
       ['TXT', 'text/plain', 'temario.txt', () => encoder.encode(TXT)],
       ['MD', 'text/markdown', 'temario.md', () => encoder.encode(MD)],
       ['PDF', 'application/pdf', 'temario.pdf', () => pdfBytes()],
+      ['PDF realista', 'application/pdf', 'temario-real.pdf', () => pdfBytesRealistic()],
     ])('%s produce los mismos 3 temas y 3 conceptos', async (_label, mime, name, bytes) => {
       const harness = makeHarness();
       const { document, conceptCount } = await importDoc(harness, {
@@ -202,6 +212,7 @@ describe('recorrido dorado mayéutico (servicio + controlador)', () => {
       ['TXT', 'text/plain', 'temario.txt', () => encoder.encode(TXT)],
       ['MD', 'text/markdown', 'temario.md', () => encoder.encode(MD)],
       ['PDF', 'application/pdf', 'temario.pdf', () => pdfBytes()],
+      ['PDF realista', 'application/pdf', 'temario-real.pdf', () => pdfBytesRealistic()],
     ])(
       '%s: importar → pregunta anclada → parafrasear → errar → explicar → progreso',
       async (_label, mime, name, bytes) => {

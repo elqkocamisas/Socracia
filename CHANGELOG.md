@@ -42,6 +42,13 @@ Primera versión completa del producto: app móvil de un solo usuario, local-fir
 
 ### Cambiado
 
+- **La extracción de PDF acepta los PDF que produce el mundo real.** Se
+  decodifica la cadena de filtros del diccionario en orden (`/Filter
+[ /ASCII85Decode /FlateDecode ]`, habitual en reportlab y en muchos
+  generadores), se leen arrays `[(a) -250 (b)] TJ` con kerning y cadenas
+  hexadecimales `<…> Tj`, y el kerning ancho se interpreta como espacio. Antes,
+  un PDF legible generado por Word, Chrome, LaTeX o reportlab caía en «El PDF no
+  contiene texto extraíble (puede ser un escaneo)».
 - La extracción de PDF conserva los límites de bloque: un encabezado ya no queda
   pegado al párrafo siguiente, de modo que TXT, MD y PDF producen los mismos
   conceptos.

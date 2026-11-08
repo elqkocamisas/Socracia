@@ -182,6 +182,15 @@ Trampas conocidas:
 
 - **PDF FlateDecode usa zlib, no raw deflate.** `fflateInflate` intenta
   `unzlibSync` y cae a `inflateSync`; al revés falla con «unexpected EOF».
+- **Los PDF reales usan arrays `TJ` y cadenas de filtros.** Un extractor que solo
+  mire `(texto) Tj` o solo `/Filter /FlateDecode` deja fuera lo que emiten Word,
+  Chrome, LaTeX y reportlab: arrays `[(a) -250 (b)] TJ` (kerning) y cadenas como
+  `/Filter [ /ASCII85Decode /FlateDecode ]`. Síntoma: «El PDF no contiene texto
+  extraíble (puede ser un escaneo)» con un PDF que sí se ve. `PdfTextExtractor`
+  ahora decodifica la cadena de filtros en orden (ASCII85 en JS puro para Hermes),
+  lee literales y hex, e interpreta el kerning ≥200 como espacio. `T*`/`'` son
+  salto suave (une líneas de un párrafo); `BT/ET/Td/TD/Tm` separan párrafos.
+  Verificado contra PDFs reales de reportlab (comprimidos con y sin ASCII85).
 - **`Result<string>` sin parámetro de error usa `Error`.** Los extractores deben
   declarar `Result<string, IngestError>` o `error.code` no existe en tipos.
 - **Jest no soporta `await import()` en este proyecto** («dynamic import callback
