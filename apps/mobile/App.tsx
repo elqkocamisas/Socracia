@@ -9,9 +9,12 @@ import { ProgressScreen } from './src/screens/ProgressScreen';
 import { StudyScreen } from './src/screens/StudyScreen';
 import { AccountScreen } from './src/screens/AccountScreen';
 import { LegalScreen } from './src/screens/LegalScreen';
+import { Onboarding } from './src/screens/Onboarding';
 import { bootstrap, createServices, type AppServices } from './src/services/appServices';
 import { ExpoDocumentPicker, ExpoFileReader } from './src/services/expoAdapters';
-import { colors, radius, spacing } from './src/theme/tokens';
+import { ThemeProvider, useTheme } from './src/theme/ThemeProvider';
+import { setProcessingPolicy } from './src/services/privacySettings';
+import { minTouchTarget, radius, spacing, type ThemeColors } from './src/theme/tokens';
 
 /**
  * Arranca los servicios sobre SQLite y cae a memoria si la base no abre.
@@ -48,6 +51,7 @@ type Route =
 export default function App(): React.JSX.Element {
   const [boot, setBoot] = useState<BootState>({ kind: 'arrancando' });
   const [route, setRoute] = useState<Route>({ name: 'biblioteca' });
+  const [onboardingDone, setOnboardingDone] = useState<boolean | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -61,23 +65,92 @@ export default function App(): React.JSX.Element {
     };
   }, []);
 
+  // El onboarding solo se muestra la primera vez. Mientras se lee la marca se
+  // mantiene la pantalla de arranque para no parpadear.
+  useEffect(() => {
+    if (boot.kind !== 'listo') {
+      return;
+    }
+    let cancelled = false;
+    void boot.services.onboardingStore.load().then((seen) => {
+      if (!cancelled) {
+        setOnboardingDone(seen);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [boot]);
+
   const goTo = useCallback((next: Route) => setRoute(next), []);
 
-  if (boot.kind === 'arrancando') {
+  const finishOnboarding = useCallback(
+    (mode?: 'local-only' | 'allow-cloud') => {
+      if (boot.kind === 'listo') {
+        if (mode) {
+          void setProcessingPolicy(boot.services, mode);
+        }
+        void boot.services.onboardingStore.save(true);
+      }
+      setOnboardingDone(true);
+    },
+    [boot],
+  );
+
+  if (boot.kind === 'arrancando' || onboardingDone === null) {
     return (
-      <View style={styles.centered}>
-        <StatusBar style="light" />
-        <ActivityIndicator color={colors.primary} />
-        <Text style={styles.muted}>Preparando Socracia…</Text>
-      </View>
+      <ThemeProvider>
+        <BootScreen />
+      </ThemeProvider>
     );
   }
 
   const { services, degraded } = boot;
 
+  if (!onboardingDone) {
+    return (
+      <ThemeProvider store={services.themeStore}>
+        <Onboarding onDone={finishOnboarding} onChoosePrivacy={(mode) => finishOnboarding(mode)} />
+      </ThemeProvider>
+    );
+  }
+
+  return (
+    <ThemeProvider store={services.themeStore}>
+      <AppShell services={services} degraded={degraded} route={route} goTo={goTo} />
+    </ThemeProvider>
+  );
+}
+
+function BootScreen(): React.JSX.Element {
+  const { theme } = useTheme();
+  const styles = makeStyles(theme.colors);
+  return (
+    <View style={styles.centered}>
+      <StatusBar style={theme.scheme} />
+      <ActivityIndicator color={theme.colors.primary} />
+      <Text style={styles.muted}>Preparando Socracia…</Text>
+    </View>
+  );
+}
+
+function AppShell({
+  services,
+  degraded,
+  route,
+  goTo,
+}: {
+  readonly services: AppServices;
+  readonly degraded: boolean;
+  readonly route: Route;
+  readonly goTo: (next: Route) => void;
+}): React.JSX.Element {
+  const { theme } = useTheme();
+  const styles = makeStyles(theme.colors);
+
   return (
     <View style={styles.root}>
-      <StatusBar style="light" />
+      <StatusBar style={theme.scheme} />
       {degraded ? (
         <View style={styles.banner}>
           <Text style={styles.bannerText}>
@@ -98,6 +171,7 @@ export default function App(): React.JSX.Element {
             services={services}
             documentId={route.documentId}
             onFinish={() => goTo({ name: 'progreso' })}
+            onExit={() => goTo({ name: 'biblioteca' })}
           />
         ) : null}
         {route.name === 'progreso' ? (
@@ -127,7 +201,7 @@ export default function App(): React.JSX.Element {
         />
         <TabButton
           label="Cuenta"
-          active={route.name === 'cuenta'}
+          active={route.name === 'cuenta' || route.name === 'legal'}
           onPress={() => goTo({ name: 'cuenta' })}
         />
       </View>
@@ -144,6 +218,8 @@ function TabButton({
   readonly active: boolean;
   readonly onPress: () => void;
 }): React.JSX.Element {
+  const { theme } = useTheme();
+  const styles = makeStyles(theme.colors);
   return (
     <Pressable
       accessibilityRole="button"
@@ -156,52 +232,55 @@ function TabButton({
   );
 }
 
-const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  body: {
-    flex: 1,
-  },
-  centered: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.background,
-    gap: spacing.sm,
-  },
-  muted: {
-    color: colors.textSecondary,
-    fontSize: 15,
-  },
-  banner: {
-    backgroundColor: colors.surface,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-  },
-  bannerText: {
-    color: colors.textSecondary,
-    fontSize: 13,
-  },
-  tabs: {
-    flexDirection: 'row',
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: spacing.md,
-    alignItems: 'center',
-    borderRadius: radius.sm,
-  },
-  tabLabel: {
-    color: colors.textSecondary,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  tabLabelActive: {
-    color: colors.primary,
-  },
-});
+const makeStyles = (colors: ThemeColors): ReturnType<typeof StyleSheet.create> =>
+  StyleSheet.create({
+    root: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    body: {
+      flex: 1,
+    },
+    centered: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.background,
+      gap: spacing.sm,
+    },
+    muted: {
+      color: colors.textSecondary,
+      fontSize: 15,
+    },
+    banner: {
+      backgroundColor: colors.surface,
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.md,
+    },
+    bannerText: {
+      color: colors.textSecondary,
+      fontSize: 13,
+    },
+    tabs: {
+      flexDirection: 'row',
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    tab: {
+      flex: 1,
+      paddingVertical: spacing.md,
+      alignItems: 'center',
+      justifyContent: 'center',
+      minHeight: minTouchTarget,
+      borderRadius: radius.sm,
+    },
+    tabLabel: {
+      color: colors.textSecondary,
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    tabLabelActive: {
+      color: colors.primary,
+    },
+  });

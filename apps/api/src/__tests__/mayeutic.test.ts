@@ -83,6 +83,38 @@ describe('GeminiMayeuticService', () => {
     expect(result.ok).toBe(false);
   });
 
+  it('acepta un array suelto y descarta solo la pregunta mal formada', async () => {
+    // Algunos modelos gratuitos devuelven `[...]` en vez de `{questions:[...]}`.
+    // Una pregunta inválida no debe tumbar el lote entero.
+    const service = new GeminiMayeuticService('test-key', 'gemini-test', async () =>
+      providerResponse([questionDraft, { prompt: 'corta', move: 'inventado' }]),
+    );
+
+    const result = await service.generateQuestions(
+      {
+        id: 'c1',
+        topicId: 't1',
+        label: 'principio',
+        definition: 'Fundamento de una regla.',
+        keywords: ['principio'],
+      },
+      {
+        documentId: 'd1',
+        documentTitle: 'Tema 1',
+        chunkId: 'd1:0',
+        excerpt: 'El principio sirve de fundamento.',
+        charStart: 0,
+        charEnd: 34,
+      },
+      2,
+    );
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value).toEqual([questionDraft]);
+    }
+  });
+
   it('evalúa paráfrasis y valida la puntuación y los términos devueltos', async () => {
     const service = new GeminiMayeuticService('test-key', 'gemini-test', async () =>
       providerResponse({
@@ -126,6 +158,126 @@ describe('GeminiMayeuticService', () => {
         feedback: 'La paráfrasis conserva el sentido de la fuente.',
       },
     });
+  });
+
+  it('propaga el motivo cuando el proveedor devuelve el error en un array (OpenAI)', async () => {
+    // El endpoint OpenAI-compatible envuelve el error en `[{ error: {...} }]`;
+    // si no se desenvuelve, el motivo —y la pista de reintento— se pierde.
+    const service = new GeminiMayeuticService(
+      'test-key',
+      'gemini-test',
+      async () =>
+        new Response(
+          JSON.stringify([
+            { error: { code: 429, message: 'Quota exceeded; please retry in 11.4s.' } },
+          ]),
+          { status: 429 },
+        ),
+    );
+
+    const result = await service.generateQuestions(
+      {
+        id: 'c1',
+        topicId: 't1',
+        label: 'principio',
+        definition: 'Fundamento de una regla.',
+        keywords: ['principio'],
+      },
+      {
+        documentId: 'd1',
+        documentTitle: 'Tema 1',
+        chunkId: 'd1:0',
+        excerpt: 'El principio sirve de fundamento.',
+        charStart: 0,
+        charEnd: 34,
+      },
+      1,
+    );
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.message).toContain('429');
+      expect(result.error.message).toContain('retry in 11.4s');
+    }
+  });
+
+  it('rota al siguiente modelo gratuito si el principal agota su cuota', async () => {
+    // El nivel gratuito limita por modelo; si el principal devuelve 429, el
+    // servicio debe reintentar con el respaldo en vez de fallar la sesión.
+    const seen: string[] = [];
+    const service = new GeminiMayeuticService(
+      'test-key',
+      'gemini-primary',
+      async (_input, init) => {
+        const body = JSON.parse(String(init?.body));
+        seen.push(body.model);
+        if (body.model === 'gemini-primary') {
+          return new Response(
+            JSON.stringify([{ error: { code: 429, message: 'Quota exceeded.' } }]),
+            { status: 429 },
+          );
+        }
+        return providerResponse({ questions: [questionDraft] });
+      },
+    );
+
+    const result = await service.generateQuestions(
+      {
+        id: 'c1',
+        topicId: 't1',
+        label: 'principio',
+        definition: 'Fundamento de una regla.',
+        keywords: ['principio'],
+      },
+      {
+        documentId: 'd1',
+        documentTitle: 'Tema 1',
+        chunkId: 'd1:0',
+        excerpt: 'El principio sirve de fundamento.',
+        charStart: 0,
+        charEnd: 34,
+      },
+      1,
+    );
+
+    expect(result.ok).toBe(true);
+    expect(seen).toEqual(['gemini-primary', 'gemini-3.5-flash-lite']);
+  });
+
+  it('no cambia de modelo ante un error de datos (no recuperable)', async () => {
+    const seen: string[] = [];
+    const service = new GeminiMayeuticService(
+      'test-key',
+      'gemini-primary',
+      async (_input, init) => {
+        seen.push(JSON.parse(String(init?.body)).model);
+        return new Response(JSON.stringify({ error: { message: 'modelo inexistente' } }), {
+          status: 404,
+        });
+      },
+    );
+
+    const result = await service.generateQuestions(
+      {
+        id: 'c1',
+        topicId: 't1',
+        label: 'principio',
+        definition: 'Fundamento de una regla.',
+        keywords: ['principio'],
+      },
+      {
+        documentId: 'd1',
+        documentTitle: 'Tema 1',
+        chunkId: 'd1:0',
+        excerpt: 'El principio sirve de fundamento.',
+        charStart: 0,
+        charEnd: 34,
+      },
+      1,
+    );
+
+    expect(result.ok).toBe(false);
+    expect(seen).toEqual(['gemini-primary']);
   });
 
   it('no intenta conectar si no hay una clave configurada', async () => {

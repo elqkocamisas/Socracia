@@ -5,7 +5,8 @@ import type { KnowledgeDocument } from '@socracia/core';
 
 import { deleteDocument, importDocument, type AppServices } from '../services/appServices';
 import { UNSUPPORTED_MESSAGE } from '../services/documentImport';
-import { colors, radius, spacing } from '../theme/tokens';
+import { useThemeColors } from '../theme/ThemeProvider';
+import { minTouchTarget, radius, spacing, type ThemeColors } from '../theme/tokens';
 
 /** Estado de la pantalla. */
 type ScreenState =
@@ -26,20 +27,29 @@ export interface ImportScreenProps {
 /**
  * Pantalla de importación de documentos.
  *
- * Cubre el primer paso del recorrido del Sprint 2: adjuntar un PDF, TXT o MD,
- * ver el resultado de la ingesta y la lista de documentos ya incorporados. La
- * conversación mayéutica llega en el Sprint 3.
+ * Cubre el primer paso del recorrido: adjuntar un PDF, TXT o MD, ver el
+ * resultado de la ingesta y gestionar la lista de documentos ya incorporados.
+ * Cada documento puede autorizarse (o no) para la nube por separado, sin
+ * cambiar el valor por defecto, que es local.
  */
 export function ImportScreen({
   services,
   now = Date.now,
   onStudy,
 }: ImportScreenProps): React.JSX.Element {
+  const colors = useThemeColors();
+  const styles = makeStyles(colors);
   const [state, setState] = useState<ScreenState>({ kind: 'cargando' });
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [consent, setConsent] = useState<Record<string, boolean>>({});
 
   const refresh = useCallback(async () => {
     const documents = await services.storage.documents.listDocuments();
+    const next: Record<string, boolean> = {};
+    for (const document of documents) {
+      next[document.id] = document.cloudConsent;
+    }
+    setConsent(next);
     setState({ kind: 'listo', documents });
   }, [services]);
 
@@ -79,6 +89,14 @@ export function ImportScreen({
     [services, refresh],
   );
 
+  const onToggleConsent = useCallback(
+    async (documentId: string, next: boolean) => {
+      const granted = await services.setDocumentConsent(documentId, next);
+      setConsent((prev) => ({ ...prev, [documentId]: granted }));
+    },
+    [services],
+  );
+
   if (state.kind === 'cargando') {
     return (
       <View style={styles.centered}>
@@ -90,6 +108,7 @@ export function ImportScreen({
 
   const documents = state.kind === 'listo' ? state.documents : [];
   const busy = state.kind === 'importando';
+  const cloudAvailable = services.cloudAvailable;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -107,8 +126,18 @@ export function ImportScreen({
         <Text style={styles.buttonLabel}>{busy ? 'Procesando…' : 'Adjuntar temario'}</Text>
       </Pressable>
 
+      {busy ? (
+        <View style={styles.progressRow}>
+          <ActivityIndicator color={colors.primary} />
+          <Text style={styles.muted}>Leyendo y analizando el documento…</Text>
+        </View>
+      ) : null}
+
       {state.kind === 'error' ? (
         <View style={styles.errorBox}>
+          <Text style={styles.errorIcon} accessibilityElementsHidden>
+            ⚠︎
+          </Text>
           <Text style={styles.errorText}>{state.message}</Text>
         </View>
       ) : null}
@@ -126,8 +155,25 @@ export function ImportScreen({
           <View key={document.id} style={styles.card}>
             <Text style={styles.cardTitle}>{document.title}</Text>
             <Text style={styles.cardBody}>
-              {document.mimeType} · {formatBytes(document.sizeBytes)} · procesado en el dispositivo
+              {document.mimeType} · {formatBytes(document.sizeBytes)}
             </Text>
+
+            {cloudAvailable ? (
+              <Pressable
+                accessibilityRole="switch"
+                accessibilityLabel={`Permitir procesar ${document.title} en la nube`}
+                accessibilityState={{ checked: consent[document.id] === true }}
+                onPress={() => void onToggleConsent(document.id, consent[document.id] !== true)}
+                style={styles.consentRow}
+              >
+                <Text style={styles.consentLabel}>
+                  {consent[document.id] ? '☁︎ Autorizado para la nube' : '⚙︎ Solo en el dispositivo'}
+                </Text>
+              </Pressable>
+            ) : (
+              <Text style={styles.consentStatic}>⚙︎ Procesado en el dispositivo</Text>
+            )}
+
             {onStudy ? (
               <Pressable
                 accessibilityRole="button"
@@ -190,141 +236,180 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  content: {
-    padding: spacing.lg,
-    paddingTop: spacing.xl * 2,
-  },
-  centered: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.background,
-    gap: spacing.sm,
-  },
-  muted: {
-    color: colors.textSecondary,
-    fontSize: 15,
-  },
-  title: {
-    color: colors.textPrimary,
-    fontSize: 40,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  },
-  subtitle: {
-    color: colors.textSecondary,
-    fontSize: 16,
-    marginTop: spacing.sm,
-  },
-  button: {
-    marginTop: spacing.xl,
-    backgroundColor: colors.primary,
-    borderRadius: radius.md,
-    paddingVertical: spacing.md,
-    alignItems: 'center',
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  buttonLabel: {
-    color: colors.primaryContrast,
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  errorBox: {
-    marginTop: spacing.md,
-    backgroundColor: colors.surface,
-    borderLeftWidth: 3,
-    borderLeftColor: colors.accent,
-    borderRadius: radius.sm,
-    padding: spacing.md,
-  },
-  errorText: {
-    color: colors.textPrimary,
-    fontSize: 15,
-  },
-  card: {
-    marginTop: spacing.md,
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: spacing.lg,
-  },
-  cardTitle: {
-    color: colors.accent,
-    fontSize: 14,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  cardBody: {
-    color: colors.textPrimary,
-    fontSize: 15,
-    marginTop: spacing.sm,
-    lineHeight: 22,
-  },
-  studyButton: {
-    marginTop: spacing.md,
-    alignSelf: 'flex-start',
-    backgroundColor: colors.primary,
-    borderRadius: radius.md,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.lg,
-  },
-  studyLabel: {
-    color: colors.primaryContrast,
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  deleteButton: {
-    paddingVertical: spacing.sm,
-    alignItems: 'center',
-  },
-  deleteLabel: {
-    color: colors.danger,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  confirmRow: {
-    marginTop: spacing.sm,
-    gap: spacing.sm,
-  },
-  confirmText: {
-    color: colors.textSecondary,
-    fontSize: 13,
-  },
-  confirmButtons: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-  },
-  dangerButton: {
-    flex: 1,
-    paddingVertical: spacing.sm,
-    alignItems: 'center',
-    borderRadius: radius.sm,
-    backgroundColor: colors.danger,
-  },
-  dangerLabel: {
-    color: colors.background,
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  cancelButton: {
-    flex: 1,
-    paddingVertical: spacing.sm,
-    alignItems: 'center',
-    borderRadius: radius.sm,
-    backgroundColor: colors.surface,
-  },
-  cancelLabel: {
-    color: colors.textPrimary,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-});
+const makeStyles = (colors: ThemeColors): ReturnType<typeof StyleSheet.create> =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    content: {
+      padding: spacing.lg,
+      paddingTop: spacing.xl * 2,
+    },
+    centered: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.background,
+      gap: spacing.sm,
+    },
+    muted: {
+      color: colors.textSecondary,
+      fontSize: 15,
+    },
+    title: {
+      color: colors.textPrimary,
+      fontSize: 40,
+      fontWeight: '700',
+      letterSpacing: 0.5,
+    },
+    subtitle: {
+      color: colors.textSecondary,
+      fontSize: 16,
+      marginTop: spacing.sm,
+    },
+    button: {
+      marginTop: spacing.xl,
+      backgroundColor: colors.primary,
+      borderRadius: radius.md,
+      paddingVertical: spacing.md,
+      alignItems: 'center',
+      minHeight: minTouchTarget,
+      justifyContent: 'center',
+    },
+    buttonDisabled: {
+      opacity: 0.6,
+    },
+    buttonLabel: {
+      color: colors.primaryContrast,
+      fontSize: 16,
+      fontWeight: '600',
+    },
+    progressRow: {
+      marginTop: spacing.md,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+    },
+    errorBox: {
+      marginTop: spacing.md,
+      flexDirection: 'row',
+      gap: spacing.sm,
+      backgroundColor: colors.surface,
+      borderLeftWidth: 3,
+      borderLeftColor: colors.danger,
+      borderRadius: radius.sm,
+      padding: spacing.md,
+    },
+    errorIcon: {
+      color: colors.danger,
+      fontSize: 16,
+    },
+    errorText: {
+      flex: 1,
+      color: colors.textPrimary,
+      fontSize: 15,
+    },
+    card: {
+      marginTop: spacing.md,
+      backgroundColor: colors.surface,
+      borderRadius: radius.lg,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: spacing.lg,
+    },
+    cardTitle: {
+      color: colors.accent,
+      fontSize: 14,
+      fontWeight: '600',
+      textTransform: 'uppercase',
+      letterSpacing: 1,
+    },
+    cardBody: {
+      color: colors.textPrimary,
+      fontSize: 15,
+      marginTop: spacing.sm,
+      lineHeight: 22,
+    },
+    consentRow: {
+      marginTop: spacing.sm,
+      minHeight: minTouchTarget,
+      justifyContent: 'center',
+    },
+    consentLabel: {
+      color: colors.primary,
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    consentStatic: {
+      color: colors.textSecondary,
+      fontSize: 14,
+      marginTop: spacing.sm,
+    },
+    studyButton: {
+      marginTop: spacing.md,
+      alignSelf: 'flex-start',
+      backgroundColor: colors.primary,
+      borderRadius: radius.md,
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.lg,
+      minHeight: minTouchTarget,
+      justifyContent: 'center',
+    },
+    studyLabel: {
+      color: colors.primaryContrast,
+      fontSize: 15,
+      fontWeight: '600',
+    },
+    deleteButton: {
+      paddingVertical: spacing.sm,
+      alignItems: 'center',
+      minHeight: minTouchTarget,
+      justifyContent: 'center',
+    },
+    deleteLabel: {
+      color: colors.danger,
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    confirmRow: {
+      marginTop: spacing.sm,
+      gap: spacing.sm,
+    },
+    confirmText: {
+      color: colors.textSecondary,
+      fontSize: 13,
+    },
+    confirmButtons: {
+      flexDirection: 'row',
+      gap: spacing.sm,
+    },
+    dangerButton: {
+      flex: 1,
+      paddingVertical: spacing.sm,
+      alignItems: 'center',
+      borderRadius: radius.sm,
+      backgroundColor: colors.danger,
+      minHeight: minTouchTarget,
+      justifyContent: 'center',
+    },
+    dangerLabel: {
+      color: colors.dangerContrast,
+      fontSize: 14,
+      fontWeight: '700',
+    },
+    cancelButton: {
+      flex: 1,
+      paddingVertical: spacing.sm,
+      alignItems: 'center',
+      borderRadius: radius.sm,
+      backgroundColor: colors.surface,
+      minHeight: minTouchTarget,
+      justifyContent: 'center',
+    },
+    cancelLabel: {
+      color: colors.textPrimary,
+      fontSize: 14,
+      fontWeight: '600',
+    },
+  });

@@ -1,4 +1,6 @@
+import { readFileSync } from 'node:fs';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
+import { join } from 'node:path';
 
 import type {
   Citation,
@@ -109,7 +111,12 @@ async function route(
   }
 
   if (method === 'GET' && url.pathname === '/health') {
-    sendJson(res, 200, { status: 'ok' });
+    sendJson(res, 200, {
+      status: 'ok',
+      version: API_VERSION,
+      commit: process.env.RENDER_GIT_COMMIT ?? null,
+      provider: providerStatus(deps),
+    });
     return;
   }
 
@@ -479,6 +486,45 @@ function sendJson(res: ServerResponse, status: number, payload: unknown): void {
     'content-length': Buffer.byteLength(body),
   });
   res.end(body);
+}
+
+/**
+ * Versión del backend, leída de su `package.json`.
+ *
+ * `dist/server.js` y `src/server.ts` comparten el mismo `../package.json`, así
+ * que la lectura funciona igual compilado o bajo ts-jest. Si el fichero no se
+ * puede leer, se devuelve `null` en lugar de romper `/health`.
+ */
+const API_VERSION: string | null = readApiVersion();
+
+function readApiVersion(): string | null {
+  try {
+    const raw = readFileSync(join(__dirname, '..', 'package.json'), 'utf8');
+    const parsed = JSON.parse(raw) as { version?: unknown };
+    return typeof parsed.version === 'string' ? parsed.version : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Estado del proveedor semántico para `/health`, sin revelar secretos.
+ *
+ * Solo expone si está configurado y el identificador del modelo principal
+ * (`id`, no la clave). Un `commit` y un estado de proveedor permiten comprobar
+ * qué revisión está sirviendo Render sin abrir un panel ni filtrar credenciales.
+ */
+function providerStatus(deps: ApiDependencies): {
+  readonly configured: boolean;
+  readonly model: string | null;
+} {
+  const ai = deps.mayeuticAi;
+  if (!ai) {
+    return { configured: false, model: null };
+  }
+  const configured = typeof ai.configured === 'boolean' ? ai.configured : true;
+  const model = typeof ai.modelId === 'string' ? ai.modelId : null;
+  return { configured, model };
 }
 
 function emptySnapshot(userId: string): ProgressSnapshot {

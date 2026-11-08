@@ -185,7 +185,10 @@ function headingOf(line: string): string | null {
 
   const markdown = MARKDOWN_HEADING.exec(trimmed);
   if (markdown) {
-    return (markdown[1] as string).trim();
+    // Se limpia igual que un encabezado en texto plano: así «## Tema 1. X» y
+    // «Tema 1. X» producen el mismo título de tema, y el formato del documento
+    // no cambia los conceptos extraídos.
+    return cleanHeading((markdown[1] as string).trim());
   }
 
   const named = NAMED_HEADING.exec(trimmed);

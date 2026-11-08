@@ -32,16 +32,16 @@ implementa `HttpSyncClient`, en las pruebas un servidor en memoria.
 
 ## Endpoints
 
-| Método  | Ruta             | Cuerpo                                   | Respuesta                    |
-| ------- | ---------------- | ---------------------------------------- | ---------------------------- |
-| GET     | `/health`        | —                                        | `{ "status": "ok" }`         |
-| POST    | `/auth/register` | `{ email, password }`                    | `{ token, userId }`          |
-| POST    | `/auth/login`    | `{ email, password }`                    | `{ token, userId }`          |
-| POST    | `/auth/logout`   | — (con `Authorization`)                  | `{ "status": "cerrado" }`    |
-| DELETE  | `/account`       | — (con `Authorization`)                  | `{ "status": "eliminada" }`  |
-| POST    | `/sync/push`     | `ProgressSnapshot` (con `Authorization`) | `ProgressSnapshot` fusionada |
-| GET     | `/sync/pull`     | — (con `Authorization`)                  | `ProgressSnapshot` guardada  |
-| OPTIONS | cualquiera       | —                                        | `204` sin cuerpo (preflight) |
+| Método  | Ruta             | Cuerpo                                   | Respuesta                               |
+| ------- | ---------------- | ---------------------------------------- | --------------------------------------- |
+| GET     | `/health`        | —                                        | `{ status, version, commit, provider }` |
+| POST    | `/auth/register` | `{ email, password }`                    | `{ token, userId }`                     |
+| POST    | `/auth/login`    | `{ email, password }`                    | `{ token, userId }`                     |
+| POST    | `/auth/logout`   | — (con `Authorization`)                  | `{ "status": "cerrado" }`               |
+| DELETE  | `/account`       | — (con `Authorization`)                  | `{ "status": "eliminada" }`             |
+| POST    | `/sync/push`     | `ProgressSnapshot` (con `Authorization`) | `ProgressSnapshot` fusionada            |
+| GET     | `/sync/pull`     | — (con `Authorization`)                  | `ProgressSnapshot` guardada             |
+| OPTIONS | cualquiera       | —                                        | `204` sin cuerpo (preflight)            |
 
 Autenticación por `Authorization: Bearer <token>`. Códigos de error:
 
@@ -49,6 +49,13 @@ Autenticación por `Authorization: Bearer <token>`. Códigos de error:
 - `401 no-autorizado` — token ausente o caducado; también credenciales inválidas.
 - `409 email-en-uso` / `409 datos-invalidos` — registro rechazado.
 - `404` — ruta desconocida.
+
+`/health` no solo confirma que el proceso vive: devuelve `version` (leída del
+`package.json` del backend), `commit` (`RENDER_GIT_COMMIT`, la revisión que sirve
+Render) y `provider` (`{ configured, model }`). Sirve para comprobar que el
+servicio desplegado es la API correcta y en qué revisión, **sin** exponer nunca
+la clave: `configured` es un booleano y `model` el identificador del modelo, no
+el secreto.
 
 ## Reglas de seguridad
 

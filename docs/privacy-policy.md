@@ -23,8 +23,10 @@ dispositivo salvo el progreso agregado, y solo si hay cuenta y sincronización.
 
 <!-- dev:nota-interna -->
 
-Antes de publicar en las tiendas, sustituya la dirección de contacto por un buzón
-real y operativo. Un contacto que no responde es motivo de rechazo en App Store.
+**PENDIENTE DE REVISIÓN HUMANA.** Este texto legal no ha sido validado por
+asesoría jurídica. Antes de publicar en tiendas, una persona con criterio legal
+debe revisarlo y sustituir la dirección de contacto por un buzón real y
+operativo. Un contacto que no responde es motivo de rechazo en App Store.
 
 <!-- /dev:nota-interna -->
 

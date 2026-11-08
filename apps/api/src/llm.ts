@@ -10,7 +10,13 @@
  * estar manipulado, y aquí no se confía en nada.
  */
 
-import type { LlmCompletion, LlmCompletionRequest, LlmError, LlmPurpose, LlmProvider } from '@socracia/core';
+import type {
+  LlmCompletion,
+  LlmCompletionRequest,
+  LlmError,
+  LlmPurpose,
+  LlmProvider,
+} from '@socracia/core';
 
 /** Resultado de intentar atender una petición de lenguaje. */
 export type LlmRouteOutcome =
@@ -48,7 +54,11 @@ export async function routeLlmCompletion(
 
   const parsed = parseCompletionRequest(body);
   if (!parsed.ok) {
-    return { handled: true, status: 400, payload: { error: 'datos-invalidos', message: parsed.message } };
+    return {
+      handled: true,
+      status: 400,
+      payload: { error: 'datos-invalidos', message: parsed.message },
+    };
   }
 
   const result = await provider.complete(parsed.value);

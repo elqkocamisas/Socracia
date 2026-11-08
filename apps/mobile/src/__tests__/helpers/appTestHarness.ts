@@ -1,4 +1,4 @@
-import { inMemoryStorage, ok, type StoragePort } from '@socracia/core';
+import { inMemoryStorage, ok, type SocraticQuestion, type StoragePort } from '@socracia/core';
 import { fireEvent, screen, waitFor } from '@testing-library/react-native';
 
 import {
@@ -7,6 +7,7 @@ import {
   rehydrateIndex,
   type AppServices,
 } from '../../services/appServices';
+import type { LlmEngineBundle } from '../../services/llmEngine';
 import type {
   DocumentPickerPort,
   FileBytesReader,
@@ -28,9 +29,17 @@ El recurso de alzada es el que se interpone ante el órgano superior jerárquico
 const NO_PICKER: DocumentPickerPort = { pick: async () => null };
 
 /** Servicios de prueba sobre almacenamiento en memoria, sin plataforma. */
-export function makeServices(storage: StoragePort = inMemoryStorage()): AppServices {
+export function makeServices(
+  storage: StoragePort = inMemoryStorage(),
+  llm?: LlmEngineBundle | null,
+): AppServices {
   const reader: FileBytesReader = { read: async () => ok(encoder.encode(TEMARIO)) };
-  return createServices({ storage, picker: NO_PICKER, reader });
+  return createServices({
+    storage,
+    picker: NO_PICKER,
+    reader,
+    ...(llm !== undefined ? { llm } : {}),
+  });
 }
 
 /**
@@ -79,4 +88,45 @@ export async function submitAnswer(expectedAnswered: number): Promise<void> {
   await waitFor(() =>
     expect(screen.getByText(new RegExp(`^${expectedAnswered} / \\d+ respuestas$`))).toBeTruthy(),
   );
+}
+
+/**
+ * Bundle de motor con modelo que solo aporta una explicación reconocible.
+ *
+ * Sirve para comprobar que lo que produce el motor llega a la pantalla. El
+ * evaluador marca siempre `incorrecta` para que se alcance el umbral de
+ * explicación; el resto de puertos no intervienen en esa ruta.
+ */
+export function withExplainingEngine(): LlmEngineBundle {
+  const provider = {
+    id: 'fake',
+    model: 'fake',
+    complete: async () => ok({ text: '', model: 'fake' }),
+  };
+  return {
+    provider,
+    evaluator: {
+      id: 'fake-evaluator',
+      evaluate: async (question: SocraticQuestion) =>
+        ok({
+          questionId: question.id,
+          conceptId: question.conceptId,
+          verdict: 'incorrecta' as const,
+          score: 0,
+          matchedKeyTerms: [],
+          missingKeyTerms: question.keyTerms,
+          feedback: 'Evaluación del modelo.',
+        }),
+    },
+    generator: { id: 'fake-generator', generate: async () => ok([]) },
+    followUp: {
+      id: 'fake-followup',
+      followUp: async () =>
+        ok({ kind: 'orientar' as const, prompt: 'repregunta del modelo', hints: [] }),
+    },
+    explainer: {
+      id: 'fake-explainer',
+      explain: async () => ok({ text: 'explicación del modelo', citations: [] }),
+    },
+  } as unknown as LlmEngineBundle;
 }

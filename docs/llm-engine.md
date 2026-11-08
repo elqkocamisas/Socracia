@@ -19,6 +19,12 @@ lagunas. Esas decisiones las toma el núcleo a partir del `score` y el `verdict`
 que produce la evaluación, vengan del modelo o de la heurística (ver
 `docs/architecture.md` y la decisión D-043).
 
+Quién evalúa y quién redacta el turno son dos cosas distintas. Aunque la
+evaluación llegue ya hecha por el proveedor semántico (Gemini), el turno sigue
+pasando por `submitAsync`, que es el único camino que pide la repregunta y la
+explicación. Si se tomara el camino síncrono, el alumno perdería ese texto sin
+que nada fallara a la vista (decisión D-064).
+
 ## Capas y orden de envoltura
 
 El proveedor se compone como una cebolla. El orden es deliberado:

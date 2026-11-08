@@ -816,6 +816,74 @@ sprint por una cuestión menor.
   actualizar `EXPO_PUBLIC_API_BASE_URL` en EAS. Queda documentado en
   `docs/backend.md` con los valores exactos de los tres campos.
 
+## D-050 — Los workflows de EAS viven en `.eas/workflows`, no en `.github/workflows`
+
+- **Contexto:** la pestaña _Workflows_ del panel de Expo salía vacía. El
+  repositorio tenía dos workflows en `.github/workflows/`, que es otra
+  tecnología: los ejecuta GitHub Actions. EAS lee `.eas/workflows/*.yml`, al
+  mismo nivel que `eas.json` —aquí `apps/mobile/`, porque el monorepo tiene el
+  `eas.json` ahí—. No existía ese directorio, así que no había nada que listar.
+- **Decisión:** añadir `apps/mobile/.eas/workflows/build-production.yml`, que
+  compila Android o iOS con el perfil elegido, lanzable a mano.
+- **Motivos:** compilar desde el panel de Expo no depende de que el token de
+  Expo esté en los secretos de GitHub. El flujo `.github/workflows/eas-build.yml`
+  sigue existiendo para quien prefiera lanzarlo desde Actions, pero exige
+  `EXPO_TOKEN` como secreto del repositorio.
+- **Alternativas descartadas:** (a) ampliar el workflow de GitHub Actions: no
+  llena la pestaña de EAS, porque son sistemas distintos; (b) hacer que el
+  workflow de EAS envíe también a tiendas: gasta créditos de envío por
+  accidente, y el envío debe ser una acción deliberada (D-042).
+- **Consecuencias:** el workflow solo compila. El envío a tiendas sigue siendo
+  manual (`eas submit`) o vía el flujo de GitHub Actions con `enviar: true`.
+
+## D-051 — El entorno de compilación se declara explícito en `eas.json`
+
+- **Contexto:** un job `build` de EAS sin `environment` lo infiere del perfil, y
+  sin `environment` en el perfil el criterio es: `production` si `distribution`
+  es `store`, `preview` en el resto de casos. Los perfiles `preview` y
+  `production` no declaraban el campo, así que un build de preview habría caído
+  en el entorno `preview`, donde `EXPO_PUBLIC_API_BASE_URL` no existe (solo está
+  en `production`): el binario habría salido apuntando a `localhost:8787` sin
+  ningún aviso, y el fallo solo se vería al usar la app en un teléfono.
+- **Decisión:** declarar `environment: preview` y `environment: production` en
+  los perfiles correspondientes de `eas.json`, y añadir una prueba que lo exige.
+- **Motivos:** el valor por defecto es correcto hoy para `production` por el
+  criterio de `distribution`, pero depende de un detalle implícito que un cambio
+  futuro en el perfil rompería en silencio. Declararlo lo hace explícito.
+- **Alternativas descartadas:** copiar la variable al entorno `preview`: duplica
+  la configuración y permite que las dos copias diverjan.
+- **Consecuencias:** el build de preview usa el entorno `preview`, que hoy no
+  tiene variables, así que hereda la URL por defecto. Si se quiere probar el
+  preview contra el backend real, hay que añadir la variable a ese entorno.
+
+## D-052 — El APK instalable sale del perfil `preview`, no de `production`
+
+- **Contexto:** el perfil `production` genera un `.aab` (`buildType:
+app-bundle`), que es el formato que Google Play exige **para subir**, no un
+  instalador: Android no lo abre desde el teléfono. Un `.aab` descargado no
+  instala nada, y confundirlo con un fallo de descarga lleva a buscar el
+  problema en el navegador o en el artefacto, donde no está. El artefacto se
+  descarga bien (52,4 MB, ZIP válido, firmado v1) y contiene la URL de
+  producción correcta.
+- **Decisión:** para instalar en un teléfono se compila el perfil `preview`
+  (`buildType: apk`), que produce un APK firmado con el esquema v2/v3
+  (`APK Sig Block 42`), instalable directamente. El `.aab` se reserva para la
+  subida a Play.
+- **Motivos:** cada formato sirve a un destinatario distinto. Mezclarlos
+  produce el fallo más confuso posible: un fichero correcto que «no hace nada».
+- **Alternativas descartadas:** instalar el `.aab` con `bundletool` y generar
+  APKs por dispositivo: añade una herramienta y un paso manual para algo que el
+  perfil `preview` ya resuelve en un comando.
+- **Consecuencias:** el entorno `preview` **sí** tiene
+  `EXPO_PUBLIC_API_BASE_URL=https://socracia.onrender.com`. D-051 lo daba por
+  vacío; se ha añadido porque, sin ella, el APK de prueba apuntaba a
+  `localhost:8787` y no había forma de probarlo contra el backend real. La
+  alternativa que D-051 descartaba era depender de esa copia para el build de
+  tienda; aquí el uso es distinto (prueba manual) y está verificado: el APK
+  contiene `socracia.onrender.com` y cero referencias a `localhost`.
+- **Verificación:** `build:view` del APK da `finished`; el fichero tiene
+  `com.socracia.app`, versión `0.1.0` y firma v2/v3.
+
 ## D-053 — Multitenencia por base compartida con `tenant_id` y RLS
 
 - **Fecha:** Sprint 0 (multitenencia)
@@ -958,12 +1026,268 @@ sprint por una cuestión menor.
   de privacidad y niega la indicación del usuario; (c) mantener ambos caminos
   duplicando `StudyService`: dos fuentes de verdad para el mismo dominio.
 - **Consecuencias:** un solo `StudyService.answer` devuelve `Result<SessionTurn,
-  StudyError>`; el orden de preferencia es proveedor semántico → evaluador LLM
+StudyError>`; el orden de preferencia es proveedor semántico → evaluador LLM
   (`submitAsync`) → heurística local. `ActiveStudySession` lleva `documents`
   (para localizar la fuente) y `usesModel` (para elegir el camino). La convención
   de commits pasa a distinguir el modo estricto (rangos, `--message-file`) del de
   auditoría (`--all`, informa sin bloquear), porque los tres incumplimientos ya
   están fusionados en `main` y reescribirlos está prohibido.
+
+## D-059 — La APK de 1.0 se genera con un perfil de EAS que extiende de producción
+
+- **Fecha:** Sprint de cierre de 1.0 (2026-11-04)
+- **Contexto:** la entrega de 1.0 exige un APK instalable para probar en
+  dispositivo, pero el perfil `production` genera un **AAB** (`app-bundle`),
+  que Google Play consume y un teléfono no instala directamente. Los perfiles
+  `development` y `preview` sí generan APK, pero con `developmentClient` o sin el
+  canal de producción, y no son lo que se quiere entregar como build de
+  lanzamiento.
+- **Decisión:** se añade el perfil **`release-apk`** que **extiende de
+  `production`** (`extends: "production"`) y solo cambia lo necesario:
+  `distribution: "internal"` y `android.buildType: "apk"`. Hereda el canal de
+  producción, la versión remota y `autoIncrement: true`.
+- **Motivos:** extender de `production` mantiene una sola fuente de verdad para
+  el canal y la numeración; el APK de lanzamiento no es una configuración
+  paralela que pueda divergir. `distribution: "internal"` evita cualquier envío a
+  tienda: el artefacto es para instalación directa. El `versionCode` sigue
+  gestionado por EAS en remoto (`appVersionSource: "remote"`), como exige el
+  alcance de 1.0; no se toca a mano.
+- **Alternativas descartadas:** (a) reutilizar `preview`: no comparte canal con
+  producción y arrastra su configuración de previsualización; (b) cambiar
+  `production` a APK: rompería la entrega a Google Play, que exige AAB;
+  (c) generar el APK solo en local con `docs/build-apk-local.md`: válido como
+  respaldo, pero no es «APK generado por EAS», que es lo que pide la puerta G7.
+- **Consecuencias:** `eas build --profile release-apk --platform android` produce
+  un APK de lanzamiento. La prueba `buildConfig.test.ts` fija que el perfil
+  extiende de producción, distribuye internamente y genera APK, para que un
+  cambio futuro no lo degrade en silencio. El primer keystore de Android no se
+  puede generar en modo no interactivo (issue de `eas-cli`), así que la primera
+  compilación exige un paso humano: ver `docs/release-1.0-smoke.md`.
+
+## D-060 — Las evals de G3 se ejecutan contra el backend real, sin clave en el cliente
+
+- **Fecha:** cierre de 1.0 (2026-11-05)
+- **Contexto:** la puerta G3 exige evals contra el proveedor semántico **real**
+  (≥ 30 casos, concordancia de veredicto ≥ 80 %, 0 citas inventadas, ≥ 90 % de
+  paráfrasis correctas aceptadas). Las 32 evals del repositorio corren con
+  respuestas **simuladas**: miden la robustez del motor, no la calidad del modelo
+  real, así que no cuentan para G3. Faltaba un arnés que llamara al proveedor.
+- **Decisión:** se añade `scripts/eval-real.mjs` (`npm run eval:real`), que
+  ejercita el backend real (`/mayeutic/generate` y `/mayeutic/evaluate`), no la
+  API del proveedor. El script **no contiene ninguna clave**: crea una cuenta de
+  prueba efímera, llama al backend y la borra al terminar. La clave del proveedor
+  vive solo en el servidor, coherente con D-057/D-058.
+- **Motivos:** llamar al backend y no a Gemini directamente reproduce el camino
+  de producción (autenticación, validación de entrada, adaptador) y mantiene el
+  principio de coste cero y de «ninguna clave en el cliente». Además, el script
+  distingue «proveedor no disponible» (503/502 → G3 **no verificada**) de «por
+  debajo del umbral» (→ G3 **fallida**), que son diagnósticos distintos.
+- **Alternativas descartadas:** (a) llamar a la API del proveedor desde el
+  script: exigiría una clave en el entorno de ejecución y duplicaría el adaptador;
+  (b) ampliar las evals simuladas: seguirían sin ser evidencia real.
+- **Consecuencias:** el adaptador del backend (`apps/api/src/mayeutic.ts`) ahora
+  **propaga el mensaje de error del proveedor** en su respuesta (antes solo decía
+  «respondió 400»), para que un fallo de clave o de modelo sea diagnosticable sin
+  acceso a los logs del servidor. La clave del proveedor nunca se incluye en el
+  mensaje. G3 se cierra ejecutando `npm run eval:real` contra el backend con el
+  proveedor configurado.
+
+## D-061 — El bloqueo de G3 es de créditos del proyecto de Gemini, no de código
+
+- **Fecha:** cierre de 1.0 (2026-11-05)
+- **Contexto:** tras habilitar la facturación en el proyecto de Gemini, se probó
+  una clave **válida** (autentica contra `generativelanguage.googleapis.com` y
+  lista 50 modelos, `gemini-3.8-flash` incluido) directamente contra la API
+  oficial, tanto por el endpoint compatible con OpenAI como por
+  `generateContent`. **Toda** llamada devuelve **HTTP 402
+  `RESOURCE_EXHAUSTED`**: «Your prepayment credits are depleted… manage your
+  project and billing».
+- **Decisión:** se registra que la causa raíz del bloqueo de G3 es la **ausencia
+  de créditos en el proyecto de Gemini** (el paso a prepago con 0 créditos
+  sustituye a la cuota gratuita), no un defecto del cliente, del cuerpo de la
+  petición ni de la forma de la clave. El backend de Render, además, sigue
+  sirviendo el código viejo (su mensaje no incluye el detalle del proveedor),
+  así que su `400` y el `402` real conviven hasta que se despliegue D-060.
+- **Motivos:** sin esta distinción, el siguiente intento volvería a confundir un
+  problema de facturación/cuota con un bug de integración. La calibración contra
+  Gemini confirma que el cuerpo que envía el backend pasa la validación de forma
+  (un `temperature`/`max_tokens` fuera de rango se rechaza antes que la clave).
+- **Alternativas descartadas:** (a) tocar el umbral o el prompt para «pasar» G3:
+  no produce evidencia real; (b) llamar a la API desde el script con una clave en
+  el entorno: rompe D-060 y el principio de «ninguna clave en el cliente».
+- **Consecuencias:** G3 sigue **no verificada** y bloquea el GO. Desbloqueo
+  (humano): cargar créditos de prepago en el proyecto de Gemini, o usar una clave
+  de un proyecto **sin** facturación (nivel gratuito), configurarla como
+  `GEMINI_API_KEY` en Render y desplegar el backend con la propagación de error
+  (D-060); después, `npm run eval:real`.
+
+## D-062 — Ningún modelo gratuito desbloquea G3: el 402 es del proyecto, no del modelo
+
+- **Fecha:** cierre de 1.0 (2026-11-05)
+- **Contexto:** tras habilitar la facturación, se pidió «introducir un modelo
+  gratuito» para la misma clave. Se probaron **los 47 modelos** que la clave
+  puede listar (todos los que soportan `generateContent`: Gemini 2.0, 2.5, 3.x,
+  Flash/Pro/Flash-Lite, `gemini-3.8-flash`, `gemma-4-*`, embeddings…), por el
+  endpoint compatible con OpenAI, por `generateContent` nativo y por
+  `v1`/`v1beta`, con `Authorization: Bearer` y con `x-goog-api-key`. **Los 47
+  devuelven el mismo `HTTP 402 RESOURCE_EXHAUSTED`**: «Your prepayment credits
+  are depleted». La cuota y los límites son **por proyecto, no por clave ni por
+  modelo** (docs oficiales de rate-limits/billing).
+- **Decisión:** no se cambia el modelo por defecto para «esquivar» el 402: el
+  modelo por defecto (`gemini-3.8-flash`) **ya es de nivel gratuito** según la
+  tabla oficial de precios (input y output «Free of charge»). El bloqueo es el
+  **estado de facturación del proyecto**: habilitar la facturación lo pasó a
+  prepago con **0 créditos**, y ese estado desactiva **también** el nivel
+  gratuito. Ningún nombre de modelo puede saltarse un bloqueo de proyecto.
+- **Motivos:** cambiar el modelo sería un cambio de código inútil (y arriesgado)
+  que no aborda la causa. La documentación oficial es explícita: para volver al
+  nivel gratuito hay que **desactivar la facturación** del proyecto; para seguir
+  con facturación, hay que **cargar créditos de prepago**.
+- **Alternativas descartadas:** (a) bajar a un modelo «más barato» o de otra
+  familia: probado, da el mismo 402; (b) usar `gemma` (gratuito por completo):
+  probado, mismo 402; (c) poner la clave en el cliente: rompe D-057/D-058.
+- **Consecuencias:** G3 sigue **no verificada**. Desbloqueo (humano, una de las
+  dos): **(a)** desactivar la facturación del proyecto de Gemini para recuperar
+  el nivel gratuito (<https://docs.cloud.google.com/billing/docs/how-to/modify-project#disable_billing_for_a_project>),
+  o **(b)** cargar créditos de prepago en AI Studio. Después: configurar la clave
+  en Render, desplegar el backend con la propagación de error (D-060) y ejecutar
+  `npm run eval:real`. El modelo por defecto no requiere cambios.
+
+## D-063 — El proveedor rota entre modelos gratuitos y tolera salidas irregulares
+
+- **Fecha:** cierre de 1.0 (2026-11-06)
+- **Contexto:** tras desactivar la facturación (recuperando el nivel gratuito de
+  Gemini), la clave vuelve a responder. Al ejecutar el arnés de G3 se observaron
+  dos hechos del nivel gratuito: **(1)** el límite es **por modelo** —~5
+  peticiones por minuto y ~20 por día— así que 33 casos agotan enseguida un solo
+  modelo; **(2)** `gemini-3.8-flash` devuelve **503 «high demand»** de forma
+  sistemática, y `gemini-3.5-flash-lite` devuelve a veces un **array suelto** en
+  vez de `{questions:[…]}`.
+- **Decisión:**
+  1. **Rotación de modelos.** `GeminiMayeuticService` usa una **lista** de
+     modelos (`GEMINI_MODEL` + `GEMINI_MODELS`, con respaldos gratuitos por
+     defecto: `gemini-3.5-flash-lite`, `gemini-3.1-flash-lite`). Solo cambia de
+     modelo ante fallos de **cuota o disponibilidad** (429/500/502/503 o error de
+     red); un error de formato o de datos no se reintenta con otro modelo. Modelo
+     por defecto: `gemini-3.6-flash` (responde y respeta el esquema).
+  2. **Parseo tolerante.** `readQuestionDrafts` acepta `{questions:[…]}` o un
+     array suelto, y **descarta solo la pregunta mal formada** en vez de tumbar el
+     lote entero. `providerErrorDetail` desenvuelve el error que el endpoint
+     OpenAI-compatible devuelve **dentro de un array** (`[{error:{…}}]`), sin lo
+     cual el motivo —y la pista de reintento— se perdía.
+  3. **Arnés con ritmo y reintento.** `scripts/eval-real.mjs` espacia los casos
+     (`PACE_MS`) y reintenta ante 429/503; ante un límite **diario** (espera
+     > 60 s) se detiene y deja la puerta «no verificada» en vez de esperar en vano.
+- **Motivos:** el nivel gratuito exige repartir la carga entre varios modelos
+  para sostener una sesión real sin coste; la tolerancia evita perder respuestas
+  válidas por la envoltura o por una sola pregunta defectuosa. Todo respeta el
+  principio de «la heurística es el respaldo» y no introduce dependencias.
+- **Alternativas descartadas:** (a) subir a un plan de pago: rompe la regla de
+  coste cero; (b) fijar un solo modelo: agota su cuota diaria en una sesión;
+  (c) rechazar el lote entero ante una pregunta inválida: pérdida innecesaria.
+- **Consecuencias:** **G3 queda verificada con el proveedor real** (30 casos de
+  evaluación + 3 de generación): concordancia de veredicto **83.3 %** (≥ 80 %),
+  paráfrasis correctas **100 %** (≥ 90 %), **0** citas inventadas. Evidencia:
+  `docs/release-1.0-g3-evidence.txt`. El motor sigue funcionando con la heurística
+  cuando no hay clave, no hay red o se agota la cuota (D-043, D-058).
+
+## D-064 — El proveedor semántico evalúa, pero el enriquecimiento del turno sigue su curso
+
+- **Fecha:** Sprint 5 (módulo LLM como motor principal)
+- **Contexto:** con el proveedor semántico (Gemini) como motor principal, `StudyService.answer`
+  obtenía la evaluación del proveedor y luego llamaba a `engine.submit(text, latency, now, assessment)`.
+  `submit` es el camino **síncrono** y **no** ejecuta `enrichTurn`, que es el único punto
+  donde se piden la repregunta (`followUp`) y la explicación (`explainer`) al modelo. La
+  consecuencia: justo cuando el documento estaba autorizado y el modelo disponible, el
+  alumno **perdía** la repregunta redactada y la explicación, que `docs/llm-engine.md`
+  promete. La paradoja era que el recorrido **sin** autorización (heurístico, vía
+  `submitAsync`) sí las pedía. Ninguna prueba lo cubría: `npm run verify` seguía verde con
+  el fallo presente.
+- **Decisión:** el enriquecimiento del turno es **independiente de quién evalúa**. Tanto si
+  el veredicto viene del proveedor semántico como del evaluador LLM o de la heurística, el
+  turno pasa por `submitAsync`, que es el único camino que llama a `enrichTurn`. Para no
+  evaluar dos veces, `submitAsync` acepta el `assessment` ya obtenido y, si viene, respeta
+  su juicio sin volver a pedirlo al modelo. `submit` queda como camino síncrono puro y sin
+  modelo: se le retira el parámetro `assessment` para que no pueda volver a desactivar el
+  enriquecimiento en silencio.
+- **Motivos:** el diseño de `docs/llm-engine.md` separa dos responsabilidades —decidir el
+  veredicto y mejorar el texto del turno— y el bug las había acoplado por accidente. Con el
+  arreglo, el orden de preferencia de D-058 se mantiene intacto y solo se restaura la
+  capacidad que se había perdido. El coste es una llamada más por turno con fallo, y solo
+  cuando el motor está activo; sin modelo no se pide nada.
+- **Alternativas descartadas:** (a) dejar que `submit` llame también a `enrichTurn`:
+  convierte un método síncrono en asíncrono y obliga a cambiar a todos sus llamantes
+  (pruebas incluidas) por un caso que ya cubre `submitAsync`; (b) enriquecer en
+  `StudyService.answer` en lugar del motor: saca del motor una decisión que es suya y
+  duplica la lógica de umbral de fallos; (c) no hacer nada: mantiene una capacidad
+  anunciada en la documentación que no llega nunca al alumno.
+- **Consecuencias:** `MayeuticSessionEngine.submitAsync(text, latencyMs, now, assessment?)`
+  gana un cuarto parámetro opcional; `submit(text, latencyMs, now)` pierde el suyo. La
+  prueba de regresión vive en `packages/core/src/__tests__/studyService.test.ts` (bloque
+  «el proveedor semántico no desactiva el enriquecimiento») y se comprobó que falla con el
+  código anterior y pasa con el arreglo.
+
+## D-065 — La explicación del modelo llega a la vista: se cierra el camino D-064
+
+- **Fecha:** Sprint 5 (módulo LLM como motor principal)
+- **Contexto:** el arreglo de D-064 devolvió al motor la capacidad de pedir la
+  explicación. Al verificar el recorrido completo apareció el último eslabón roto
+  del mismo camino: `SessionController.buildView` construía `StudyViewState` sin
+  copiar `turn.explanation`, y el contrato de la vista ni siquiera tenía ese campo.
+  La explicación se producía, se descartaba y el alumno no la veía nunca; ninguna
+  prueba lo cubría porque todas comprobaban el turno del motor, no la vista.
+- **Decisión:** `StudyViewState` incorpora `explanation: string | null` y
+  `buildView` lo rellena desde `turn.explanation`. La pantalla de estudio pinta un
+  bloque «Explicación» cuando el campo no es nulo, con el mismo tratamiento visual
+  que el feedback y el andamiaje.
+- **Motivos:** el contrato de la vista es el único punto por el que el estado del
+  motor llega a la interfaz. Si un dato del turno no está ahí, no existe para el
+  alumno, por bien que lo calcule el núcleo. Declarar el campo como obligatorio
+  (aunque nullable) hace que el compilador impida volver a olvidarlo: quitar la
+  asignación en `buildView` rompe la compilación.
+- **Alternativas descartadas:** (a) pasar `SessionTurn` entero a la vista: filtra
+  detalle interno del motor y acopla la UI al núcleo; (b) mostrar la explicación
+  dentro del feedback existente: mezcla dos textos con propósitos distintos
+  (corrección inmediata frente a explicación tras fallos repetidos).
+- **Consecuencias:** dos pruebas nuevas fijan el comportamiento en ambos extremos
+  del camino: `sessionController.test.ts` comprueba que la vista lleva la
+  explicación y `StudyScreen.test.tsx` que la pantalla la pinta. Ambas se
+  verificaron en los dos sentidos: fallan sin el arreglo y pasan con él.
+  `npm run verify` queda en 548 pruebas (321 core, 56 api, 171 móvil).
+
+## D-066 — Identidad visual clara y oscura, y visibilidad del motor en la app
+
+- **Fecha:** Sprint 5 (identidad visual y experiencia de 1.0)
+- **Contexto:** la app tenía una sola paleta (oscura) fijada en `app.json`
+  (`userInterfaceStyle: "dark"`) y los colores vivían en `theme/tokens.ts` como
+  un único objeto. Además, el motor semántico podía degradar a la heurística sin
+  que el usuario supiera quién estaba respondiendo ni por qué; una degradación
+  silenciosa es indistinguible de «la IA funciona mal».
+- **Decisión:** (1) `tokens.ts` define dos temas completos (`lightTheme` y
+  `darkTheme`) con los mismos nombres de color, y `ThemeProvider` resuelve el
+  activo a partir de la preferencia (`system`/`light`/`dark`, persistida en
+  `app_meta`). (2) `app.json` pasa a `userInterfaceStyle: "automatic"`. (3) La
+  pantalla de estudio muestra una insignia (`EngineBadge`) que indica «IA
+  semántica» o «Modo local» y, al pulsarla, explica el motivo exacto de la
+  degradación con una acción para resolverla.
+- **Motivos:** una identidad clara y oscura es requisito de producto, no un
+  adorno, y debe seguir la preferencia del sistema sin reiniciar. Sobre el motor,
+  el usuario tiene derecho a saber quién responde a su pregunta; el motivo
+  mostrado es la primera causa accionable (sin backend → sin cuenta → nube
+  desactivada → documento sin permiso → sin conexión → servidor despertando →
+  cuota → error), calculada por una función pura (`describeEngineStatus`) que se
+  prueba en Node.
+- **Alternativas descartadas:** (a) dos ficheros de tokens y dos `useTheme`
+  distintos: duplicaría cada `StyleSheet`; (b) mostrar el estado del motor solo
+  en Ajustes: lo aleja del momento en que importa (la pregunta en pantalla); (c)
+  un tercer tema «alto contraste»: fuera del alcance de 1.0.
+- **Consecuencias:** ninguna firma pública del dominio cambia; todo el cambio
+  vive en `apps/mobile` (presentación, configuración y cableado). Los pares de
+  color se verifican con una prueba que recalcula el contraste WCAG real
+  (`themeContrast.test.ts`), y otra (`themeTokens.test.ts`) impide que aparezca
+  un color literal fuera de `theme/tokens.ts`. La elección de tema, el estado del
+  onboarding y el consentimiento por documento se guardan en `app_meta` y se
+  rehidratan al arrancar.
 
 ## Ambigüedades pendientes (no bloqueantes)
 

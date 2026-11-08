@@ -117,6 +117,8 @@ jurisdicción será la que corresponda conforme a la normativa de consumo.
 
 <!-- dev:nota-interna -->
 
-Sustituya estos buzones por direcciones reales antes de publicar.
+**PENDIENTE DE REVISIÓN HUMANA.** Estos términos no han sido validados por
+asesoría jurídica. Antes de publicar, una persona con criterio legal debe
+revisarlos y sustituir estos buzones por direcciones reales.
 
 <!-- /dev:nota-interna -->

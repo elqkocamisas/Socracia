@@ -115,7 +115,12 @@ describe('LlmHttpProvider', () => {
         },
         difficulty: 0.2,
       },
-      { questionId: 'q1', text: 'La Administración se somete a la ley.', answeredAt: 0, latencyMs: 10 },
+      {
+        questionId: 'q1',
+        text: 'La Administración se somete a la ley.',
+        answeredAt: 0,
+        latencyMs: 10,
+      },
       [
         {
           citation: {

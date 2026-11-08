@@ -4,7 +4,7 @@ import { HashingEmbeddingProvider } from '../rag/embeddings';
 import { RagEngine } from '../rag/engine';
 import { InMemoryVectorStore } from '../rag/vectorStore';
 import { inMemoryStorage } from '../storage/inMemory';
-import { StudyService, DEFAULT_STUDY_OPTIONS } from '../app/studyService';
+import { StudyService, DEFAULT_STUDY_OPTIONS, type StudyServiceOptions } from '../app/studyService';
 import type { SessionTurn } from '../mayeu/session';
 import type { MayeuticSemanticProvider } from '../mayeu/semanticProvider';
 import { err, ok } from '../result';
@@ -13,10 +13,13 @@ const NOW = 1_700_000_000_000;
 const USER = 'u1';
 const encoder = new TextEncoder();
 
-function makeService(semanticProvider?: MayeuticSemanticProvider) {
+function makeService(
+  semanticProvider?: MayeuticSemanticProvider,
+  options: StudyServiceOptions = DEFAULT_STUDY_OPTIONS,
+) {
   const storage = inMemoryStorage();
   const rag = new RagEngine(new InMemoryVectorStore(), new HashingEmbeddingProvider(256));
-  const service = new StudyService(rag, storage, DEFAULT_STUDY_OPTIONS, semanticProvider);
+  const service = new StudyService(rag, storage, options, semanticProvider);
   return { service, rag, storage };
 }
 
@@ -374,5 +377,80 @@ describe('StudyService: persistencia de sesión y vista de progreso', () => {
     const after = await service.overview(USER, curriculum.concepts, NOW + 1);
     expect(after.mastery.conceptsNotEvaluated).toBeLessThan(curriculum.concepts.length);
     expect(after.generatedAt).toBe(NOW + 1);
+  });
+});
+
+describe('StudyService: el proveedor semántico no desactiva el enriquecimiento', () => {
+  /**
+   * Con Gemini como motor principal, la evaluación llega por el proveedor
+   * semántico. El turno debe pasar igualmente por el camino asíncrono: si no, la
+   * repregunta y la explicación del modelo nunca se piden y el alumno pierde el
+   * texto que `docs/llm-engine.md` promete (decisión D-064). Esta prueba fija esa
+   * garantía; se comprobó que falla con el código anterior al arreglo.
+   */
+  it('pide la repregunta y la explicación del modelo aunque Gemini evalúe', async () => {
+    const calls = { followUp: 0, explainer: 0 };
+    const options = {
+      ...DEFAULT_STUDY_OPTIONS,
+      session: {
+        ...DEFAULT_STUDY_OPTIONS.session,
+        followUp: {
+          id: 'fake-followup',
+          followUp: async () => {
+            calls.followUp += 1;
+            return ok({
+              kind: 'orientar' as const,
+              prompt: 'repregunta del modelo',
+              hints: ['pista'],
+            });
+          },
+        },
+        explainer: {
+          id: 'fake-explainer',
+          explain: async () => {
+            calls.explainer += 1;
+            return ok({ text: 'explicación del modelo', citations: [] });
+          },
+        },
+      },
+    };
+    const semanticProvider: MayeuticSemanticProvider = {
+      canProcess: () => true,
+      generateQuestions: async () =>
+        ok([
+          {
+            prompt: '¿Cómo aplicarías este principio a un caso que no aparece en el texto?',
+            move: 'aplicar-caso',
+            level: 'aplicar',
+            expectedAnswer:
+              'La respuesta debe aplicar el principio al caso y justificarlo con la evidencia.',
+            keyTerms: ['Administración'],
+            difficulty: 0.7,
+          },
+        ]),
+      evaluateAnswer: async () => ok({ score: 0, matchedKeyTerms: [], feedback: 'incorrecto' }),
+    };
+    const { service, rag } = makeService(semanticProvider, options);
+    const curriculum = await ingestSample(rag);
+    const prepared = await service.prepareSession(USER, curriculum, [SAMPLE_DOCUMENT], NOW, 's1');
+    if (!prepared.ok) {
+      throw new Error(prepared.error.message);
+    }
+
+    // Tres fallos seguidos: el primero pide repregunta y el umbral de explicación
+    // (2) se supera en el segundo. Se guardan todos los turnos porque la
+    // explicación aparece en el turno en que se cruza el umbral, no en el último.
+    const turns: SessionTurn[] = [];
+    for (let i = 0; i < 3; i += 1) {
+      const result = await service.answer(prepared.value, USER, 'no lo sé', 900, NOW + i);
+      if (!result.ok) {
+        throw new Error(result.error.message);
+      }
+      turns.push(result.value);
+    }
+
+    expect(calls.followUp).toBeGreaterThan(0);
+    expect(calls.explainer).toBeGreaterThan(0);
+    expect(turns.map((turn) => turn.explanation)).toContain('explicación del modelo');
   });
 });

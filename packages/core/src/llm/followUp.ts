@@ -14,7 +14,15 @@ import type { AnswerEvaluation, SocraticQuestion, UserAnswer } from '../domain/t
 import type { Scaffold, ScaffoldKind } from '../mayeu/scaffolding';
 import type { Result } from '../result';
 import { err, ok } from '../result';
-import { arrayOf, describeSchemaError, extractJsonObject, nonEmptyString, oneOf, record, type SchemaError } from './json';
+import {
+  arrayOf,
+  describeSchemaError,
+  extractJsonObject,
+  nonEmptyString,
+  oneOf,
+  record,
+  type SchemaError,
+} from './json';
 import type { FollowUpPort } from './ports';
 import { followUpPrompt } from './prompts';
 import type { LlmError, LlmProvider } from './types';
@@ -65,7 +73,10 @@ export class LlmFollowUpGenerator implements FollowUpPort {
 
     const parsed = parseFollowUp(completion.value.text, question);
     if (!parsed.ok) {
-      return err<LlmError>({ code: 'respuesta-invalida', message: describeSchemaError(parsed.error) });
+      return err<LlmError>({
+        code: 'respuesta-invalida',
+        message: describeSchemaError(parsed.error),
+      });
     }
     if (parsed.value === null) {
       return err<LlmError>({

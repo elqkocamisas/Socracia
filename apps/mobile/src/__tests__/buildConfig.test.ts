@@ -54,6 +54,11 @@ interface EasConfig {
       autoIncrement?: boolean;
       android: { buildType: string };
     };
+    'release-apk': {
+      extends: string;
+      distribution: string;
+      android: { buildType: string };
+    };
   };
   submit: { production: { android: { track: string } } };
 }
@@ -126,5 +131,14 @@ describe('Configuración de build y tienda', () => {
 
   it('el perfil de producción no incluye el cliente de desarrollo', () => {
     expect(easJson.build.production.developmentClient).toBeUndefined();
+  });
+
+  it('define un perfil de APK de lanzamiento para distribución interna', () => {
+    const apk = easJson.build['release-apk'];
+    // Extiende de producción (mismo canal, autoIncrement) pero entrega un APK
+    // instalable, no un AAB: es lo que exige la prueba en dispositivo.
+    expect(apk.extends).toBe('production');
+    expect(apk.distribution).toBe('internal');
+    expect(apk.android.buildType).toBe('apk');
   });
 });

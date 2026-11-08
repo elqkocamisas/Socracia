@@ -67,7 +67,12 @@ describe('JsonFileProgressStore', () => {
     // Es el caso de un despliegue: `DATA_FILE` apunta a un volumen que se
     // monta vacío, así que el directorio puede no estar. Antes fallaba con
     // ENOENT en la primera sincronización.
-    const nested = join(tmpdir(), `socracia-nested-${process.pid}-${Date.now()}`, 'datos', 'progreso.json');
+    const nested = join(
+      tmpdir(),
+      `socracia-nested-${process.pid}-${Date.now()}`,
+      'datos',
+      'progreso.json',
+    );
     const store = new JsonFileProgressStore(nested);
 
     await store.merge(USER, emptySnapshot(USER, 7));

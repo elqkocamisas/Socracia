@@ -55,11 +55,17 @@ describe('API de sincronización', () => {
     });
   }
 
-  it('responde al health check', async () => {
+  it('responde al health check con versión y estado del proveedor', async () => {
     const response = await fetch(`${baseUrl}/health`);
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ status: 'ok' });
+    const body = (await response.json()) as Record<string, unknown>;
+    expect(body.status).toBe('ok');
+    // La versión y el commit permiten saber qué revisión sirve el backend; el
+    // estado del proveedor no filtra la clave, solo si está configurado.
+    expect(typeof body.version === 'string' || body.version === null).toBe(true);
+    expect(body).toHaveProperty('commit');
+    expect(body).toHaveProperty('provider');
   });
 
   it('registra, sincroniza y recupera el progreso en otro dispositivo', async () => {

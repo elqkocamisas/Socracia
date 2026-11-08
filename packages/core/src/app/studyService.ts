@@ -215,14 +215,13 @@ export class StudyService {
       assessment = evaluated.value;
     }
 
-    // Sin evaluación semántica propia, se usa el camino del motor: asíncrono si
-    // hay evaluador inyectado (el modelo decide con los pasajes), síncrono si no.
+    // Con evaluación semántica o motor inyectado, el turno pasa por el camino
+    // asíncrono: es el único que lo enriquece con repregunta y explicación. El
+    // síncrono queda para el recorrido puramente heurístico.
     const turn =
-      assessment !== undefined
-        ? active.engine.submit(text, latencyMs, now, assessment)
-        : active.usesModel
-          ? await active.engine.submitAsync(text, latencyMs, now)
-          : active.engine.submit(text, latencyMs, now);
+      assessment !== undefined || active.usesModel
+        ? await active.engine.submitAsync(text, latencyMs, now, assessment)
+        : active.engine.submit(text, latencyMs, now);
     await this.storage.progress.appendEvaluations(userId, [turn.evaluation]);
     await this.storage.progress.saveReviewStates(userId, active.engine.reviewStates());
     // El avance se persiste para poder reanudar o sincronizar la sesión sin

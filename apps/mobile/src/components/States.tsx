@@ -1,6 +1,7 @@
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { colors, radius, spacing } from '../theme/tokens';
+import { useThemeColors } from '../theme/ThemeProvider';
+import { minTouchTarget, radius, spacing, type ThemeColors } from '../theme/tokens';
 
 /** Estado vacío con un mensaje y una acción opcional. */
 export interface EmptyStateProps {
@@ -17,6 +18,8 @@ export function EmptyState({
   actionLabel,
   onAction,
 }: EmptyStateProps): React.JSX.Element {
+  const colors = useThemeColors();
+  const styles = makeStyles(colors);
   return (
     <View style={styles.card}>
       <Text style={styles.title}>{title}</Text>
@@ -32,6 +35,8 @@ export function EmptyState({
 
 /** Indicador de carga con mensaje. */
 export function LoadingState({ message }: { readonly message: string }): React.JSX.Element {
+  const colors = useThemeColors();
+  const styles = makeStyles(colors);
   return (
     <View style={styles.centered}>
       <ActivityIndicator color={colors.primary} />
@@ -40,10 +45,15 @@ export function LoadingState({ message }: { readonly message: string }): React.J
   );
 }
 
-/** Aviso de error no bloqueante. */
+/** Aviso de error no bloqueante. El color no es la única señal: lleva icono. */
 export function ErrorNotice({ message }: { readonly message: string }): React.JSX.Element {
+  const colors = useThemeColors();
+  const styles = makeStyles(colors);
   return (
     <View style={styles.error}>
+      <Text style={styles.errorIcon} accessibilityElementsHidden>
+        ⚠︎
+      </Text>
       <Text style={styles.errorText}>{message}</Text>
     </View>
   );
@@ -51,6 +61,8 @@ export function ErrorNotice({ message }: { readonly message: string }): React.JS
 
 /** Barra de progreso simple basada en un porcentaje entero. */
 export function ProgressBar({ percent }: { readonly percent: number }): React.JSX.Element {
+  const colors = useThemeColors();
+  const styles = makeStyles(colors);
   const clamped = Math.min(100, Math.max(0, Math.round(percent)));
   return (
     <View
@@ -63,68 +75,97 @@ export function ProgressBar({ percent }: { readonly percent: number }): React.JS
   );
 }
 
-const styles = StyleSheet.create({
-  centered: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: spacing.xl,
-    gap: spacing.sm,
-  },
-  muted: {
-    color: colors.textSecondary,
-    fontSize: 15,
-  },
-  card: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: spacing.lg,
-  },
-  title: {
-    color: colors.accent,
-    fontSize: 14,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  body: {
-    color: colors.textPrimary,
-    fontSize: 15,
-    marginTop: spacing.sm,
-    lineHeight: 22,
-  },
-  button: {
-    marginTop: spacing.md,
-    backgroundColor: colors.primary,
-    borderRadius: radius.md,
-    paddingVertical: spacing.sm,
-    alignItems: 'center',
-  },
-  buttonLabel: {
-    color: colors.primaryContrast,
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  error: {
-    backgroundColor: colors.surface,
-    borderLeftWidth: 3,
-    borderLeftColor: colors.accent,
-    borderRadius: radius.sm,
-    padding: spacing.md,
-  },
-  errorText: {
-    color: colors.textPrimary,
-    fontSize: 15,
-  },
-  track: {
-    height: 8,
-    borderRadius: radius.sm,
-    backgroundColor: colors.border,
-    overflow: 'hidden',
-  },
-  fill: {
-    height: 8,
-    backgroundColor: colors.primary,
-  },
-});
+/**
+ * Esqueleto de carga con bloques grises.
+ *
+ * Se prefiere a un indicador giratorio cuando la pantalla ya conoce la forma de
+ * lo que va a aparecer: el esqueleto anticipa la estructura y evita el salto de
+ * contenido cuando llegan los datos.
+ */
+export function Skeleton({ height = 16 }: { readonly height?: number }): React.JSX.Element {
+  const colors = useThemeColors();
+  const styles = makeStyles(colors);
+  return <View style={[styles.skeleton, { height }]} accessibilityElementsHidden />;
+}
+
+const makeStyles = (colors: ThemeColors): ReturnType<typeof StyleSheet.create> =>
+  StyleSheet.create({
+    centered: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: spacing.xl,
+      gap: spacing.sm,
+    },
+    muted: {
+      color: colors.textSecondary,
+      fontSize: 15,
+    },
+    card: {
+      backgroundColor: colors.surface,
+      borderRadius: radius.lg,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: spacing.lg,
+    },
+    title: {
+      color: colors.accent,
+      fontSize: 14,
+      fontWeight: '600',
+      textTransform: 'uppercase',
+      letterSpacing: 1,
+    },
+    body: {
+      color: colors.textPrimary,
+      fontSize: 15,
+      marginTop: spacing.sm,
+      lineHeight: 22,
+    },
+    button: {
+      marginTop: spacing.md,
+      backgroundColor: colors.primary,
+      borderRadius: radius.md,
+      paddingVertical: spacing.sm,
+      alignItems: 'center',
+      minHeight: minTouchTarget,
+      justifyContent: 'center',
+    },
+    buttonLabel: {
+      color: colors.primaryContrast,
+      fontSize: 15,
+      fontWeight: '600',
+    },
+    error: {
+      flexDirection: 'row',
+      gap: spacing.sm,
+      alignItems: 'flex-start',
+      backgroundColor: colors.surface,
+      borderLeftWidth: 3,
+      borderLeftColor: colors.danger,
+      borderRadius: radius.sm,
+      padding: spacing.md,
+    },
+    errorIcon: {
+      color: colors.danger,
+      fontSize: 16,
+    },
+    errorText: {
+      flex: 1,
+      color: colors.textPrimary,
+      fontSize: 15,
+    },
+    track: {
+      height: 8,
+      borderRadius: radius.sm,
+      backgroundColor: colors.border,
+      overflow: 'hidden',
+    },
+    fill: {
+      height: 8,
+      backgroundColor: colors.primary,
+    },
+    skeleton: {
+      backgroundColor: colors.surfaceAlt,
+      borderRadius: radius.sm,
+      marginTop: spacing.sm,
+    },
+  });

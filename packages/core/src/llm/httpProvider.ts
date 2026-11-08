@@ -45,9 +45,7 @@ export class OpenAiCompatProvider implements LlmProvider {
     this.timeoutMs = options.timeoutMs ?? 0;
   }
 
-  public async complete(
-    request: LlmCompletionRequest,
-  ): Promise<Result<LlmCompletion, LlmError>> {
+  public async complete(request: LlmCompletionRequest): Promise<Result<LlmCompletion, LlmError>> {
     let response: Response;
     try {
       response = await this.fetchImpl(`${this.baseUrl}/chat/completions`, {
@@ -79,7 +77,10 @@ export class OpenAiCompatProvider implements LlmProvider {
     }
 
     if (response.status === 401 || response.status === 403) {
-      return err<LlmError>({ code: 'no-configurado', message: 'Credenciales del proveedor rechazadas.' });
+      return err<LlmError>({
+        code: 'no-configurado',
+        message: 'Credenciales del proveedor rechazadas.',
+      });
     }
     if (response.status === 429) {
       return err<LlmError>({ code: 'cuota', message: 'El proveedor ha limitado la frecuencia.' });
@@ -95,7 +96,10 @@ export class OpenAiCompatProvider implements LlmProvider {
 
     const content = extractContent(body);
     if (content === null) {
-      return err<LlmError>({ code: 'respuesta-invalida', message: 'Respuesta sin contenido de texto.' });
+      return err<LlmError>({
+        code: 'respuesta-invalida',
+        message: 'Respuesta sin contenido de texto.',
+      });
     }
     return ok({ text: content, usage: extractUsage(body), model: this.model });
   }

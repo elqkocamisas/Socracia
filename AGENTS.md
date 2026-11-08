@@ -58,6 +58,29 @@ npm run generate:assets # regenera iconos y capturas base
 
 ## Trampas conocidas
 
+- **Dos tipos de «workflow», y no se leen desde el mismo sitio.** Los de GitHub
+  Actions van en `.github/workflows/` (los ejecuta GitHub); los de **EAS** van en
+  `.eas/workflows/`, **al mismo nivel que `eas.json`** (aquí `apps/mobile/.eas/`,
+  porque el `eas.json` del monorepo está ahí). La pestaña _Workflows_ del panel
+  de Expo solo lista los segundos: si sale vacía, es que falta ese directorio.
+  Añadir un `.yml` en `.github/` **no** la llena. Validar con
+  `eas workflow:validate .eas/workflows/<fichero>.yml`.
+- **El workflow `Expo EAS` de Actions falla sin el secreto `EXPO_TOKEN`.** No es
+  que no se ejecute: corre y falla en el primer paso con «Falta el secreto
+  EXPO_TOKEN». Hay que crearlo en expo.dev (Account → Access tokens) y guardarlo
+  en Settings → Secrets → Actions. El workflow de EAS (`.eas/workflows/`) no
+  necesita ese secreto: lo lanza el servidor de EAS con la sesión del panel.
+- **`npm run format` reescribe ficheros que no ha tocado.** Hay deriva de
+  formato preexistente en `main` (22 ficheros, sobre todo
+  `packages/core/src/llm/`): CI no ejecuta `format:check`, así que no se
+  detecta. Al formatear, **revierta los ficheros ajenos al cambio** antes de
+  commitear (`git checkout -- <rutas>`) o el PR saldrá irrevisable.
+- **El `environment` del build es implícito si no se declara.** Un job `build`
+  sin `environment` lo infiere del perfil, y un perfil sin el campo usa:
+  `production` si `distribution` es `store`, `preview` en el resto. Como
+  `EXPO_PUBLIC_API_BASE_URL` solo existe en el entorno `production`, un build de
+  preview saldría apuntando a `localhost:8787` **sin ningún aviso**. Por eso los
+  perfiles lo declaran explícito y una prueba lo exige.
 - **`@testing-library/react-native` 14:** `render` es **asíncrono** y devuelve un
   objeto sin queries. Usar `await render(<C/>)` y luego `screen.getByText(...)`.
   No usar `const { getByText } = render(...)`.
@@ -159,6 +182,15 @@ Trampas conocidas:
 
 - **PDF FlateDecode usa zlib, no raw deflate.** `fflateInflate` intenta
   `unzlibSync` y cae a `inflateSync`; al revés falla con «unexpected EOF».
+- **Los PDF reales usan arrays `TJ` y cadenas de filtros.** Un extractor que solo
+  mire `(texto) Tj` o solo `/Filter /FlateDecode` deja fuera lo que emiten Word,
+  Chrome, LaTeX y reportlab: arrays `[(a) -250 (b)] TJ` (kerning) y cadenas como
+  `/Filter [ /ASCII85Decode /FlateDecode ]`. Síntoma: «El PDF no contiene texto
+  extraíble (puede ser un escaneo)» con un PDF que sí se ve. `PdfTextExtractor`
+  ahora decodifica la cadena de filtros en orden (ASCII85 en JS puro para Hermes),
+  lee literales y hex, e interpreta el kerning ≥200 como espacio. `T*`/`'` son
+  salto suave (une líneas de un párrafo); `BT/ET/Td/TD/Tm` separan párrafos.
+  Verificado contra PDFs reales de reportlab (comprimidos con y sin ASCII85).
 - **`Result<string>` sin parámetro de error usa `Error`.** Los extractores deben
   declarar `Result<string, IngestError>` o `error.code` no existe en tipos.
 - **Jest no soporta `await import()` en este proyecto** («dynamic import callback
@@ -225,6 +257,37 @@ Trampas conocidas:
   motor existe (`ConsentGatedLlmProvider`) y la declaración no lo menciona, o al
   revés.
 
+## Identidad visual y visibilidad del motor (Sprint 5)
+
+- **Dos temas en `apps/mobile/src/theme/tokens.ts`.** `lightTheme` y `darkTheme`
+  exponen los **mismos nombres de color**; `ThemeProvider` resuelve el activo a
+  partir de la preferencia (`system`/`light`/`dark`), persistida en `app_meta`
+  (`SqliteThemeStore`). `app.json` usa `userInterfaceStyle: "automatic"`.
+- **Regla dura: ningún color literal fuera de `tokens.ts`.** Las pantallas usan
+  `useThemeColors()` y construyen su `StyleSheet` con una función
+  `makeStyles(colors)`. `themeTokens.test.ts` recorre `src/` y falla si aparece
+  un `#RRGGBB` fuera de `theme/tokens.ts`.
+- **El contraste se verifica, no se estima.** `themeContrast.test.ts` recalcula
+  el ratio WCAG real de cada par texto/fondo en uso y exige ≥4.5:1 (AA). Al
+  tocar un color, ese test es la puerta: no lo des por bueno a ojo.
+- **La insignia del motor (`EngineBadge`) nunca miente.** `describeEngineStatus`
+  (pura, en `services/engineStatus.ts`) decide entre «IA semántica» y «Modo
+  local» y, si degrada, devuelve el primer motivo accionable en este orden: sin
+  backend → sin cuenta → nube desactivada → documento sin permiso → sin conexión
+  → servidor despertando → cuota → error. La insignia lleva icono y texto, no
+  solo color.
+- **`AppServices` creció con cableado de plataforma**, sin tocar el dominio:
+  `health` (sonda `/health`), `hasSession`, `documentConsent`,
+  `setDocumentConsent`, `themeStore`, `onboardingStore`. `setDocumentConsent`
+  solo concede si la nube es posible (build con backend + sesión + política);
+  si no, deja el documento en local.
+- **La preferencia y el onboarding viven en `app_meta`** y se rehidratan al
+  arrancar; si se perdieran, el tema «saltaría» o el onboarding reaparecería en
+  cada apertura.
+- **Trampa del typecheck móvil:** no hay `@types/node`, así que en pruebas usa
+  `globalThis.fetch` (no `global.fetch`) y declara lo que falte en
+  `src/__tests__/helpers/node-*.d.ts` (p. ej. `statSync` en `node-fs.d.ts`).
+
 ## Reglas de trabajo
 
 - Una rama por sprint (`sprint-N-<tema>`), PR a `main` al terminar.
@@ -271,3 +334,63 @@ Trampas conocidas:
   `packages/core/src`, hay que `npm run build --workspace @socracia/core` antes
   de `npm run verify`, o el typecheck de móvil usará los `.d.ts` antiguos y
   dará errores que el código fuente no tiene.
+- **`userInterfaceStyle: automatic` no hace nada en Android sin
+  `expo-system-ui`.** Sin ese paquete, `useColorScheme()` no sigue la apariencia
+  del sistema y el tema «automático» queda fijo. El prebuild lo avisa con
+  `Install expo-system-ui in your project to enable this feature`. Instalado en
+  la 1.0 (`expo-system-ui` en `apps/mobile/package.json`).
+- **El APK local se firma con la clave de depuración.** `assembleRelease` sobre
+  un prebuild limpio usa el keystore de debug: sirve para probar, no para
+  publicar. Además, `expo prebuild` reescribe los scripts `android`/`ios` a
+  `expo run:*`; hay que revertir ese cambio (el resto de cambios del prebuild en
+  `android/` no se versionan, está en `.gitignore`).
+- **Las variables `EXPO_PUBLIC_*` se incrustan en el bundle al compilar.** No son
+  secretos: `EXPO_PUBLIC_API_BASE_URL` fija el backend del APK y
+  `EXPO_PUBLIC_CLOUD_PROCESSING=1` habilita el asistente con modelo. Si se
+  exportan en la shell de pruebas, **rompen suites que asumen modo local**
+  (`privacySettings`, `studyEngineBadge`): limpiarlas antes de `npm run verify`.
+
+## Cierre de 1.0 (2026-11-04)
+
+- **El proceso mayéutico está demostrado de extremo a extremo.** El recorrido
+  dorado vive en `packages/core/src/__tests__/goldenPath.test.ts` (servicio +
+  controlador, 12 casos) y `apps/mobile/src/__tests__/goldenPath.e2e.test.tsx`
+  (pantallas, 1 caso). Usa el mismo temario de tres formas (TXT, MD y PDF real
+  con `buildPdf`), exige que las tres produzcan los mismos 3 temas/3 conceptos y
+  cierra el ciclo completo (importar → pregunta anclada → parafrasear → errar →
+  explicar → lagunas → repaso) en los tres formatos.
+- **Defectos corregidos en F1:** (a) el extractor de PDF aplanaba los espacios y
+  pegaba el encabezado al párrafo → un PDF daba 1 tema en vez de 3; ahora respeta
+  los límites de bloque `BT…ET`. (b) El controlador calculaba la explicación y la
+  descartaba; ahora `StudyViewState.explanation` la propaga y `StudyScreen` la
+  muestra («Te lo explico»). (c) `## Tema 1. X` no se limpiaba como `Tema 1. X`;
+  ahora `cleanHeading` unifica MD y TXT.
+- **El perfil de EAS `release-apk`** extiende de `production` y cambia solo
+  `distribution: internal` y `android.buildType: apk` (D-059). No tocar
+  `production` a APK: Google Play exige AAB.
+- **El primer keystore de Android NO se puede generar en modo no interactivo.**
+  Es comportamiento documentado de `eas-cli`. La primera compilación exige un
+  humano: `cd apps/mobile && npx eas-cli login && npx eas-cli build --profile
+release-apk --platform android` (aceptar el keystore cuando lo pida). Sin
+  `EXPO_TOKEN`, el agente no puede lanzarlo.
+- **Plan gratuito de EAS: builds de baja prioridad limitadas al mes** (se
+  reinician el día 1; sin sobrecoste). La documentación oficial **no publica una
+  cifra fija** para el plan gratuito; comprobar el consumo en Expo → Billing →
+  Usage antes de lanzar. Si se agota, usar la ruta local de
+  `docs/build-apk-local.md`.
+- **La versión vive en 6 sitios + el lockfile.** Al subirla: `package.json`
+  (raíz y 3 workspaces), `apps/mobile/app.json`, `apps/mobile/store/listing.json`
+  y `package-lock.json` (entradas raíz y de cada workspace). **No** hacer
+  `sed` ciego sobre `package-lock.json`: hay dependencias cuya versión también es
+  `0.1.0` (`bplist-creator`, `get-package-type`, `yocto-queue`) y se corrompen.
+  El `versionCode` lo gestiona EAS en remoto; no se toca a mano.
+- **`npm run format` reformatea ficheros antiguos** (p. ej. `app.json`, tablas
+  Markdown) porque la versión de Prettier cambió respecto al baseline. No es una
+  puerta (`verify` = lint + typecheck + test): formatear solo los ficheros
+  propios para no meter ruido en el diff.
+- **El dictamen es NO-GO hasta que existan G3 (evals con proveedor real) y
+  G7/G8 (APK + smoke).** El resto de puertas están verdes. Estado y evidencia en
+  `docs/release-1.0-verdict.md`; sprints restantes en
+  `docs/release-1.0-checklist.md`; prueba manual en `docs/release-1.0-smoke.md`.
+- **La multitenencia no está implementada.** No hay código `MULTITENANT` en el
+  árbol: solo documentación (D-053…D-058). Inerte por construcción.

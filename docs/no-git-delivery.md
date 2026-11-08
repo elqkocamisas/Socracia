@@ -15,13 +15,13 @@ red saliente desde la máquina de destino.
 
 ```bash
 npm run package:source
-# Crea dist/socracia-0.1.0-fuente.tar.gz y dist/socracia-0.1.0.manifest.json
+# Crea dist/socracia-1.0.0-fuente.tar.gz y dist/socracia-1.0.0.manifest.json
 ```
 
 Para instalarlo en la máquina de destino:
 
 ```bash
-mkdir socracia && tar -xzf socracia-0.1.0-fuente.tar.gz -C socracia
+mkdir socracia && tar -xzf socracia-1.0.0-fuente.tar.gz -C socracia
 cd socracia && npm ci && npm run verify
 ```
 
@@ -51,7 +51,7 @@ reproducible prefiera la opción A.
 
 ```bash
 sha256sum -c <(node -e '
-  const m = require("./dist/socracia-0.1.0.manifest.json");
+  const m = require("./dist/socracia-1.0.0.manifest.json");
   for (const f of m.files) console.log(f.sha256 + "  " + f.path);
 ')
 ```
@@ -115,12 +115,12 @@ alternativa práctica a la etiqueta de git que sugiere
 
 ## 4. Comparación de las opciones
 
-| Opción                 | Necesita Git | Trae historial | Reproducible | Tamaño  |
-| ---------------------- | ------------ | -------------- | ------------ | ------- |
-| A. Paquete de fuente   | No           | No             | Sí (lockfile)| ~380 KB |
-| B. Copia con rsync     | No           | No             | Sí           | Variable|
-| C. ZIP de GitHub       | No           | No             | Aceptable    | ~1 MB   |
-| Clon con Git           | Sí           | Sí             | Sí           | ~1 MB   |
+| Opción               | Necesita Git | Trae historial | Reproducible  | Tamaño   |
+| -------------------- | ------------ | -------------- | ------------- | -------- |
+| A. Paquete de fuente | No           | No             | Sí (lockfile) | ~380 KB  |
+| B. Copia con rsync   | No           | No             | Sí            | Variable |
+| C. ZIP de GitHub     | No           | No             | Aceptable     | ~1 MB    |
+| Clon con Git         | Sí           | Sí             | Sí            | ~1 MB    |
 
 La opción A es la única que además produce un manifiesto con huellas, que es lo
 que permite demostrar que la entrega no se alteró por el camino.
