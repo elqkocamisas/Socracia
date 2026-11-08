@@ -25,6 +25,20 @@ Primera versión completa del producto: app móvil de un solo usuario, local-fir
 - **Arnés de evals con proveedor real** (`npm run eval:real`): ejercita el
   backend real, sin clave en el cliente, y calcula las métricas de la puerta G3
   (concordancia de veredicto, paráfrasis aceptadas y citas inventadas).
+- **Identidad visual con tema claro y oscuro:** `theme/tokens.ts` define las dos
+  paletas (mismos nombres de color), `ThemeProvider` resuelve la activa según la
+  preferencia del sistema o la elección del usuario, y esta se guarda en
+  `app_meta`. Los pares de color se verifican con el contraste WCAG real.
+- **Insignia del motor en la pantalla de estudio:** indica si responde el motor
+  semántico («IA semántica») o la heurística local («Modo local») y, al pulsarla,
+  explica el motivo de la degradación con la acción para resolverla. Aviso de
+  arranque en frío de Render mientras el servidor despierta.
+- **Onboarding de tres pasos** (qué es la mayéutica, cómo trabaja la app y
+  elección de privacidad en claro), visible solo la primera vez.
+- **Consentimiento por documento:** cada documento puede autorizarse o no para la
+  nube desde su ficha, sin cambiar el valor por defecto (local).
+- **Diagnóstico del motor en Cuenta:** las cuatro condiciones que habilitan la
+  nube, estado real de la API (`/health`) y ajuste de tema.
 
 ### Cambiado
 

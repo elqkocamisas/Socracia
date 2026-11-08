@@ -1255,6 +1255,40 @@ StudyError>`; el orden de preferencia es proveedor semántico → evaluador LLM
   verificaron en los dos sentidos: fallan sin el arreglo y pasan con él.
   `npm run verify` queda en 548 pruebas (321 core, 56 api, 171 móvil).
 
+## D-066 — Identidad visual clara y oscura, y visibilidad del motor en la app
+
+- **Fecha:** Sprint 5 (identidad visual y experiencia de 1.0)
+- **Contexto:** la app tenía una sola paleta (oscura) fijada en `app.json`
+  (`userInterfaceStyle: "dark"`) y los colores vivían en `theme/tokens.ts` como
+  un único objeto. Además, el motor semántico podía degradar a la heurística sin
+  que el usuario supiera quién estaba respondiendo ni por qué; una degradación
+  silenciosa es indistinguible de «la IA funciona mal».
+- **Decisión:** (1) `tokens.ts` define dos temas completos (`lightTheme` y
+  `darkTheme`) con los mismos nombres de color, y `ThemeProvider` resuelve el
+  activo a partir de la preferencia (`system`/`light`/`dark`, persistida en
+  `app_meta`). (2) `app.json` pasa a `userInterfaceStyle: "automatic"`. (3) La
+  pantalla de estudio muestra una insignia (`EngineBadge`) que indica «IA
+  semántica» o «Modo local» y, al pulsarla, explica el motivo exacto de la
+  degradación con una acción para resolverla.
+- **Motivos:** una identidad clara y oscura es requisito de producto, no un
+  adorno, y debe seguir la preferencia del sistema sin reiniciar. Sobre el motor,
+  el usuario tiene derecho a saber quién responde a su pregunta; el motivo
+  mostrado es la primera causa accionable (sin backend → sin cuenta → nube
+  desactivada → documento sin permiso → sin conexión → servidor despertando →
+  cuota → error), calculada por una función pura (`describeEngineStatus`) que se
+  prueba en Node.
+- **Alternativas descartadas:** (a) dos ficheros de tokens y dos `useTheme`
+  distintos: duplicaría cada `StyleSheet`; (b) mostrar el estado del motor solo
+  en Ajustes: lo aleja del momento en que importa (la pregunta en pantalla); (c)
+  un tercer tema «alto contraste»: fuera del alcance de 1.0.
+- **Consecuencias:** ninguna firma pública del dominio cambia; todo el cambio
+  vive en `apps/mobile` (presentación, configuración y cableado). Los pares de
+  color se verifican con una prueba que recalcula el contraste WCAG real
+  (`themeContrast.test.ts`), y otra (`themeTokens.test.ts`) impide que aparezca
+  un color literal fuera de `theme/tokens.ts`. La elección de tema, el estado del
+  onboarding y el consentimiento por documento se guardan en `app_meta` y se
+  rehidratan al arrancar.
+
 ## Ambigüedades pendientes (no bloqueantes)
 
 - **Vertical inicial (oposiciones vs PAU):** resuelto en el Sprint 1: el corpus

@@ -248,6 +248,37 @@ Trampas conocidas:
   motor existe (`ConsentGatedLlmProvider`) y la declaración no lo menciona, o al
   revés.
 
+## Identidad visual y visibilidad del motor (Sprint 5)
+
+- **Dos temas en `apps/mobile/src/theme/tokens.ts`.** `lightTheme` y `darkTheme`
+  exponen los **mismos nombres de color**; `ThemeProvider` resuelve el activo a
+  partir de la preferencia (`system`/`light`/`dark`), persistida en `app_meta`
+  (`SqliteThemeStore`). `app.json` usa `userInterfaceStyle: "automatic"`.
+- **Regla dura: ningún color literal fuera de `tokens.ts`.** Las pantallas usan
+  `useThemeColors()` y construyen su `StyleSheet` con una función
+  `makeStyles(colors)`. `themeTokens.test.ts` recorre `src/` y falla si aparece
+  un `#RRGGBB` fuera de `theme/tokens.ts`.
+- **El contraste se verifica, no se estima.** `themeContrast.test.ts` recalcula
+  el ratio WCAG real de cada par texto/fondo en uso y exige ≥4.5:1 (AA). Al
+  tocar un color, ese test es la puerta: no lo des por bueno a ojo.
+- **La insignia del motor (`EngineBadge`) nunca miente.** `describeEngineStatus`
+  (pura, en `services/engineStatus.ts`) decide entre «IA semántica» y «Modo
+  local» y, si degrada, devuelve el primer motivo accionable en este orden: sin
+  backend → sin cuenta → nube desactivada → documento sin permiso → sin conexión
+  → servidor despertando → cuota → error. La insignia lleva icono y texto, no
+  solo color.
+- **`AppServices` creció con cableado de plataforma**, sin tocar el dominio:
+  `health` (sonda `/health`), `hasSession`, `documentConsent`,
+  `setDocumentConsent`, `themeStore`, `onboardingStore`. `setDocumentConsent`
+  solo concede si la nube es posible (build con backend + sesión + política);
+  si no, deja el documento en local.
+- **La preferencia y el onboarding viven en `app_meta`** y se rehidratan al
+  arrancar; si se perdieran, el tema «saltaría» o el onboarding reaparecería en
+  cada apertura.
+- **Trampa del typecheck móvil:** no hay `@types/node`, así que en pruebas usa
+  `globalThis.fetch` (no `global.fetch`) y declara lo que falte en
+  `src/__tests__/helpers/node-*.d.ts` (p. ej. `statSync` en `node-fs.d.ts`).
+
 ## Reglas de trabajo
 
 - Una rama por sprint (`sprint-N-<tema>`), PR a `main` al terminar.
