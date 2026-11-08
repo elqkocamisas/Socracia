@@ -41,11 +41,27 @@ Se distingue con precisión qué está **documentado**, **implementado**,
 **probado con proveedor falso** y **validado con proveedor real o en
 dispositivo**. Una puerta no se da por cumplida sin evidencia ejecutada.
 
+## Estado de la integración (actualización 2026-11-04)
+
+El trabajo de identidad visual (tema claro/oscuro), visibilidad del motor,
+onboarding y consentimiento por documento está en la rama `integration/1.0`
+(PR **#18**, 31 commits sobre `main`). Se añadieron 6 suites de pruebas
+(`themeContrast`, `themeTokens`, `engineStatus`, `healthProbe`,
+`themeAndConsent`, `studyEngineBadge`) y `npm run verify` quedó en **609
+pruebas** verdes, con el recorrido dorado (G2) todavía en verde. Ninguna firma
+pública del dominio cambió.
+
+> **Aviso de integración:** en este entorno el token de GitHub es **de solo
+> lectura** (`x-oauth-scopes` vacío), así que los dos commits nuevos **no se han
+> podido empujar** a `origin/integration/1.0`. Quedan commiteados en local,
+> listos para un `git push` con un token de escritura. Ver «Qué haría falta para
+> convertir esto en GO».
+
 ## Tabla de puertas G1–G9
 
 | Puerta | Descripción                                                                                | Estado | Nivel de evidencia                       | Evidencia ejecutada                                                                                                                                                                                                                                                |
 | ------ | ------------------------------------------------------------------------------------------ | ------ | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| G1     | `npm run verify` en verde                                                                  | ✅     | Ejecutado                                | 40 suites/332 (core, evals 32/32) + 8/60 (api) + 24/172 (mobile) = **564 pruebas**                                                                                                                                                                                 |
+| G1     | `npm run verify` en verde                                                                  | ✅     | Ejecutado                                | 40 suites/334 (core, evals 32/32) + 8/60 (api) + 31/215 (mobile) = **609 pruebas**                                                                                                                                                                                 |
 | G2     | Recorrido dorado con 3 documentos (TXT/MD/PDF) y coherencia por capa documentada           | ✅     | Ejecutado con proveedor falso            | `packages/core/src/__tests__/goldenPath.test.ts` (12: extracción por formato + ciclo completo en TXT, MD y PDF real) + `apps/mobile/src/__tests__/goldenPath.e2e.test.tsx` (1, pantallas). Los tres formatos → mismos 3 temas/3 conceptos y mismo cierre de sesión |
 | G3     | Evals con proveedor real: ≥30 casos, veredicto ≥80 %, 0 citas inventadas, ≥90 % paráfrasis | ✅     | **Ejecutado con proveedor real**         | `npm run eval:real` contra el backend con clave Gemini real y rotación de modelos gratuitos: 30 evaluación + 3 generación. Veredicto **83.3 %**, paráfrasis **100 %**, citas inventadas **0**. Evidencia: `docs/release-1.0-g3-evidence.txt` (D-063)               |
 | G4     | Degradación probada en los 4 supuestos de F2                                               | ✅     | Ejecutado                                | `consent.test.ts`, `httpProvider.test.ts` (red, 429/cuota, respuesta inválida), `sessionAsync.test.ts`, `resilience.test.ts`, `llmEngine.test.ts`                                                                                                                  |
