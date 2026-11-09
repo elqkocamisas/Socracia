@@ -4,55 +4,47 @@ Sprints restantes para convertir el dictamen NO-GO en GO, ordenados por **camino
 crítico**. Cada uno declara objetivo, tareas, puerta de aceptación, tamaño
 (S/M/L), dependencias y responsable (agente o humano).
 
-Contexto: el proceso mayéutico funciona de extremo a extremo y **G1, G2, G4, G5,
-G6 y G9 están en verde** (re-verificados el 2026-11-08). Ya existe un **APK 1.0.0
-instalable compilado en local** (`dist/socracia-1.0.0.apk`), aunque es **anterior**
-al commit que activa el modo conectado, así que su smoke test no valida el motor
-semántico. Siguen abiertos:
+Contexto (actualizado 2026-11-09): el proceso mayéutico funciona de extremo a
+extremo y **G1, G2, G4, G5, G6 y G9 están en verde**. La integración y el
+redespliegue **ya están hechos**: `main` está en `4173e18`, CI en verde y los
+servicios de Render redesplegados y operativos (`/auth/register`, `/sync/pull`,
+`/sync/push`). La build de EAS **está en marcha**. Siguen abiertos:
 
 - **G3** (evals con proveedor real): la clave del backend desplegado ya **no es
   válida** (400 «Please pass a valid API key»), así que la puerta queda **no
   verificada** y **bloquea el GO**. Es el camino crítico principal.
-- **G7** (APK «oficial» por EAS): pendiente del primer keystore interactivo.
-- **G8** (smoke en dispositivo): pendiente; puede empezar con el APK local, pero
-  para validar el modo conectado hay que recompilar en `d8e877f`.
+- **G7** (APK «oficial» por EAS): 🔄 build en curso; falta que termine y descargar
+  el artefacto.
+- **G8** (smoke en dispositivo): pendiente; puede empezar con el APK de EAS (o el
+  local, que solo valida el modo heurístico).
 
 ## Camino crítico hacia 1.0
 
-| #   | Sprint                    | Objetivo                                                                      | Puerta       | Tamaño | Depende de     | Responsable |
-| --- | ------------------------- | ----------------------------------------------------------------------------- | ------------ | ------ | -------------- | ----------- |
-| 0   | Integrar y redesplegar    | Fusionar el PR #18 y redesplegar Render con el código de 1.0                  | (motor real) | S      | PAT escritura  | **Humano**  |
-| 1   | Restaurar G3              | Reponer una clave de proveedor válida (solo servidor) y repetir el arnés real | **G3**       | S      | Clave válida   | **Humano**  |
-| 2   | Primer build de EAS       | Generar el keystore inicial y producir el APK de lanzamiento EAS              | **G7**       | M      | Cuenta Expo    | **Humano**  |
-| 3   | Inspección del APK final  | Confirmar que no hay secretos en el APK firmado                               | **G5** (APK) | S      | #2             | Agente      |
-| 4   | Smoke test en dispositivo | Ejecutar el checklist manual en un teléfono real                              | **G8**       | M      | #0 (APK local) | **Humano**  |
+| #   | Sprint                    | Objetivo                                                                      | Puerta       | Tamaño | Depende de   | Responsable |
+| --- | ------------------------- | ----------------------------------------------------------------------------- | ------------ | ------ | ------------ | ----------- |
+| 0   | Integrar y redesplegar    | Fusionar los commits y redesplegar Render con el código de 1.0                | (motor real) | S      | —            | ✅ Hecho    |
+| 1   | Restaurar G3              | Reponer una clave de proveedor válida (solo servidor) y repetir el arnés real | **G3**       | S      | Clave válida | **Humano**  |
+| 2   | Build de EAS              | Producir el APK de lanzamiento EAS (keystore ya existente)                    | **G7**       | S      | Cuota Expo   | 🔄 En curso |
+| 3   | Inspección del APK final  | Confirmar que no hay secretos en el APK firmado                               | **G5** (APK) | S      | #2           | Agente      |
+| 4   | Smoke test en dispositivo | Ejecutar el checklist manual en un teléfono real                              | **G8**       | M      | #2 (APK EAS) | **Humano**  |
 
-> El APK local (`dist/socracia-1.0.0.apk`) ya permite hacer el Sprint 4 sin
-> esperar al Sprint 2, pero **solo valida el modo heurístico** (es anterior a
-> D-067). Para validar el modo conectado hace falta un APK recompilado en
-> `d8e877f` **y** un backend con clave válida (Sprint 1).
+> El APK local (`dist/socracia-1.0.0.apk`) permite adelantar el Sprint 4, pero
+> **solo valida el modo heurístico** (es anterior a D-067). La build de EAS parte
+> de `main@4173e18` (con D-067), así que su APK sí ofrecerá el modo conectado;
+> para ejercerlo de verdad hace falta además un backend con clave válida
+> (Sprint 1).
 
 ---
 
-## Sprint 0 — Integrar y redesplegar (motor semántico real)
+## Sprint 0 — Integrar y redesplegar (motor semántico real) · ✅ HECHO
 
 - **Objetivo:** que el APK hable con un backend que ejecute el código de 1.0.
-- **Tareas:**
-  1. **(Humano)** Empujar los commits locales y fusionar el **PR #18** (con un PAT
-     con permiso de escritura; el token de este entorno es de solo lectura).
-  2. **(Humano)** Render → servicio `socracia-api` → _Manual Deploy_ (o dejar que
-     Auto-Deploy lo dispare la fusión de `main`).
-  3. **(Agente/Humano)** Comprobar `GET /health`:
-     `{"status":"ok","version":"1.0.0","commit":"…","provider":{"configured":true,...}}`.
-- **Puerta de aceptación:** `/health` informa `version 1.0.0` y
-  `provider.configured: true`; el APK responde con el motor semántico (con cuenta
-  y consentimiento).
-- **Tamaño:** S.
-- **Dependencias:** PAT con escritura de contenidos y pull requests.
-- **Responsable:** **humano**.
-
-> Sin este paso, el APK funciona en **modo heurístico local** (que es una
-> degradación correcta y probada), pero no ejerce el proveedor semántico real.
+- **Resultado (2026-11-09):** `main` en `4173e18`; CI **Expo** en verde; ambos
+  servicios de Render redesplegados a ese commit. Verificado en vivo:
+  `/health` → `version 1.0.0`, `commit 4173e18`; `/auth/register` → token;
+  `/sync/push` → 200; `/sync/pull` conserva el progreso. De paso se corrigió un
+  defecto de operatividad: `DATA_FILE` apuntaba a `/var/data` (disco de pago, no
+  escribible) y el push devolvía 500; ahora usa `/tmp` (D-069).
 
 ---
 
@@ -79,27 +71,27 @@ semántico. Siguen abiertos:
 - **Responsable:** **humano** (obtener/desplegar la clave); agente (ejecutar el
   arnés y registrar la evidencia).
 
-## Sprint 2 — Primer build de EAS (G7)
+## Sprint 2 — Build de EAS (G7) · 🔄 EN MARCHA
 
 - **Objetivo:** generar el APK de lanzamiento con el perfil `release-apk`.
-- **Tareas:**
-  1. **(Humano)** `cd apps/mobile && npx eas-cli login` con la cuenta de Expo del
-     propietario (`camiseros-team`).
-  2. **(Humano)** `npx eas-cli build --profile release-apk --platform android`.
-     En el **primer** build, EAS pedirá **generar el keystore de Android**:
-     aceptar en modo interactivo. _(El primer keystore no se puede crear con
-     `--non-interactive`: es un comportamiento documentado de `eas-cli`.)_
-  3. **(Humano)** Anotar la URL del build y descargar el APK.
-  4. **(Agente, opcional)** Si aparece un fallo de configuración, corregir
-     `eas.json`/`app.json` y volver a lanzar.
+- **Estado (2026-11-09):** **la build ya está compilándose.** El secreto
+  `EXPO_TOKEN` existe en GitHub y el **keystore de Android ya estaba** en EAS
+  (`Build Credentials TnBsQO-OGA`), así que el workflow `Expo EAS` se lanzó en
+  modo **no interactivo** (perfil `release-apk`, `main@4173e18`, run
+  `42600137389`). Build: `54cb8583-a5bd-422a-b457-926b97c278a0`.
+- **Tareas restantes:**
+  1. **(Agente)** Esperar a que la build termine y anotar el resultado.
+  2. **(Humano)** Descargar el APK (desde la página del build o
+     `npx eas-cli build:download --platform android --latest`) e instalarlo.
 - **Puerta de aceptación:** APK descargable, con `versionName 1.0.0` y el
   `versionCode` asignado por EAS en remoto (`appVersionSource: remote`).
-- **Tamaño:** M.
+- **Tamaño:** S (ya lanzado).
 - **Dependencias:** cuenta de Expo con acceso al proyecto; cuota gratuita de EAS
   disponible (verificado el 2026-11-08 en <https://expo.dev/pricing>: **15 builds
   Android + 15 iOS** de baja prioridad al mes, reset mensual).
-- **Responsable:** **humano** (interactivo; el agente no puede generar el primer
-  keystore).
+- **Responsable:** agente (lanzar/monitorizar) + **humano** (descargar/instalar).
+  Nota: **si el keystore no existiera**, el primer build exigiría modo interactivo
+  («you will be prompted to generate credentials») y sería 100 % humano.
 - **Respaldo si la cuota está agotada:** compilar en local con
   `docs/build-apk-local.md` (JDK 21, SDK 36). No cuenta como G7 «APK por EAS»,
   pero permite el smoke test.
