@@ -368,11 +368,16 @@ Trampas conocidas:
 - **El perfil de EAS `release-apk`** extiende de `production` y cambia solo
   `distribution: internal` y `android.buildType: apk` (D-059). No tocar
   `production` a APK: Google Play exige AAB.
-- **El primer keystore de Android NO se puede generar en modo no interactivo.**
-  Es comportamiento documentado de `eas-cli`. La primera compilación exige un
-  humano: `cd apps/mobile && npx eas-cli login && npx eas-cli build --profile
-release-apk --platform android` (aceptar el keystore cuando lo pida). Sin
-  `EXPO_TOKEN`, el agente no puede lanzarlo.
+- **El primer keystore de Android no se puede generar en modo no interactivo**,
+  pero **si el keystore ya existe** en la cuenta de EAS, `eas build
+--non-interactive` funciona sin más. Comprobado el 2026-11-09: el workflow
+  `Expo EAS` (con el secreto `EXPO_TOKEN`) lanzó la build `release-apk` en modo no
+  interactivo porque el keystore `Build Credentials TnBsQO-OGA` ya estaba; la
+  build terminó con éxito. Solo si la cuenta no tuviera keystore habría que
+  generarlo a mano: `cd apps/mobile && npx eas-cli login && npx eas-cli build
+--profile release-apk --platform android` (aceptar el keystore cuando lo pida).
+  El agente no puede crear credenciales nuevas, pero **sí** puede lanzar la build
+  si ya existen.
 - **Plan gratuito de EAS: 15 builds Android + 15 iOS de baja prioridad al mes**
   (se reinician el día 1; sin sobrecoste). Verificado el 2026-11-08 en
   <https://expo.dev/pricing>. Si se agota, usar la ruta local de
@@ -387,10 +392,6 @@ release-apk --platform android` (aceptar el keystore cuando lo pida). Sin
   Markdown) porque la versión de Prettier cambió respecto al baseline. No es una
   puerta (`verify` = lint + typecheck + test): formatear solo los ficheros
   propios para no meter ruido en el diff.
-- **El dictamen es NO-GO hasta que existan G3 (evals con proveedor real) y
-  G7/G8 (APK + smoke).** El resto de puertas están verdes. Estado y evidencia en
-  `docs/release-1.0-verdict.md`; sprints restantes en
-  `docs/release-1.0-checklist.md`; prueba manual en `docs/release-1.0-smoke.md`.
 - **La multitenencia no está implementada.** No hay código `MULTITENANT` en el
   árbol: solo documentación (D-053…D-058). Inerte por construcción.
 - **`provider.configured: true` no implica clave válida.** El `/health` del
@@ -403,4 +404,18 @@ release-apk --platform android` (aceptar el keystore cuando lo pida). Sin
 - **La cuota gratuita de EAS son 15 builds Android + 15 iOS/mes** (baja
   prioridad, reset mensual; verificado 2026-11-08 en <https://expo.dev/pricing>).
   El primer keystore de Android exige modo interactivo («you will be prompted to
-  generate credentials»): no se puede generar en CI no interactivo.
+  generate credentials»), pero si ya existe, la build corre en CI no interactivo.
+- **El APK de EAS se descarga con sesión de Expo.** El enlace del artefacto no es
+  público; hay que entrar en la página del build con la cuenta del propietario o
+  usar `npx eas-cli build:download --platform android --latest`. El agente puede
+  lanzar y monitorizar la build, pero no descargar el APK sin sesión.
+- **`DATA_FILE` debe apuntar a una ruta escribible del contenedor.** `/var/data`
+  es la ruta del disco persistente, que el plan gratuito de Render **no admite ni
+  crea**: el primer `/sync/push` devolvía `500 EACCES: permission denied, mkdir
+'/var/data'`. Ahora usa `/tmp/progreso.json` (D-069). Ojo: `render.yaml` no
+  aplica a un servicio creado a mano; en ese caso hay que editar `DATA_FILE` en
+  _Settings → Environment_ del panel de Render.
+- **El dictamen es NO-GO hasta que existan G3 (evals con proveedor real) y G8
+  (smoke en dispositivo).** G1, G2, G4, G5, G6, G7 y G9 están verdes. Estado y
+  evidencia en `docs/release-1.0-verdict.md`; sprints restantes en
+  `docs/release-1.0-checklist.md`; prueba manual en `docs/release-1.0-smoke.md`.
