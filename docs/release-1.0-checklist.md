@@ -120,9 +120,8 @@ servicios de Render redesplegados y operativos (`/auth/register`, `/sync/pull`,
      bloqueen el recorrido y repetir.
 - **Puerta de aceptación:** checklist APTO, sin incidencias bloqueantes.
 - **Tamaño:** M.
-- **Dependencias:** Sprint 0 (APK local) o Sprint 2 (APK EAS). Para validar el
-  modo conectado, además el Sprint 1 (clave válida) y un APK recompilado en
-  `d8e877f`.
+- **Dependencias:** Sprint 2 (APK de EAS, ya producido). Para validar el modo
+  conectado, además el Sprint 1 (clave válida).
 - **Responsable:** **humano**.
 
 ---
@@ -133,9 +132,14 @@ servicios de Render redesplegados y operativos (`/auth/register`, `/sync/pull`,
   válida; sin evidencia real, la puerta queda «no verificada». Reponer clave y
   repetir el arnés.
 - **Cuota de EAS:** 15 builds Android + 15 iOS al mes en el plan gratuito
-  (verificado 2026-11-08). Reservar al menos uno para el APK de lanzamiento; usar
-  la ruta local si se agota.
-- **Primer keystore:** requiere modo interactivo, no automatizable por el agente.
+  (verificado 2026-11-08). Se ha consumido **1** (build `54cb8583`, Android);
+  reservar al menos uno para recompilar si hace falta; usar la ruta local si se
+  agota.
+- **Keystore:** ya existe en EAS (`Build Credentials TnBsQO-OGA`), así que la
+  build corre en modo no interactivo. Solo si se perdiera habría que regenerarlo a
+  mano (interactivo).
+- **Descarga del APK de EAS:** el enlace del artefacto no es público; exige sesión
+  de Expo del propietario o `npx eas-cli build:download`.
 - **APK local anterior a D-067:** valida el modo heurístico, no el conectado.
 - **Recalibración del RAG:** si se adopta un proveedor semántico real, revisar
   `DEFAULT_RELEVANCE.minScore` (hoy 0.2, calibrado para el proveedor léxico).
