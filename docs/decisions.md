@@ -1359,6 +1359,30 @@ StudyError>`; el orden de preferencia es proveedor semántico → evaluador LLM
   prohibido por la misión y por la política de privacidad (D-044); (c) bajar los
   umbrales: no resuelve la causa (clave inválida) y debilita la puerta.
 
+## D-069 — `DATA_FILE` en una ruta escribible del contenedor
+
+- **Fecha:** verificación de operatividad (2026-11-08)
+- **Contexto:** al probar el backend desplegado (`https://socracia-api.onrender.com`)
+  con una cuenta real, `/auth/register` y `/sync/pull` respondían correctamente,
+  pero el primer `/sync/push` devolvía
+  **500 `EACCES: permission denied, mkdir '/var/data'`**. El `render.yaml`
+  declaraba `DATA_FILE=/var/data/progreso.json`: `/var/data` es la ruta del
+  **disco persistente**, que el plan gratuito **no admite ni crea**. El proceso no
+  es root, así que `mkdir -p /var/data` falla.
+- **Decisión:** mover `DATA_FILE` a `/tmp/progreso.json`, una ruta escribible del
+  contenedor en el plan gratuito. La durabilidad es la misma que el plan permite
+  (se pierde al reiniciar, igual que el almacén en memoria), pero la
+  sincronización deja de fallar.
+- **Motivos:** la misión pide dejar Render operativo. Un backend que responde 500
+  en la ruta de sincronización no está operativo. La corrección es de una línea en
+  configuración, no toca código ni firmas, y no introduce coste.
+- **Consecuencias:** para persistencia real hay que subir a plan `starter` y
+  descomentar el bloque `disk` de `render.yaml`, restaurando
+  `DATA_FILE=/var/data/progreso.json`. Queda anotado en el propio `render.yaml`.
+- **Alternativas descartadas:** (a) dejar `/var/data`: rompe la sincronización;
+  (b) ejecutar el proceso como root: peor práctica de seguridad y no permitido por
+  el runtime; (c) subir a plan de pago: viola «coste cero».
+
 ## Ambigüedades pendientes (no bloqueantes)
 
 - **Vertical inicial (oposiciones vs PAU):** resuelto en el Sprint 1: el corpus

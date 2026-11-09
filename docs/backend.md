@@ -190,10 +190,16 @@ eas env:create --environment production \
 
 Sin este paso la app usa `localhost`, que en un teléfono es el propio teléfono.
 
-**Persistencia.** Con el plan gratuito, `DATA_FILE` vive en un sistema de
-archivos efímero y el servicio se suspende sin tráfico. Sirve para verificar el
-despliegue, no para producción. Para conservar el progreso: suba el plan a
-`starter` y descomente el bloque `disk` de `render.yaml`.
+**Persistencia.** Con el plan gratuito el sistema de archivos es efímero y el
+servicio se suspende sin tráfico. Por eso `DATA_FILE` apunta a `/tmp/progreso.json`
+(una ruta **escribible** del contenedor): `/var/data` es la ruta del disco
+persistente y **no existe** sin plan de pago, así que el primer `/sync/push`
+fallaba con `EACCES: permission denied, mkdir '/var/data'` (D-069). Sirve para
+verificar el despliegue, no para producción. Para conservar el progreso: suba el
+plan a `starter`, descomente el bloque `disk` de `render.yaml` y devuelva
+`DATA_FILE` a `/var/data/progreso.json`. Ojo: `render.yaml` **no** modifica un
+servicio creado a mano; en ese caso cambie `DATA_FILE` en _Settings →
+Environment_ del panel.
 
 ### Procesamiento en la nube (opt-in)
 
