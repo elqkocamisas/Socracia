@@ -24,7 +24,7 @@ servicios de Render redesplegados y operativos (`/auth/register`, `/sync/pull`,
 | --- | ------------------------- | ----------------------------------------------------------------------------- | ------------ | ------ | ------------ | ----------- |
 | 0   | Integrar y redesplegar    | Fusionar los commits y redesplegar Render con el código de 1.0                | (motor real) | S      | —            | ✅ Hecho    |
 | 1   | Restaurar G3              | Reponer una clave de proveedor válida (solo servidor) y repetir el arnés real | **G3**       | S      | Clave válida | **Humano**  |
-| 2   | Build de EAS              | Producir el APK de lanzamiento EAS (keystore ya existente)                    | **G7**       | S      | Cuota Expo   | 🔄 En curso |
+| 2   | Build de EAS              | Producir el APK de lanzamiento EAS (keystore ya existente)                    | **G7**       | S      | Cuota Expo   | ✅ Hecho    |
 | 3   | Inspección del APK final  | Confirmar que no hay secretos en el APK firmado                               | **G5** (APK) | S      | #2           | Agente      |
 | 4   | Smoke test en dispositivo | Ejecutar el checklist manual en un teléfono real                              | **G8**       | M      | #2 (APK EAS) | **Humano**  |
 
@@ -71,21 +71,20 @@ servicios de Render redesplegados y operativos (`/auth/register`, `/sync/pull`,
 - **Responsable:** **humano** (obtener/desplegar la clave); agente (ejecutar el
   arnés y registrar la evidencia).
 
-## Sprint 2 — Build de EAS (G7) · 🔄 EN MARCHA
+## Sprint 2 — Build de EAS (G7) · ✅ HECHO
 
 - **Objetivo:** generar el APK de lanzamiento con el perfil `release-apk`.
-- **Estado (2026-11-09):** **la build ya está compilándose.** El secreto
-  `EXPO_TOKEN` existe en GitHub y el **keystore de Android ya estaba** en EAS
-  (`Build Credentials TnBsQO-OGA`), así que el workflow `Expo EAS` se lanzó en
-  modo **no interactivo** (perfil `release-apk`, `main@4173e18`, run
-  `42600137389`). Build: `54cb8583-a5bd-422a-b457-926b97c278a0`.
-- **Tareas restantes:**
-  1. **(Agente)** Esperar a que la build termine y anotar el resultado.
-  2. **(Humano)** Descargar el APK (desde la página del build o
-     `npx eas-cli build:download --platform android --latest`) e instalarlo.
+- **Resultado (2026-11-09):** el secreto `EXPO_TOKEN` existe en GitHub y el
+  **keystore de Android ya estaba** en EAS (`Build Credentials TnBsQO-OGA`), así
+  que el workflow `Expo EAS` se lanzó en modo **no interactivo** (perfil
+  `release-apk`, `main@4173e18`, run `42600137389`). Build
+  **`54cb8583-a5bd-422a-b457-926b97c278a0`**: **Status Succeeded**, artefacto
+  **APK** de distribución interna. `versionCode` incrementado por EAS (9→10).
+- **Tarea restante (humana):** descargar el APK (desde la página del build o
+  `npx eas-cli build:download --platform android --latest`) e instalarlo.
 - **Puerta de aceptación:** APK descargable, con `versionName 1.0.0` y el
   `versionCode` asignado por EAS en remoto (`appVersionSource: remote`).
-- **Tamaño:** S (ya lanzado).
+- **Tamaño:** S.
 - **Dependencias:** cuenta de Expo con acceso al proyecto; cuota gratuita de EAS
   disponible (verificado el 2026-11-08 en <https://expo.dev/pricing>: **15 builds
   Android + 15 iOS** de baja prioridad al mes, reset mensual).
