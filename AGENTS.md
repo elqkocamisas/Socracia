@@ -262,6 +262,13 @@ Trampas conocidas:
   fuera para que revocar el permiso bloquee también la caché). La clave del
   proveedor vive solo en el backend; el móvil llama a `POST /llm/complete` con su
   token de sesión. Detalle en `docs/llm-engine.md` (D-043).
+- **El fallo del proveedor semántico degrada, no rompe.** `degradeOnProviderFailure`
+  en `StudyServiceOptions` (por defecto `false`, la app la activa en
+  `withLlmEngine`) hace que un fallo del proveedor (red, cuota o salida inválida)
+  caiga a la heurística sin abortar la sesión; el turno se marca `degraded` y la
+  insignia deja de afirmar «IA semántica». No cambiar el valor por defecto del
+  núcleo: la prueba `studyService.test.ts` fija el contrato estricto sin la opción
+  (D-072).
 - **Evals del motor.** `packages/core/src/llm/__evals__/` fija la robustez ante
   salidas mal formadas; se ejecutan con `npm run eval:llm` y también dentro de
   `npm test`. Al cambiar un prompt o un validador, revisar el informe por
