@@ -173,6 +173,109 @@ describe('StudyService.prepareSession', () => {
   });
 });
 
+describe('StudyService: degradación a la heurística si el proveedor falla', () => {
+  /** Opciones de la app de 1.0: un fallo del proveedor no rompe la sesión. */
+  const DEGRADING_OPTIONS: StudyServiceOptions = {
+    ...DEFAULT_STUDY_OPTIONS,
+    degradeOnProviderFailure: true,
+  };
+
+  function failingEvaluatorProvider(): MayeuticSemanticProvider {
+    return {
+      canProcess: (document) => document.cloudConsent,
+      generateQuestions: async () =>
+        ok([
+          {
+            prompt: '¿Cómo aplicarías este principio a un caso que no aparece en el texto?',
+            move: 'aplicar-caso',
+            level: 'aplicar',
+            expectedAnswer: 'Aplicar el principio y justificarlo con la evidencia.',
+            keyTerms: ['Administración'],
+            difficulty: 0.7,
+          },
+        ]),
+      evaluateAnswer: async () => err(new Error('servicio no disponible')),
+    };
+  }
+
+  it('evalúa con la heurística y marca el turno como degradado, sin abortar', async () => {
+    const { service, rag } = makeService(failingEvaluatorProvider(), DEGRADING_OPTIONS);
+    const curriculum = await ingestSample(rag);
+    const prepared = await service.prepareSession(
+      USER,
+      curriculum,
+      [{ ...SAMPLE_DOCUMENT, cloudConsent: true }],
+      NOW,
+      'degrade-eval',
+    );
+    if (!prepared.ok) {
+      throw new Error(prepared.error.message);
+    }
+
+    const result = await service.answer(
+      prepared.value,
+      USER,
+      'La Administración aplica el principio.',
+      500,
+      NOW,
+    );
+
+    // La sesión no se rompe: hay evaluación (heurística) y el turno lo declara.
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.evaluation.verdict).toBeDefined();
+      expect(result.value.degraded).toBe(true);
+    }
+    expect(prepared.value.engine.progress().answered).toBe(1);
+  });
+
+  it('prepara la sesión con plantillas si falla la generación semántica', async () => {
+    const provider: MayeuticSemanticProvider = {
+      canProcess: (document) => document.cloudConsent,
+      generateQuestions: async () => err(new Error('cuota agotada')),
+      evaluateAnswer: async () => ok({ score: 0.9, matchedKeyTerms: [], feedback: 'correcto' }),
+    };
+    const { service, rag } = makeService(provider, DEGRADING_OPTIONS);
+    const curriculum = await ingestSample(rag);
+
+    const prepared = await service.prepareSession(
+      USER,
+      curriculum,
+      [{ ...SAMPLE_DOCUMENT, cloudConsent: true }],
+      NOW,
+      'degrade-gen',
+    );
+
+    expect(prepared.ok).toBe(true);
+    if (prepared.ok) {
+      expect(prepared.value.steps.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('sin la opción, conserva el contrato estricto y reporta el fallo de generación', async () => {
+    const provider: MayeuticSemanticProvider = {
+      canProcess: (document) => document.cloudConsent,
+      generateQuestions: async () => err(new Error('cuota agotada')),
+      evaluateAnswer: async () => ok({ score: 0.9, matchedKeyTerms: [], feedback: 'correcto' }),
+    };
+    const { service, rag } = makeService(provider);
+    const curriculum = await ingestSample(rag);
+
+    const prepared = await service.prepareSession(
+      USER,
+      curriculum,
+      [{ ...SAMPLE_DOCUMENT, cloudConsent: true }],
+      NOW,
+      'strict-gen',
+    );
+
+    expect(prepared.ok).toBe(false);
+    if (!prepared.ok) {
+      expect(prepared.error.code).toBe('generacion-fallida');
+    }
+  });
+});
+
 describe('StudyService.answer y progreso', () => {
   async function prepare() {
     const context = makeService();

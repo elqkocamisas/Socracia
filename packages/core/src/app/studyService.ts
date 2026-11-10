@@ -51,6 +51,17 @@ export interface StudyServiceOptions {
     concept: Concept,
     documents: readonly KnowledgeDocument[],
   ) => Promise<readonly LlmPassage[]>;
+  /**
+   * Si el proveedor semántico (nube) falla —red, cuota o salida inválida—,
+   * degradar a la heurística y continuar la sesión en vez de abortarla.
+   *
+   * Por defecto `false`: el núcleo conserva su contrato estricto (un fallo del
+   * proveedor autorizado se reporta como error, para no evaluar en silencio con
+   * una calidad distinta a la prometida). La app de 1.0 lo activa, porque su
+   * puerta F2 exige que ningún fallo del proveedor rompa la sesión; la insignia
+   * de motor comunica entonces la degradación.
+   */
+  readonly degradeOnProviderFailure?: boolean;
 }
 
 export const DEFAULT_STUDY_OPTIONS: StudyServiceOptions = {
@@ -199,6 +210,7 @@ export class StudyService {
       (candidate) => candidate.id === question.citation.documentId,
     );
     let assessment;
+    let providerFailed = false;
     if (text.trim().length > 0 && document && this.semanticProvider?.canProcess(document)) {
       const evaluated = await this.semanticProvider.evaluateAnswer(question, {
         questionId: question.id,
@@ -207,12 +219,20 @@ export class StudyService {
         latencyMs,
       });
       if (!evaluated.ok) {
-        return err<StudyError>({
-          code: 'evaluacion-fallida',
-          message: `No se pudo evaluar semánticamente la respuesta: ${evaluated.error.message}`,
-        });
+        // Con la degradación activada (app de 1.0), un fallo del proveedor no
+        // rompe la sesión: se evalúa con la heurística y el turno queda marcado
+        // como degradado para que la insignia lo diga. Sin ella, el núcleo
+        // conserva su contrato estricto y reporta el error.
+        if (!this.options.degradeOnProviderFailure) {
+          return err<StudyError>({
+            code: 'evaluacion-fallida',
+            message: `No se pudo evaluar semánticamente la respuesta: ${evaluated.error.message}`,
+          });
+        }
+        providerFailed = true;
+      } else {
+        assessment = evaluated.value;
       }
-      assessment = evaluated.value;
     }
 
     // Con evaluación semántica o motor inyectado, el turno pasa por el camino
@@ -222,12 +242,19 @@ export class StudyService {
       assessment !== undefined || active.usesModel
         ? await active.engine.submitAsync(text, latencyMs, now, assessment)
         : active.engine.submit(text, latencyMs, now);
-    await this.storage.progress.appendEvaluations(userId, [turn.evaluation]);
+    // Sin evaluador de sesión, el fallo del proveedor semántico cae directamente
+    // en la heurística: hay que marcarlo aquí. Con evaluador, el motor ya lo
+    // marca por su cuenta si su propia llamada también falla.
+    const finalTurn =
+      providerFailed && this.options.session.evaluator === undefined
+        ? { ...turn, degraded: true }
+        : turn;
+    await this.storage.progress.appendEvaluations(userId, [finalTurn.evaluation]);
     await this.storage.progress.saveReviewStates(userId, active.engine.reviewStates());
     // El avance se persiste para poder reanudar o sincronizar la sesión sin
     // depender del estado en memoria de la UI.
     await this.storage.progress.saveSession(active.engine.snapshot());
-    return ok(turn);
+    return ok(finalTurn);
   }
 
   /**
@@ -299,18 +326,22 @@ export class StudyService {
           citation,
           semanticOptions,
         );
-        if (!semantic.ok) {
+        if (semantic.ok) {
+          questions = semantic.value.map((draft, index) => ({
+            ...draft,
+            id: `${concept.id}:llm:q${index}`,
+            conceptId: concept.id,
+            citation,
+          }));
+        } else if (!this.options.degradeOnProviderFailure) {
           return err<StudyError>({
             code: 'generacion-fallida',
             message: `No se pudieron generar preguntas semánticas: ${semantic.error.message}`,
           });
         }
-        questions = semantic.value.map((draft, index) => ({
-          ...draft,
-          id: `${concept.id}:llm:q${index}`,
-          conceptId: concept.id,
-          citation,
-        }));
+        // Si el proveedor falló y la degradación está activa, se conservan las
+        // preguntas por plantillas ya obtenidas: la sesión se prepara igual con
+        // la heurística como respaldo, sin romper el recorrido.
       } else if (this.options.questionGenerator) {
         // Respaldo: generador de modelo inyectado, y plantillas si aquel falla.
         const withModel = await this.generateForConcept(concept, documents);

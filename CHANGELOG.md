@@ -51,6 +51,14 @@ Primera versión completa del producto: app móvil de un solo usuario, local-fir
 
 ### Cambiado
 
+- **El fallo del proveedor semántico ya no rompe la sesión.** Si el proveedor no
+  responde (red, cuota agotada o salida inválida), la app evalúa con la heurística
+  local y continúa; el turno queda marcado como degradado y la insignia de motor
+  deja de afirmar «IA semántica» para explicar que responde el motor local
+  (D-072). Antes, un fallo del proveedor devolvía un error en pantalla y detenía
+  el estudio. La generación cae a las plantillas del temario si el proveedor falla
+  al generar preguntas.
+
 - **La extracción de PDF acepta los PDF que produce el mundo real.** Se
   decodifica la cadena de filtros del diccionario en orden (`/Filter
 [ /ASCII85Decode /FlateDecode ]`, habitual en reportlab y en muchos

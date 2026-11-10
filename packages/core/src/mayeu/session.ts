@@ -41,6 +41,13 @@ export interface SessionTurn {
    * método exige seguir preguntando. Solo aparece en `submitAsync`.
    */
   readonly explanation: string | null;
+  /**
+   * `true` cuando el modelo no produjo la evaluación y se aplicó la heurística
+   * (proveedor caído, sin red, cuota agotada o salida inválida). La vista lo usa
+   * para no afirmar que respondió el modelo cuando lo hizo la heurística.
+   * Ausente equivale a `false`.
+   */
+  readonly degraded?: boolean;
 }
 
 /** Opciones del motor de sesión. */
@@ -165,11 +172,21 @@ export class MayeuticSessionEngine {
     const step = this.requireCurrentStep();
     const answer = this.newAnswer(step.question, text, now, latencyMs);
 
-    const evaluation = assessment
-      ? evaluateSemanticAssessment(step.question, assessment, this.options.thresholds)
+    const evaluated = assessment
+      ? {
+          evaluation: evaluateSemanticAssessment(
+            step.question,
+            assessment,
+            this.options.thresholds,
+          ),
+          degraded: false,
+        }
       : await this.evaluateWithFallback(step, answer);
-    const turn = this.registerAnswer(step, answer, evaluation);
-    return this.enrichTurn(turn, step, answer);
+    const turn = this.registerAnswer(step, answer, evaluated.evaluation);
+    // El motivo de degradación viaja con el turno para que la vista pueda decir
+    // la verdad sobre quién evaluó: sin esta marca, un fallo del modelo sería
+    // indistinguible de una evaluación suya y la insignia mentiría.
+    return this.enrichTurn(evaluated.degraded ? { ...turn, degraded: true } : turn, step, answer);
   }
 
   /**
@@ -215,28 +232,34 @@ export class MayeuticSessionEngine {
     return { ...turn, scaffold, explanation };
   }
 
-  /** Evalúa con el modelo si procede, y degrada a la heurística ante cualquier fallo. */
+  /**
+   * Evalúa con el modelo si procede, y degrada a la heurística ante cualquier
+   * fallo. Devuelve también si se degradó: sin ese dato, la vista no puede
+   * distinguir una evaluación del modelo de una heurística de emergencia.
+   */
   private async evaluateWithFallback(
     step: ItineraryStep,
     answer: UserAnswer,
-  ): Promise<AnswerEvaluation> {
+  ): Promise<{ evaluation: AnswerEvaluation; degraded: boolean }> {
     const heuristic = (): AnswerEvaluation =>
       evaluateAnswer(step.question, answer, this.options.thresholds);
 
     const evaluator = this.options.evaluator;
     if (!evaluator) {
-      return heuristic();
+      return { evaluation: heuristic(), degraded: false };
     }
     // Reutiliza la evaluación heurística como respaldo y como cita por defecto:
     // si el modelo no cita nada válido, la pregunta ya trae su propio pasaje.
     const fallback = heuristic();
     const passages = this.options.passages?.(step.question) ?? [];
     if (passages.length === 0) {
-      return fallback;
+      return { evaluation: fallback, degraded: false };
     }
 
     const result = await evaluator.evaluate(step.question, answer, passages);
-    return result.ok ? result.value : fallback;
+    return result.ok
+      ? { evaluation: result.value, degraded: false }
+      : { evaluation: fallback, degraded: true };
   }
 
   /** Valida que haya pregunta actual y construye la respuesta del usuario. */

@@ -1484,3 +1484,48 @@ StudyError>`; el orden de preferencia es proveedor semántico → evaluador LLM
   (solo documentación y decisiones), así que no hay decisión de dependencia que
   registrar todavía. La primera llegará con el adaptador de Postgres (Sprint 1) y
   ya tiene su comparativa gratuita en D-056.
+
+## D-072 — El fallo del proveedor semántico degrada a la heurística sin romper la sesión
+
+- **Fecha:** cierre de 1.0 (2026-11-10)
+- **Contexto:** la app promete (D-058, `docs/llm-engine.md`) que el proveedor
+  semántico es el motor principal y la heurística la red de seguridad. Pero
+  `StudyService.answer` y `StudyService.generateForConcepts` **abortaban** la
+  sesión con `evaluacion-fallida`/`generacion-fallida` ante cualquier fallo del
+  proveedor (red, cuota agotada o salida inválida). El resultado contradice la
+  puerta F2 y la propia documentación: un corte de red a mitad de una sesión
+  autorizada dejaba al alumno con un error en pantalla en vez de seguir
+  estudiando en local. La insignia tampoco lo reflejaba: `providerIssue` se
+  derivaba solo del sondeo `/health`, que sigue diciendo `configured: true`
+  aunque la clave ya no sirva, de modo que la degradación era **silenciosa**
+  (contradice D-066).
+- **Decisión:** se añade la opción `degradeOnProviderFailure` a
+  `StudyServiceOptions`, **por defecto `false`** (el núcleo conserva su contrato
+  estricto y su prueba de «no avanza si falla la evaluación semántica»). La app
+  de 1.0 la activa en `withLlmEngine`. Con la opción activa: (1) si falla la
+  evaluación semántica, se evalúa con la heurística y el turno lleva
+  `degraded: true`; (2) si falla la generación semántica, se conservan las
+  preguntas por plantillas ya obtenidas. El turno degradado viaja hasta la vista
+  (`StudyViewState.degraded`) y la pantalla de estudio lo traduce a
+  `providerIssue: 'error'`, de modo que la insignia deja de afirmar «IA
+  semántica» y explica el motivo.
+- **Motivos:** la puerta F2 exige que ningún fallo del proveedor rompa la
+  sesión, y D-066 exige que la degradación nunca sea silenciosa. Una opción con
+  valor por defecto que preserva el contrato anterior permite cumplir ambas sin
+  cambiar firmas públicas ni tocar las pruebas existentes (regla de cambio
+  mínimo): el único test que fijaba el aborto sigue verde porque no activa la
+  opción.
+- **Alternativas descartadas:** (a) cambiar el comportamiento por defecto y
+  reescribir el test del aborto: viola «los tests existentes pasan sin tocarse»;
+  (b) degradar en el adaptador del móvil en lugar del núcleo: duplicaría la
+  decisión y dejaría al núcleo sin poder ofrecer el modo tolerante a fallos que
+  el propio backend necesita; (c) inferir la degradación solo desde `/health`:
+  no distingue «configurado» de «respondiendo», que es justo el fallo que se
+  corrige.
+- **Consecuencias:** `SessionTurn` gana `degraded?: boolean` (opcional, ausente
+  equivale a `false`) y `StudyViewState` gana `degraded: boolean`. Tres pruebas
+  nuevas en `packages/core/src/__tests__/studyService.test.ts` cubren la
+  evaluación tolerante, la generación tolerante y el contrato estricto sin la
+  opción; una en `apps/mobile/src/__tests__/studyEngineBadge.test.tsx` fija que
+  un proveedor caído no deja la pantalla en error. `npm run verify` queda en 644
+  pruebas (351 core, 66 api, 227 móvil).

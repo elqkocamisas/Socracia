@@ -194,7 +194,10 @@ export function StudyScreen({
     policyAllowsCloud: services.policy.current().mode === 'allow-cloud',
     documentConsent,
     connectivity,
-    providerIssue: providerConfigured === false ? 'error' : null,
+    // El fallo en tiempo real del proveedor manda sobre el sondeo: aunque
+    // `/health` diga que está configurado, si el último turno se evaluó con la
+    // heurística la insignia debe decirlo en lugar de afirmar que responde la IA.
+    providerIssue: view.degraded ? 'error' : providerConfigured === false ? 'error' : null,
   };
   const engineStatus = describeEngineStatus(statusInput);
   const hints = view.scaffold?.hints ?? [];

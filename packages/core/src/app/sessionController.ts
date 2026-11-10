@@ -32,6 +32,12 @@ export interface StudyViewState {
   readonly explanation: string | null;
   /** Puntuación de la última respuesta en [0, 1]. */
   readonly lastScore: number | null;
+  /**
+   * `true` si el último turno se evaluó con la heurística porque el modelo no
+   * respondió (red, cuota o salida inválida). La pantalla lo usa para no afirmar
+   * que respondió la IA cuando lo hizo el respaldo local.
+   */
+  readonly degraded: boolean;
 }
 
 /** Error del controlador de sesión. */
@@ -170,6 +176,7 @@ export class MayeuticSessionController {
       scaffold: turn?.scaffold ?? null,
       explanation: turn?.explanation ?? null,
       lastScore: turn?.evaluation.score ?? null,
+      degraded: turn?.degraded ?? false,
     };
   }
 }

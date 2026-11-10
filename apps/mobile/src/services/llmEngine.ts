@@ -101,6 +101,9 @@ export function withLlmEngine(
 ): StudyServiceOptions {
   return {
     ...base,
+    // La app de 1.0 no puede romper la sesión si el proveedor falla (puerta F2):
+    // se degrada a la heurística y la insignia de motor comunica el motivo.
+    degradeOnProviderFailure: true,
     questionGenerator: bundle.generator,
     retrievePassages: async (concept, documents) => {
       const hits = await rag.retrieveRelevant(`${concept.label}. ${concept.definition}`);
