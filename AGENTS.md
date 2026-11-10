@@ -342,6 +342,17 @@ Trampas conocidas:
 - **`gh pr merge` y `git push` a `main` necesitan token con permiso de
   escritura.** El token de la app no basta; las operaciones de escritura van con
   un token personal y la URL directa, sin persistirlo en ningún fichero.
+- **En el entorno del agente hay dos credenciales y solo una escribe.**
+  `GITHUB_TOKEN` es de solo lectura (push → `403`/«Resource not accessible by
+  integration»); el PAT de `GH_TOKEN` (el que usa `gh auth`) **sí** empuja
+  contenido. El `origin` del workspace lleva embebido un token que ya no
+  autentica (el push pide contraseña): no usarlo. Para empujar:
+  `GIT_TERMINAL_PROMPT=0 git push "https://x-access-token:${GH_TOKEN}@github.com/elqkocamisas/Socracia.git" HEAD:main`.
+- **Ese PAT no tiene `pull-requests:write`.** `gh pr create`, `POST /pulls` y la
+  herramienta `create_pr` fallan con `403`. Si `main` es un avance lineal
+  (`git merge-base --is-ancestor origin/main HEAD`), integrar por
+  **fast-forward** (`HEAD:main`); si no, hace falta que una persona abra/fusione
+  el PR.
 - **Una fusión puede conservar los tests y revertir el código.** Si al integrar
   una rama se elige «theirs» o «ours» por fichero sin mirar los tests, `main`
   queda con el contrato de una mitad y la implementación de la otra: los tests
