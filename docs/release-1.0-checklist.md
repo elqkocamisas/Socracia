@@ -5,7 +5,7 @@ crítico**. Cada uno declara objetivo, tareas, puerta de aceptación, tamaño
 (S/M/L), dependencias y responsable (agente o humano).
 
 Contexto (2026-11-10): el proceso mayéutico funciona de extremo a extremo y
-**G1, G2, G4, G5, G6 y G9 están en verde** (evidencia en
+**G1, G2, G4, G5, G6, G7 y G9 están en verde** (evidencia en
 `docs/release-1.0-verdict.md`). En esta sesión se corrigió además un defecto de
 operatividad del motor con modelo: el fallo del proveedor semántico ya no rompe
 la sesión, degrada a la heurística (D-072). Siguen abiertos, y son el camino
@@ -14,12 +14,12 @@ crítico:
 - **G3** (evals con proveedor real): la clave del backend desplegado ya **no es
   válida** (400 «Please pass a valid API key»), así que la puerta queda **no
   verificada** y **bloquea el GO**. Es el bloqueo principal.
-- **G7** (APK «oficial» por EAS): **build lanzado el 2026-11-10** con el workflow
-  `eas-build.yml` (perfil `release-apk`, Android) sobre `111f409`; al cerrar la
-  sesión seguía **en cola** (free tier). El keystore ya existía. El artefacto lo
-  descarga el propietario.
-- **G8** (smoke en dispositivo): humano; puede empezar con el APK local, que solo
-  valida el modo heurístico.
+- **G7** (APK «oficial» por EAS): **cumplido** el 2026-11-10 con el workflow
+  `eas-build.yml` (perfil `release-apk`, Android) sobre `111f409`; el build
+  `465412d7…` **terminó con «Succeeded»** y produjo un APK de distribución
+  interna. Solo falta que el humano lo **descargue e instale**.
+- **G8** (smoke en dispositivo): humano; puede empezar con el APK de EAS o con el
+  APK local (este último solo valida el modo heurístico).
 
 ## Camino crítico hacia 1.0
 
