@@ -37,8 +37,11 @@ La aplicación **no** aloja ni redistribuye esos documentos: se procesan en el
 dispositivo del usuario. Como se explica en la política de privacidad, si el
 usuario autoriza el asistente con modelo, el fragmento concreto que respalda cada
 pregunta —nunca el documento entero— se envía de forma transitoria para redactar
-o evaluar esa pregunta. Cada pregunta muestra el fragmento y el documento del que
-procede, para que el usuario pueda trazar de dónde sale cada afirmación.
+o evaluar esa pregunta. Si el material es una **imagen o un PDF escaneado sin
+texto**, la imagen concreta se envía, con esa misma autorización, solo para
+reconocer su texto (OCR); el servidor no la conserva y devuelve únicamente el
+texto. Cada pregunta muestra el fragmento y el documento del que procede, para
+que el usuario pueda trazar de dónde sale cada afirmación.
 
 Si el usuario cree que un contenido infringe derechos de autor, puede escribir a
 legal@socracia.app.
