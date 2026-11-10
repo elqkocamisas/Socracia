@@ -14,8 +14,10 @@ crítico:
 - **G3** (evals con proveedor real): la clave del backend desplegado ya **no es
   válida** (400 «Please pass a valid API key»), así que la puerta queda **no
   verificada** y **bloquea el GO**. Es el bloqueo principal.
-- **G7** (APK «oficial» por EAS): no verificable desde este entorno (sin
-  `EXPO_TOKEN`); requiere paso humano si el keystore no existe.
+- **G7** (APK «oficial» por EAS): **build lanzado el 2026-11-10** con el workflow
+  `eas-build.yml` (perfil `release-apk`, Android) sobre `111f409`; al cerrar la
+  sesión seguía **en cola** (free tier). El keystore ya existía. El artefacto lo
+  descarga el propietario.
 - **G8** (smoke en dispositivo): humano; puede empezar con el APK local, que solo
   valida el modo heurístico.
 
@@ -59,22 +61,23 @@ crítico:
 - **Responsable:** **humano** (obtener/desplegar la clave); agente (ejecutar el
   arnés y registrar la evidencia).
 
-## Sprint 2 — Build de EAS (G7)
+## Sprint 2 — Build de EAS (G7) · **lanzado**
 
 - **Objetivo:** generar el APK de lanzamiento con el perfil `release-apk`.
-- **Contexto:** en esta sesión **no** se pudo lanzar `eas build` porque el entorno
-  no tiene `EXPO_TOKEN` y el artefacto de EAS no es público. El perfil ya está
-  preparado (D-059/D-067/D-071). El primer keystore de Android, si no existe, no
-  se puede generar en modo no interactivo: la documentación vigente de Expo
-  indica «you will be prompted to generate credentials».
+- **Contexto:** el build se **lanzó el 2026-11-10** con el workflow
+  `.github/workflows/eas-build.yml` (usa el secreto `EXPO_TOKEN` de Actions sin
+  exponerlo) sobre `feat/motor-semantico-modo-conectado` @ `111f409`:
+  run de GitHub `42820435024` (`success`) y build de EAS `465412d7…`. El keystore
+  ya existía (`TnBsQO-OGA`), así que no hizo falta el paso interactivo. Al cerrar
+  la sesión la compilación seguía **en cola** (free tier).
 - **Tareas:**
-  1. **(Humano)** Si no existe keystore, ejecutar una vez en modo interactivo:
+  1. **(Humano)** Esperar a que la compilación termine en EAS (free tier: cola de
+     baja prioridad) y **descargar el APK** desde la página del build o con
+     `npx eas-cli build:download --profile release-apk --platform android`.
+  2. **(Agente)** Inspeccionar el APK de EAS en busca de secretos (Sprint 3).
+  3. **(Solo si no hubiera keystore)** primer build en modo interactivo:
      `cd apps/mobile && npx eas-cli login && npx eas-cli build --profile release-apk --platform android`
      y aceptar la generación del keystore.
-  2. **(Agente/Humano)** Builds siguientes en no interactivo:
-     `EXPO_TOKEN=... npx eas-cli build --profile release-apk --platform android --non-interactive`.
-  3. **(Humano)** Descargar el APK
-     (`npx eas-cli build:download --profile release-apk --platform android`).
 - **Puerta de aceptación:** APK descargable, con `versionName 1.0.0` y el
   `versionCode` asignado por EAS en remoto (`appVersionSource: remote`).
 - **Tamaño:** S.
