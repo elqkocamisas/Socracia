@@ -24,7 +24,13 @@ export interface DocumentPickerPort {
 /** Error al importar un documento. */
 export interface ImportError {
   readonly code:
-    'cancelado' | 'sin-archivo' | 'lectura-fallida' | 'ingesta-fallida' | 'borrado-fallido';
+    | 'cancelado'
+    | 'sin-archivo'
+    | 'lectura-fallida'
+    | 'ingesta-fallida'
+    | 'borrado-fallido'
+    | 'ocr-no-disponible'
+    | 'ocr-fallido';
   readonly message: string;
 }
 
@@ -39,6 +45,9 @@ export function toUint8Array(buffer: ArrayBuffer): Uint8Array {
   return new Uint8Array(buffer);
 }
 
+/** Extensiones de imagen que se admiten para OCR. */
+const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.webp', '.heic', '.heif'];
+
 /** Comprueba que el archivo tenga extensión o MIME admitidos. */
 export function isSupported(file: PickedFile): boolean {
   const name = file.name.toLowerCase();
@@ -46,16 +55,18 @@ export function isSupported(file: PickedFile): boolean {
   return (
     mime === 'application/pdf' ||
     mime.startsWith('text/') ||
+    mime.startsWith('image/') ||
     mime === 'application/octet-stream' ||
     name.endsWith('.pdf') ||
     name.endsWith('.txt') ||
     name.endsWith('.md') ||
-    name.endsWith('.markdown')
+    name.endsWith('.markdown') ||
+    IMAGE_EXTENSIONS.some((ext) => name.endsWith(ext))
   );
 }
 
 /** Mensaje legible para un archivo no admitido. */
-export const UNSUPPORTED_MESSAGE = 'Formato no soportado. Usa PDF, TXT o MD.';
+export const UNSUPPORTED_MESSAGE = 'Formato no soportado. Usa PDF, TXT o MD, o una imagen.';
 
 /**
  * Lee un archivo elegido y devuelve sus bytes.

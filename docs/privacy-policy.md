@@ -111,6 +111,24 @@ en el dispositivo y no se envía ninguna petición más. Esta autorización es
 distinta de la de procesar documentos: son ajustes separados y se auditan por
 separado.
 
+### 2.3.1 Lectura por OCR (opcional y bajo consentimiento)
+
+Cuando el material es una **imagen** (una foto de unos apuntes, una captura) o un
+**PDF escaneado sin capa de texto**, el dispositivo no puede extraer el texto por
+sí solo. En ese caso, y solo si el usuario ha autorizado el asistente con modelo
+en «Cuenta → Privacidad» (las mismas dos condiciones del punto 2.3), la **imagen
+completa** se envía al servidor para reconocer su texto (OCR).
+
+- El OCR lo ejecuta el servidor con el proveedor del modelo; la clave vive solo
+  en el servidor y la aplicación nunca la lleva incorporada.
+- El texto reconocido vuelve al dispositivo y se procesa como cualquier otro
+  documento: se divide en fragmentos, se indexa en local y **no se conserva la
+  imagen en el servidor**.
+- Sin esa autorización, la app **no envía la imagen**: avisa al usuario de que
+  para leer imágenes hace falta iniciar sesión y activar la nube.
+- El OCR es una función adicional del asistente con modelo; no es un ajuste
+  aparte. Revocar el permiso de nube desactiva también el OCR.
+
 ### 2.4 Cuenta (opcional)
 
 Crear una cuenta es opcional. La app funciona completa sin cuenta; en ese caso no

@@ -16,6 +16,12 @@ Primera versión completa del producto: app móvil de un solo usuario, local-fir
   de lagunas y repaso espaciado SM-2.
 - **Ingesta de documentos PDF, TXT y MD** con RAG on-device y persistencia local
   en SQLite; el índice vectorial se rehidrata al abrir la app.
+- **Lectura por OCR de imágenes y PDF escaneados (opcional y bajo
+  consentimiento):** cuando el material es una imagen o un PDF sin capa de texto,
+  el servidor reconoce su texto con el proveedor multimodal y el texto vuelve al
+  dispositivo para indexarse como cualquier otro documento. Vive detrás del
+  puerto `OcrPort` del núcleo y de la ruta `POST /mayeutic/ocr`; sin sesión y sin
+  consentimiento, la app no envía la imagen y avisa al usuario (D-070).
 - **Proveedor semántico opcional** (Gemini) con consentimiento por documento y
   clave en el servidor, y la heurística local como respaldo permanente. El perfil
   de build `production` (y su APK de lanzamiento) activa el modo conectado con
@@ -78,6 +84,11 @@ Primera versión completa del producto: app móvil de un solo usuario, local-fir
 
 ### Notas
 
+- **El perfil `preview` fija el backend y el modo conectado.** El APK de
+  distribución interna (el que se usa para probar en dispositivo) declara
+  `EXPO_PUBLIC_API_BASE_URL=https://socracia.onrender.com` y
+  `EXPO_PUBLIC_CLOUD_PROCESSING=1`, las mismas que `production` (D-071). Antes
+  nacía apuntando a `localhost:8787` y sin motor ni OCR.
 - El `versionCode` lo gestiona EAS en remoto (`appVersionSource: remote`); no se
   edita a mano.
 - La multitenencia está documentada (D-053 a D-056) pero **no implementada**:

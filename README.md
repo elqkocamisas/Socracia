@@ -18,8 +18,10 @@ SQLite y la pantalla de importación; el Sprint 3, la conversación guiada y la
 pantalla de progreso con repetición espaciada; y el Sprint 4, la cuenta opcional
 y la sincronización del progreso entre dispositivos. El recorrido **adjuntar
 documento → responder preguntas → ver progreso** funciona de principio a fin, y
-el progreso puede continuarse en otro dispositivo iniciando sesión. Ver
-`docs/architecture.md` para el alcance por sprint.
+el progreso puede continuarse en otro dispositivo iniciando sesión. La ingesta
+admite además **imágenes y PDF escaneados** por OCR opcional (bajo consentimiento,
+con la clave en el servidor; D-070). Ver `docs/architecture.md` para el alcance
+por sprint.
 
 El alcance de 1.0 incluye además el proveedor semántico opcional con
 consentimiento por documento (D-057/D-058) y la heurística como respaldo, y la
@@ -33,14 +35,14 @@ hay código multitenante que activar ni que apagar.
 El dictamen de la versión y la evidencia de cada puerta de aceptación están en
 [`docs/release-1.0-verdict.md`](docs/release-1.0-verdict.md). El proceso
 mayéutico está verificado de extremo a extremo con proveedor falso (recorrido
-dorado sobre TXT, MD y PDF). El dictamen vigente es **NO-GO**: la puerta **G3**
-(evals contra el proveedor real) **no se ha podido reproducir** —la clave del
-backend desplegado ya no es válida— y siguen pendientes el **APK por EAS** (G7,
-primer keystore interactivo) y el **smoke test en dispositivo** (G8). Hay un APK
-1.0.0 instalable compilado en local (`dist/socracia-1.0.0.apk`), pero es anterior
-al commit que activa el modo conectado. Los pasos exactos están en
-[`docs/release-1.0-checklist.md`](docs/release-1.0-checklist.md) y el checklist
-manual en [`docs/release-1.0-smoke.md`](docs/release-1.0-smoke.md).
+dorado sobre TXT, MD y PDF, más el camino OCR). El dictamen vigente es
+**NO-GO**: la puerta **G3** (evals contra el proveedor real) **no se ha podido
+reproducir** —la clave del backend desplegado ya no es válida— y siguen
+pendientes el **APK por EAS** (G7, requiere `EXPO_TOKEN` y, si no hay keystore,
+un paso interactivo humano) y el **smoke test en dispositivo** (G8). Hay un APK
+1.0.0 instalable compilado en local (`dist/socracia-1.0.0.apk`). Los pasos
+exactos están en [`docs/release-1.0-checklist.md`](docs/release-1.0-checklist.md)
+y el checklist manual en [`docs/release-1.0-smoke.md`](docs/release-1.0-smoke.md).
 
 ## Stack
 

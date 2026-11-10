@@ -94,6 +94,63 @@ export class DocumentIngestionService {
     });
   }
 
+  /**
+   * Indexa un documento a partir de texto ya extraído.
+   *
+   * Es el camino que usa el OCR: cuando el extractor local no encuentra texto
+   * (una imagen o un PDF escaneado), el llamante reconoce el texto fuera y lo
+   * entrega aquí para que entre en el mismo pipeline de ingesta. No duplica la
+   * lógica de indexado; solo salta la extracción.
+   */
+  public async ingestText(
+    input: {
+      readonly fileName: string;
+      readonly mimeType: string;
+      readonly uri: string;
+      readonly sizeBytes: number;
+    },
+    text: string,
+    options: IngestOptions,
+  ): Promise<Result<IngestResult, IngestError>> {
+    const trimmed = text.trim();
+    if (trimmed.length === 0) {
+      return err<IngestError>({
+        code: 'texto-vacio',
+        message: 'El documento no contiene texto reconocible.',
+      });
+    }
+
+    const document: KnowledgeDocument = {
+      id: options.id,
+      title: options.title ?? stripExtension(input.fileName),
+      mimeType: input.mimeType,
+      sourceKind: 'document',
+      uri: input.uri,
+      sizeBytes: input.sizeBytes,
+      ingestedAt: options.now,
+      cloudConsent: options.cloudConsent,
+    };
+
+    const indexed = await this.rag.indexDocument(
+      document,
+      trimmed,
+      options.chunkOptions ?? DEFAULT_CHUNK_OPTIONS,
+    );
+    if (!indexed.ok) {
+      return err<IngestError>({
+        code: 'extraccion-fallida',
+        message: indexed.error.message,
+      });
+    }
+
+    return ok({
+      document,
+      text: trimmed,
+      chunkCount: indexed.value.length,
+      chunks: indexed.value,
+    });
+  }
+
   /** Elimina del índice todos los fragmentos de un documento. */
   public remove(documentId: string): void {
     this.rag.removeDocument(documentId);

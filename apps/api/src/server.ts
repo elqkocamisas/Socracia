@@ -16,6 +16,7 @@ import { AuthService, type AuthResult } from './auth';
 import { corsHeaders, type CorsOptions } from './cors';
 import { routeLlmCompletion } from './llm';
 import { GeminiMayeuticService, type MayeuticAiService } from './mayeutic';
+import { GeminiOcrService, MAX_OCR_BYTES, type MayeuticOcrService, type OcrInput } from './ocr';
 import { InMemoryProgressStore, type ProgressStore } from './store';
 import { isValidationError, parseSnapshot } from './validation';
 
@@ -29,6 +30,11 @@ export interface ApiDependencies {
    * la app cae a su modo local, que es el comportamiento por defecto.
    */
   readonly llm?: LlmProvider | null;
+  /**
+   * OCR del servidor. `null` o ausente en builds sin proveedor: la ruta
+   * responde 503 y la importación de imágenes degrada al extractor local.
+   */
+  readonly ocr?: MayeuticOcrService | null;
   /** Orígenes autorizados para el cliente web. Por defecto, cualquiera. */
   readonly cors?: CorsOptions;
 }
@@ -40,10 +46,14 @@ export function defaultDependencies(): ApiDependencies {
     store: new InMemoryProgressStore(),
     mayeuticAi: new GeminiMayeuticService(),
     llm: null,
+    ocr: new GeminiOcrService(),
   };
 }
 
-const MAX_BODY_BYTES = 5 * 1024 * 1024;
+// El OCR sube la imagen en base64 dentro del JSON, y base64 infla ~33 %: el
+// tope del cuerpo debe cubrir 5 MiB de imagen ya codificados más el resto del
+// objeto. Se fija en 8 MiB, que deja margen sin admitir cargas desmedidas.
+const MAX_BODY_BYTES = 8 * 1024 * 1024;
 
 /**
  * Construye el manejador de peticiones de la API.
@@ -59,6 +69,9 @@ const MAX_BODY_BYTES = 5 * 1024 * 1024;
  * - `DELETE /account`     — elimina la cuenta y su progreso (requisito de App Store).
  * - `POST /sync/push`     — sube la instantánea y devuelve la fusionada.
  * - `GET  /sync/pull`     — descarga la instantánea guardada.
+ * - `POST /mayeutic/generate` — genera preguntas semánticas (requiere sesión).
+ * - `POST /mayeutic/evaluate` — evalúa una respuesta (requiere sesión).
+ * - `POST /mayeutic/ocr`  — reconoce texto de una imagen (requiere sesión).
  * - `GET  /health`        — comprobación de vida.
  */
 export function createRequestHandler(
@@ -116,6 +129,7 @@ async function route(
       version: API_VERSION,
       commit: process.env.RENDER_GIT_COMMIT ?? null,
       provider: providerStatus(deps),
+      ocr: ocrStatus(deps),
     });
     return;
   }
@@ -244,6 +258,38 @@ async function route(
     return;
   }
 
+  // OCR: reconoce texto de una imagen o de un PDF escaneado. Igual que el motor
+  // semántico, exige sesión (es un recurso con coste) y responde 503 sin
+  // proveedor, para que la importación del cliente degrade al extractor local.
+  if (method === 'POST' && url.pathname === '/mayeutic/ocr') {
+    if (!authenticate(deps, req, res)) {
+      return;
+    }
+    if (!deps.ocr) {
+      sendJson(res, 503, {
+        error: 'ocr-no-configurado',
+        message: 'El OCR no está configurado en el servidor.',
+      });
+      return;
+    }
+
+    const input = readOcrInput(await readJson(req));
+    if (!input) {
+      sendJson(res, 400, {
+        error: 'datos-invalidos',
+        message: 'La imagen o su tipo no son válidos.',
+      });
+      return;
+    }
+    const outcome = await deps.ocr.recognize(input);
+    if (outcome.ok) {
+      sendJson(res, 200, { text: outcome.text });
+      return;
+    }
+    sendJson(res, 502, { error: 'ocr-fallido', message: outcome.message });
+    return;
+  }
+
   // El asistente con modelo exige sesión: es un recurso con coste y no debe
   // quedar abierto. La app funciona sin él, así que 401 aquí no rompe nada.
   if (method === 'POST' && url.pathname === '/llm/complete') {
@@ -267,6 +313,34 @@ async function route(
     error: 'no-encontrado',
     message: `Ruta desconocida: ${method} ${url.pathname}`,
   });
+}
+
+/**
+ * Valida la entrada del OCR: tipo de imagen admitido y base64 con tamaño
+ * acotado. Se decodifica el tamaño real antes de aceptar la petición para no
+ * gastar cuota del proveedor con cargas enormes o mal formadas.
+ */
+function readOcrInput(value: unknown): OcrInput | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+  const mimeType = value.mimeType;
+  const imageBase64 = value.imageBase64;
+  if (
+    typeof mimeType !== 'string' ||
+    !/^image\/[a-z0-9.+-]+$/i.test(mimeType) ||
+    typeof imageBase64 !== 'string' ||
+    imageBase64.length === 0
+  ) {
+    return null;
+  }
+  // Longitud aproximada de los bytes decodificados: base64 son 4 caracteres por
+  // cada 3 bytes. Se comprueba antes de decodificar para no reservar memoria.
+  const approxBytes = Math.floor((imageBase64.length * 3) / 4);
+  if (approxBytes > MAX_OCR_BYTES) {
+    return null;
+  }
+  return { mimeType, imageBase64 };
 }
 
 function sendAiResult<T>(res: ServerResponse, result: Result<T, Error>): void {
@@ -525,6 +599,20 @@ function providerStatus(deps: ApiDependencies): {
   const configured = typeof ai.configured === 'boolean' ? ai.configured : true;
   const model = typeof ai.modelId === 'string' ? ai.modelId : null;
   return { configured, model };
+}
+
+/**
+ * Estado del OCR para `/health`, sin revelar secretos.
+ *
+ * Solo indica si el servidor puede reconocer imágenes; el cliente lo usa para
+ * saber si ofrecer la importación por OCR antes de intentarla.
+ */
+function ocrStatus(deps: ApiDependencies): { readonly configured: boolean } {
+  const ocr = deps.ocr;
+  if (!ocr) {
+    return { configured: false };
+  }
+  return { configured: typeof ocr.configured === 'boolean' ? ocr.configured : true };
 }
 
 function emptySnapshot(userId: string): ProgressSnapshot {

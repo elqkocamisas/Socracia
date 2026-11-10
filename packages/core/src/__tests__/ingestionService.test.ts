@@ -217,3 +217,58 @@ El recurso de alzada es el que se interpone ante el organo superior jerarquico. 
     }
   });
 });
+
+describe('ingestText (camino del OCR)', () => {
+  it('indexa texto ya extraído sin pasar por los extractores', async () => {
+    const { service, rag } = makeService();
+    const text =
+      'Tema 1. La notificación\n\nLa notificación comunica formalmente el acto al interesado.';
+    const result = await service.ingestText(
+      {
+        fileName: 'escaneo.png',
+        mimeType: 'image/png',
+        uri: 'file:///tmp/escaneo.png',
+        sizeBytes: 1234,
+      },
+      text,
+      {
+        chunkOptions: { maxChars: 400, overlapChars: 60, minChars: 20 },
+        cloudConsent: true,
+        id: 'doc-ocr',
+        now: NOW,
+      },
+    );
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.document.title).toBe('escaneo');
+      expect(result.value.document.mimeType).toBe('image/png');
+      expect(result.value.document.cloudConsent).toBe(true);
+      expect(result.value.chunkCount).toBeGreaterThan(0);
+    }
+
+    const hits = await rag.retrieve('notificación acto interesado', 1);
+    expect(hits.ok).toBe(true);
+    if (hits.ok) {
+      expect(hits.value[0]?.chunk.documentId).toBe('doc-ocr');
+    }
+  });
+
+  it('rechaza texto vacío con `texto-vacio`', async () => {
+    const { service } = makeService();
+    const result = await service.ingestText(
+      { fileName: 'vacio.png', mimeType: 'image/png', uri: 'u', sizeBytes: 1 },
+      '   \n  ',
+      {
+        chunkOptions: { maxChars: 400, overlapChars: 60, minChars: 20 },
+        cloudConsent: true,
+        id: 'doc-vacio',
+        now: NOW,
+      },
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe('texto-vacio');
+    }
+  });
+});

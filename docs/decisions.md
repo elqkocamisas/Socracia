@@ -1383,6 +1383,70 @@ StudyError>`; el orden de preferencia es proveedor semántico → evaluador LLM
   (b) ejecutar el proceso como root: peor práctica de seguridad y no permitido por
   el runtime; (c) subir a plan de pago: viola «coste cero».
 
+## D-070 — El OCR se ejecuta en el servidor, tras el puerto `OcrPort`
+
+- **Fecha:** cierre de 1.0 (2026-11-04)
+- **Contexto:** la ingesta solo leía texto de PDF con capa de texto, TXT y MD. Una
+  **imagen** o un **PDF escaneado** no tenían camino: el extractor devolvía
+  `pdf-sin-texto` y la importación fallaba. Se pedía una APK «con OCR ejecutable y
+  resolutivo», sin introducir dependencias nuevas ni claves en el cliente.
+- **Decisión:** el OCR vive en el **servidor**, detrás de un puerto puro del
+  núcleo (`OcrPort` en `packages/core/src/ingest/ocr.ts`). El backend lo
+  implementa con el mismo proveedor multimodal que el motor mayéutico (Gemini),
+  reutilizando la clave que ya está solo en el servidor. La app lo consume por
+  `HttpOcrPort` a través de la ruta `POST /mayeutic/ocr` (exige sesión). El texto
+  reconocido entra en el **mismo** pipeline de ingesta que un PDF con texto, vía
+  `DocumentIngestionService.ingestText`, que no duplica el indexado.
+- **Motivos:** (a) coste cero: reutiliza la clave y el nivel gratuito que ya usa
+  el motor; (b) sin dependencias de producción nuevas en el móvil (nada de
+  `mlkit`/`tesseract` nativo, que engordaría el APK y exigiría módulos nativos);
+  (c) coherencia con la arquitectura existente (mismo patrón que
+  `MayeuticSemanticProvider` y `EmbeddingProvider`); (d) privacidad: la imagen
+  sale del dispositivo **solo** con el consentimiento de nube ya existente
+  (mismas condiciones que el motor: build con backend, sesión y ajuste en
+  `allow-cloud`), y el servidor no la conserva.
+- **Consecuencias:** importar una imagen o un PDF escaneado exige sesión y
+  consentimiento; sin ellos, la app avisa con un mensaje claro
+  (`ocr-no-disponible`) en vez de fallar en silencio. El texto reconocido se
+  indexa en local como cualquier documento. Se actualizan la política de
+  privacidad (apartado 2.3.1), las declaraciones de tienda y las pruebas
+  (`ocr.test.ts` en núcleo y API, `ocrPort.test.ts` y `ocrImport.test.ts` en el
+  móvil). `/health` expone `ocr.configured` sin revelar secretos.
+- **Alternativas descartadas:** (a) OCR nativo on-device: añade dependencia de
+  producción y peso al APK, y la misión pide coste cero y mínimo cambio; (b)
+  OCR en el cliente contra Gemini con la clave embebida: prohibido (clave en el
+  cliente); (c) dejar las imágenes sin soporte: incumple el objetivo de la APK
+  «con OCR».
+
+## D-071 — El perfil `preview` fija el backend y el modo conectado
+
+- **Fecha:** cierre de 1.0 (2026-11-04)
+- **Contexto:** el perfil `preview` de `eas.json` (APK de distribución interna,
+  el que se usa para probar en dispositivo) no declaraba `env`, así que el bundle
+  caía en `DEFAULT_API_BASE_URL` (`http://localhost:8787`) y
+  `CLOUD_PROCESSING_AVAILABLE` quedaba en `false`. Es decir, el APK de preview no
+  hablaba con el backend real ni ofrecía el motor ni el OCR: servía solo para el
+  modo heurístico local.
+- **Decisión:** declarar en `preview` las mismas variables que en `production`:
+  `EXPO_PUBLIC_API_BASE_URL=https://socracia.onrender.com` y
+  `EXPO_PUBLIC_CLOUD_PROCESSING=1`. El perfil `release-apk` sigue heredando de
+  `production` (D-059) y no cambia. Las variables `EXPO_PUBLIC_*` **no son
+  secretos** (se incrustan en el bundle), así que van en el repositorio y quedan
+  bajo control de versiones, como en D-067.
+- **Motivos:** el APK de preview es el vehículo de la prueba en dispositivo
+  (`docs/release-1.0-smoke.md`); sin backend ni motor, el smoke test no puede
+  ejercer el modo conectado ni el OCR. Fijarlo en el perfil evita un paso manual
+  de variables de entorno y hace la build reproducible.
+- **Consecuencias:** el APK de `preview` ofrece motor y OCR (siempre opt-in: sin
+  sesión y sin consentimiento, nada sale del dispositivo). La prueba
+  `easWorkflows.test.ts` ya fija que cada perfil que compila resuelve un entorno
+  con URL de backend; `buildConfig.test.ts` fija que el APK de lanzamiento activa
+  el motor.
+- **Alternativas descartadas:** (a) dejar `preview` sin `env`: obliga a pasar las
+  variables a mano y el APK nace inservible para la prueba real; (b) usar la
+  cuenta de EAS (`eas env:create`): no queda en el repositorio y exige
+  interactividad (mismo motivo que en D-067).
+
 ## Ambigüedades pendientes (no bloqueantes)
 
 - **Vertical inicial (oposiciones vs PAU):** resuelto en el Sprint 1: el corpus

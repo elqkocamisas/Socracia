@@ -23,7 +23,7 @@ import {
 export class ExpoDocumentPicker implements DocumentPickerPort {
   public async pick(): Promise<PickedFile | null> {
     const result = await DocumentPicker.getDocumentAsync({
-      type: ['application/pdf', 'text/plain', 'text/markdown', 'text/*'],
+      type: ['application/pdf', 'text/plain', 'text/markdown', 'text/*', 'image/*'],
       copyToCacheDirectory: true,
       multiple: false,
     });

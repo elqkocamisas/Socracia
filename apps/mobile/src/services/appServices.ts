@@ -16,17 +16,24 @@ import {
   defaultRegistry,
   extractCurriculum,
   fflateInflate,
+  isOcrImage,
   allowsCloudProcessing,
   assertProcessingAllowed,
   type EdgeLlmNativeModule,
   type EmbeddingProvider,
+  type IngestOptions,
+  type KnowledgeChunk,
+  type KnowledgeDocument,
   type MayeuticSemanticProvider,
+  type OcrPort,
+  type OcrRequest,
   type Result,
   type VectorStore,
 } from '@socracia/core';
 
 import { buildLlmEngine, withLlmEngine, type LlmEngineBundle } from './llmEngine';
 import { HttpHealthProbe, type HealthProbe } from './healthProbe';
+import { HttpOcrPort } from './ocrPort';
 import { InMemoryThemeStore, SqliteThemeStore, type ThemeStore } from '../theme/themePreference';
 import { InMemoryOnboardingStore, SqliteOnboardingStore, type OnboardingStore } from './onboarding';
 
@@ -153,6 +160,12 @@ export interface AppServices {
   readonly cloudProcessingEnabled: () => boolean;
   /** Sonda de salud del backend, para el calentamiento y el diagnóstico. */
   readonly health: HealthProbe;
+  /**
+   * OCR del servidor. `null` si este build no tiene backend: la importación de
+   * imágenes se rechaza con un mensaje claro en vez de intentar una ruta que no
+   * existe.
+   */
+  readonly ocr: OcrPort | null;
   /** `true` si hay sesión de cuenta activa (la nube la exige). */
   readonly hasSession: () => boolean;
   /** Lee el consentimiento de nube de un documento. */
@@ -209,6 +222,8 @@ export interface CreateServicesOptions {
   readonly fetchImpl?: typeof fetch;
   /** Sonda de salud inyectable; por defecto, HTTP contra `apiBaseUrl`. */
   readonly healthProbe?: HealthProbe;
+  /** OCR inyectable; por defecto, HTTP contra `apiBaseUrl` si hay backend. */
+  readonly ocr?: OcrPort | null;
   /** Persistencia de la preferencia de tema; por defecto, en memoria. */
   readonly themeStore?: ThemeStore;
   /** Persistencia del estado del onboarding; por defecto, en memoria. */
@@ -246,6 +261,14 @@ export function createServices(options: CreateServicesOptions): AppServices {
   const health =
     options.healthProbe ??
     new HttpHealthProbe({ baseUrl: options.apiBaseUrl ?? DEFAULT_API_BASE_URL });
+  // El OCR solo existe si el build trae backend: sin él no hay ruta que llamar.
+  // Un `options.ocr` explícito (incluido `null`) tiene prioridad, para las pruebas.
+  const ocr: OcrPort | null =
+    options.ocr !== undefined
+      ? options.ocr
+      : cloudAvailable
+        ? new HttpOcrPort({ client: syncClient })
+        : null;
   const hasSession = (): boolean => syncClient.hasSession();
   const documentConsent = async (documentId: string): Promise<boolean> => {
     const document = await options.storage.documents.getDocument(documentId);
@@ -302,6 +325,7 @@ export function createServices(options: CreateServicesOptions): AppServices {
     cloudAvailable,
     cloudProcessingEnabled,
     health,
+    ocr,
     hasSession,
     documentConsent,
     setDocumentConsent,
@@ -413,46 +437,137 @@ export async function importDocument(
   }
 
   const id = `doc-${now}`;
+  const mimeType = picked.mimeType || 'text/plain';
+  const ingestOptions = {
+    chunkOptions: { maxChars: 900, overlapChars: 150, minChars: 40 },
+    // Queda registrado en el documento si el usuario autorizó la nube, para
+    // poder auditar después qué material se procesó fuera del dispositivo.
+    // Se exige también sesión iniciada: sin cuenta no hay nube posible.
+    cloudConsent: services.cloudProcessingEnabled(),
+    id,
+    now,
+  };
+
   const ingested = await services.ingestion.ingest(
-    {
-      fileName: picked.name,
-      mimeType: picked.mimeType || 'text/plain',
-      bytes: bytes.value,
-      uri: picked.uri,
-    },
-    {
-      chunkOptions: { maxChars: 900, overlapChars: 150, minChars: 40 },
-      // Queda registrado en el documento si el usuario autorizó la nube, para
-      // poder auditar después qué material se procesó fuera del dispositivo.
-      // Se exige también sesión iniciada: sin cuenta no hay nube posible.
-      cloudConsent: services.cloudProcessingEnabled(),
-      id,
-      now,
-    },
+    { fileName: picked.name, mimeType, bytes: bytes.value, uri: picked.uri },
+    ingestOptions,
   );
 
+  // Camino OCR: una imagen, o un PDF escaneado sin capa de texto, no tienen
+  // texto que el extractor local pueda leer. Si el build tiene OCR y hay
+  // consentimiento, se reconoce en el servidor y el texto entra en el mismo
+  // pipeline. Si no, se propaga el error original del extractor, que ya explica
+  // al usuario qué ocurre.
   if (!ingested.ok) {
+    const needsOcr = isOcrImage(mimeType, picked.name) || ingested.error.code === 'pdf-sin-texto';
+    if (needsOcr) {
+      if (!services.ocr) {
+        return {
+          ok: false,
+          error: {
+            code: 'ocr-no-disponible',
+            message: 'Este build no puede leer imágenes ni PDF escaneados.',
+          },
+        };
+      }
+      if (!services.cloudProcessingEnabled()) {
+        return {
+          ok: false,
+          error: {
+            code: 'ocr-no-disponible',
+            message:
+              'Para leer una imagen o un PDF escaneado hace falta iniciar sesión y activar la nube.',
+          },
+        };
+      }
+      return importWithOcr(services, picked, bytes.value, mimeType, now, ingestOptions);
+    }
     return { ok: false, error: { code: 'ingesta-fallida', message: ingested.error.message } };
   }
 
-  const curriculum = extractCurriculum(ingested.value.text);
-  await services.storage.documents.saveDocument(ingested.value.document);
+  return persistIngested(services, ingested.value, now);
+}
+
+/** Texto ya extraído o reconocido, listo para indexar y persistir. */
+interface IngestedForPersistence {
+  readonly document: KnowledgeDocument;
+  readonly text: string;
+  readonly chunks: readonly KnowledgeChunk[];
+}
+
+/**
+ * Reconoce el texto de una imagen o PDF escaneado y lo indexa.
+ *
+ * El OCR ocurre en el servidor; aquí solo se orquesta: reconocer, meter el
+ * texto por `ingestText` (que salta la extracción) y persistir. Cualquier fallo
+ * del OCR se traduce a un `ImportError` accionable sin romper la importación.
+ */
+async function importWithOcr(
+  services: AppServices,
+  picked: PickedFile,
+  bytes: Uint8Array,
+  mimeType: string,
+  now: number,
+  ingestOptions: IngestOptions,
+): Promise<Result<{ documentId: string; title: string; conceptCount: number }, ImportError>> {
+  const ocr = services.ocr;
+  if (!ocr) {
+    return {
+      ok: false,
+      error: { code: 'ocr-no-disponible', message: 'El OCR no está disponible en este build.' },
+    };
+  }
+
+  const recognized = await ocr.recognize({
+    fileName: picked.name,
+    mimeType,
+    bytes,
+  } satisfies OcrRequest);
+  if (!recognized.ok) {
+    return {
+      ok: false,
+      error: {
+        code: recognized.error.code === 'no-disponible' ? 'ocr-no-disponible' : 'ocr-fallido',
+        message: recognized.error.message,
+      },
+    };
+  }
+
+  const ingested = await services.ingestion.ingestText(
+    { fileName: picked.name, mimeType, uri: picked.uri, sizeBytes: bytes.length },
+    recognized.value.text,
+    ingestOptions,
+  );
+  if (!ingested.ok) {
+    return { ok: false, error: { code: 'ingesta-fallida', message: ingested.error.message } };
+  }
+  return persistIngested(services, ingested.value, now);
+}
+
+/** Persiste documento, temario y fragmentos, y devuelve el resumen de la importación. */
+async function persistIngested(
+  services: AppServices,
+  ingested: IngestedForPersistence,
+  now: number,
+): Promise<Result<{ documentId: string; title: string; conceptCount: number }, ImportError>> {
+  const curriculum = extractCurriculum(ingested.text);
+  await services.storage.documents.saveDocument(ingested.document);
   await services.storage.documents.saveCurriculum({
-    id,
-    title: ingested.value.document.title,
+    id: ingested.document.id,
+    title: ingested.document.title,
     topics: curriculum.topics,
     concepts: curriculum.concepts,
     createdAt: now,
   });
   // Los fragmentos se persisten para poder rehidratar el índice en el próximo
   // arranque; sin ellos el temario quedaría ilegible tras cerrar la app.
-  await services.storage.documents.saveChunks(ingested.value.chunks);
+  await services.storage.documents.saveChunks(ingested.chunks);
 
   return {
     ok: true,
     value: {
-      documentId: id,
-      title: ingested.value.document.title,
+      documentId: ingested.document.id,
+      title: ingested.document.title,
       conceptCount: curriculum.concepts.length,
     },
   };

@@ -92,7 +92,9 @@ Socracia/
 
 ```mermaid
 flowchart TD
-    U[Usuario importa PDF / TXT / MD] --> X[Extraer texto en el móvil]
+    U[Usuario importa PDF / TXT / MD / imagen] --> X[Extraer texto en el móvil]
+    X -->|Imagen o PDF escaneado,<br/>con sesión y consentimiento| O[OCR en el servidor]
+    O --> C
     X --> C[Normalizar y dividir en fragmentos]
     C --> E[Calcular embeddings localmente]
     E --> V[(Índice RAG local)]
@@ -203,6 +205,7 @@ El Sprint 2 cierra el recorrido «adjuntar documento → preguntas con fuente»:
 | ------------------------- | ------------------------------------------------------------------------------- |
 | `ingest/extractors`       | `ExtractorRegistry` y extractores de PDF, TXT y MD; errores con código estable. |
 | `ingest/inflate`          | Descompresión FlateDecode de PDF con `fflate` (JS puro, Hermes y Node).         |
+| `ingest/ocr`              | Puerto `OcrPort` y utilidades puras (detección de imagen, base64) para el OCR.  |
 | `ingest/ingestionService` | Extrae texto, crea el registro del documento y lo indexa en el RAG.             |
 | `storage/ports`           | Puertos de persistencia que el dominio consume sin conocer el motor.            |
 | `storage/inMemory`        | Implementación en memoria: doble de pruebas y respaldo si SQLite no abre.       |

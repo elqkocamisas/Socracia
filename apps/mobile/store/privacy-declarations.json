@@ -26,6 +26,15 @@
         "nota": "Se envían la pregunta, la respuesta del alumno, la referencia y el fragmento citado del temario. El servidor los trata de forma transitoria y no los almacena. La revocación del permiso es inmediata.",
         "vinculado": true,
         "transitorio": true
+      },
+      {
+        "tipo": "User Content → Photos or Videos (OCR de imágenes)",
+        "recogido": true,
+        "finalidad": ["App Functionality"],
+        "cuando": "Solo si el usuario importa una imagen o un PDF escaneado y ha autorizado el asistente con modelo en «Cuenta → Privacidad».",
+        "nota": "La imagen se envía al servidor únicamente para reconocer su texto (OCR); el servidor no la conserva y solo devuelve el texto. El texto reconocido se indexa en el dispositivo como cualquier otro documento.",
+        "vinculado": true,
+        "transitorio": true
       }
     ],
     "datosNoVinculadosAlUsuario": [],
@@ -65,6 +74,16 @@
         "procesamiento": "Opcional",
         "finalidad": ["Funcionalidad de la app"],
         "nota": "Se recoge solo con consentimiento explícito, revocable en cualquier momento."
+      },
+      {
+        "categoria": "Actividad en la app",
+        "tipo": "Otra actividad en la app (OCR de imágenes)",
+        "detalle": "La imagen importada o el PDF escaneado se transmiten de forma transitoria para reconocer su texto (OCR). El servidor no conserva la imagen; solo devuelve el texto, que se indexa en el dispositivo.",
+        "recogido": true,
+        "compartido": false,
+        "procesamiento": "Opcional",
+        "finalidad": ["Funcionalidad de la app"],
+        "nota": "Se recoge solo con consentimiento explícito (mismo ajuste que el asistente con modelo), revocable en cualquier momento."
       }
     ],
     "noRecogidos": [
@@ -80,7 +99,7 @@
       "Actividad web",
       "Diagnóstico y fallos"
     ],
-    "notaArchivos": "«Archivos y documentos» se marca como no recogido: los ficheros que adjunta el usuario se leen en el dispositivo y no se suben como fichero. Si el usuario autoriza el asistente con modelo, puede transmitirse un fragmento de texto concreto de ese material, ya declarado arriba como otra actividad en la app.",
+    "notaArchivos": "«Archivos y documentos» y «Fotos y vídeos» se marcan como no recogidos porque la app no accede a la biblioteca ni sube ficheros como tales: los documentos se leen en el dispositivo. Con el asistente con modelo autorizado puede transmitirse un fragmento de texto concreto (ya declarado arriba), y si el material es una imagen o un PDF escaneado, la imagen concreta que el usuario elige se envía solo para reconocer su texto por OCR (también declarado arriba); el servidor no la conserva.",
     "permisos": {
       "INTERNET": "Para la sincronización opcional de la cuenta y para el asistente con modelo, si el usuario lo autoriza. La app funciona completa sin conexión, sin cuenta y con el asistente desactivado.",
       "ACCESS_NETWORK_STATE": "Solo para detectar si hay conexión antes de sincronizar.",

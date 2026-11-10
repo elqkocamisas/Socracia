@@ -218,6 +218,25 @@ Trampas conocidas:
   sesión. No "arreglar" esto pasando el del cliente: es lo que impide escribir
   el progreso de otro usuario.
 
+## OCR de imágenes y PDF escaneados (cierre de 1.0)
+
+- **El OCR vive en el servidor, detrás del puerto `OcrPort` del núcleo.** El
+  backend lo implementa con el proveedor multimodal (Gemini) y la app lo consume
+  por `HttpOcrPort` vía `POST /mayeutic/ocr` (exige sesión). Reutiliza la clave
+  que ya está solo en el servidor: no añade dependencias nativas al móvil (D-070).
+- **La imagen sale del dispositivo solo con el consentimiento de nube ya
+  existente** (build con backend + sesión + ajuste `allow-cloud`), el mismo que el
+  motor. Sin él, la importación de una imagen o de un PDF escaneado devuelve
+  `ocr-no-disponible` y la app avisa; nunca falla en silencio.
+- **El texto reconocido entra por `DocumentIngestionService.ingestText`**, que no
+  duplica el indexado del RAG. No reimplementar la ingesta para el OCR.
+- **`bytesToBase64` es puro (core) y se prueba contra `Buffer` en Node.** En el
+  móvil no hay tipos de Node: las pruebas del cliente usan literales base64, no
+  `Buffer` (falla `TS2591`).
+- **El cuerpo HTTP sube a 8 MiB** (`MAX_BODY_BYTES`) para cubrir el inflado de
+  base64 (~33 %) de una imagen de hasta 5 MiB (`MAX_OCR_BYTES`). `/health` expone
+  `ocr.configured` (booleano), nunca la clave.
+
 ## Arquitectura de cuenta y sincronización (Sprint 4)
 
 - **Fusión pura en el núcleo.** `mergeSnapshots` (`packages/core/src/sync/merge.ts`)

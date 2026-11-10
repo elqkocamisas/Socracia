@@ -32,16 +32,19 @@ implementa `HttpSyncClient`, en las pruebas un servidor en memoria.
 
 ## Endpoints
 
-| Método  | Ruta             | Cuerpo                                   | Respuesta                               |
-| ------- | ---------------- | ---------------------------------------- | --------------------------------------- |
-| GET     | `/health`        | —                                        | `{ status, version, commit, provider }` |
-| POST    | `/auth/register` | `{ email, password }`                    | `{ token, userId }`                     |
-| POST    | `/auth/login`    | `{ email, password }`                    | `{ token, userId }`                     |
-| POST    | `/auth/logout`   | — (con `Authorization`)                  | `{ "status": "cerrado" }`               |
-| DELETE  | `/account`       | — (con `Authorization`)                  | `{ "status": "eliminada" }`             |
-| POST    | `/sync/push`     | `ProgressSnapshot` (con `Authorization`) | `ProgressSnapshot` fusionada            |
-| GET     | `/sync/pull`     | — (con `Authorization`)                  | `ProgressSnapshot` guardada             |
-| OPTIONS | cualquiera       | —                                        | `204` sin cuerpo (preflight)            |
+| Método  | Ruta                 | Cuerpo                                                 | Respuesta                                    |
+| ------- | -------------------- | ------------------------------------------------------ | -------------------------------------------- |
+| GET     | `/health`            | —                                                      | `{ status, version, commit, provider, ocr }` |
+| POST    | `/auth/register`     | `{ email, password }`                                  | `{ token, userId }`                          |
+| POST    | `/auth/login`        | `{ email, password }`                                  | `{ token, userId }`                          |
+| POST    | `/auth/logout`       | — (con `Authorization`)                                | `{ "status": "cerrado" }`                    |
+| DELETE  | `/account`           | — (con `Authorization`)                                | `{ "status": "eliminada" }`                  |
+| POST    | `/sync/push`         | `ProgressSnapshot` (con `Authorization`)               | `ProgressSnapshot` fusionada                 |
+| GET     | `/sync/pull`         | — (con `Authorization`)                                | `ProgressSnapshot` guardada                  |
+| POST    | `/mayeutic/generate` | `{ concept, citation, options }` (con `Authorization`) | `SemanticQuestionDraft[]`                    |
+| POST    | `/mayeutic/evaluate` | `{ question, answer }` (con `Authorization`)           | `SemanticAnswerAssessment`                   |
+| POST    | `/mayeutic/ocr`      | `{ mimeType, imageBase64 }` (con `Authorization`)      | `{ text }`                                   |
+| OPTIONS | cualquiera           | —                                                      | `204` sin cuerpo (preflight)                 |
 
 Autenticación por `Authorization: Bearer <token>`. Códigos de error:
 
@@ -49,13 +52,27 @@ Autenticación por `Authorization: Bearer <token>`. Códigos de error:
 - `401 no-autorizado` — token ausente o caducado; también credenciales inválidas.
 - `409 email-en-uso` / `409 datos-invalidos` — registro rechazado.
 - `404` — ruta desconocida.
+- `503 no-configurado` / `503 ocr-no-configurado` — el servidor no tiene
+  proveedor de lenguaje o de OCR; la app degrada a la heurística local.
+- `502 proveedor-semantico` / `502 ocr-fallido` — el proveedor respondió con
+  error; el motivo se propaga en `message`.
 
 `/health` no solo confirma que el proceso vive: devuelve `version` (leída del
 `package.json` del backend), `commit` (`RENDER_GIT_COMMIT`, la revisión que sirve
-Render) y `provider` (`{ configured, model }`). Sirve para comprobar que el
-servicio desplegado es la API correcta y en qué revisión, **sin** exponer nunca
-la clave: `configured` es un booleano y `model` el identificador del modelo, no
-el secreto.
+Render), `provider` (`{ configured, model }`) y `ocr` (`{ configured }`). Sirve
+para comprobar que el servicio desplegado es la API correcta y en qué revisión,
+**sin** exponer nunca la clave: `configured` es un booleano y `model` el
+identificador del modelo, no el secreto.
+
+## OCR (`POST /mayeutic/ocr`)
+
+El reconocimiento de imágenes y PDF escaneados se hace en el servidor, con el
+mismo proveedor multimodal que el motor mayéutico, para que la clave siga
+viviendo solo en el servidor. El cuerpo lleva `{ mimeType, imageBase64 }`; la
+imagen decodificada no puede superar **5 MiB** (`MAX_OCR_BYTES`) y el tope del
+cuerpo HTTP se amplió a 8 MiB para cubrir el inflado de base64 (~33 %). La ruta
+exige sesión: es un recurso con coste. El servidor **no conserva** la imagen;
+solo devuelve el texto reconocido, que el cliente indexa en local.
 
 ## Reglas de seguridad
 

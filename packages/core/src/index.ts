@@ -17,6 +17,7 @@ export * from './rag/vectorStore';
 export * from './rag/engine';
 export * from './ingest/conceptExtractor';
 export * from './ingest/extractors';
+export * from './ingest/ocr';
 export * from './ingest/ingestionService';
 export * from './ingest/inflate';
 export * from './mayeu/cognitive';

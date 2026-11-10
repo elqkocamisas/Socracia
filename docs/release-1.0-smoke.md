@@ -7,7 +7,11 @@ hubiera pasado.
 
 - **Build:** `release-apk` (APK, distribución interna). Hay un **APK 1.0.0 ya
   compilado en local** (`dist/socracia-1.0.0.apk`, `com.socracia.app`, firmado
-  con clave de depuración) que sirve para este smoke test sin esperar a EAS.
+  con clave de depuración) que sirve para este smoke test sin esperar a EAS, pero
+  **puede ser anterior a D-067**: si su bundle no trae
+  `EXPO_PUBLIC_CLOUD_PROCESSING=1`, solo valida el modo heurístico local y el
+  bloque 6 (y el OCR del bloque 1b) no aplican. Para el modo conectado usa el APK
+  de EAS (perfil `release-apk`, que sí hereda la variable de `production`).
 - **Versión esperada:** `1.0.0` (el `versionCode` lo asigna EAS en remoto; el
   APK local trae `versionCode 1`)
 - **Preparación:** instala el APK (`adb install -r socracia-1.0.0.apk`) y abre la
@@ -28,6 +32,18 @@ hubiera pasado.
 - [ ] Adjunta un **PDF con texto real** (no un escaneo de imagen).
 - [ ] Los tres documentos muestran un número de conceptos coherente con su
       contenido (no cero, no desproporcionado).
+
+## 1b. OCR de imagen (opcional, requiere sesión y consentimiento)
+
+> Solo con el modo conectado activo y el asistente autorizado. Sin consentimiento,
+> la app debe **avisar** y **no** enviar la imagen.
+
+- [ ] Sin sesión o con el asistente desactivado, adjunta una **foto de apuntes**:
+      aparece un aviso claro (no un fallo silencioso) y no se envía nada.
+- [ ] Tras iniciar sesión y autorizar el asistente, adjunta la misma imagen: se
+      reconoce su texto y el documento aparece con conceptos coherentes.
+- [ ] Adjunta un **PDF escaneado** (sin capa de texto) con consentimiento: se
+      reconoce igual que la imagen.
 
 ## 2. Sesión mayéutica
 

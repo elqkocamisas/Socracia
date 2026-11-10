@@ -27,8 +27,9 @@ export interface ImportScreenProps {
 /**
  * Pantalla de importación de documentos.
  *
- * Cubre el primer paso del recorrido: adjuntar un PDF, TXT o MD, ver el
- * resultado de la ingesta y gestionar la lista de documentos ya incorporados.
+ * Cubre el primer paso del recorrido: adjuntar un PDF, TXT o MD (o una imagen,
+ * que se lee por OCR con consentimiento), ver el resultado de la ingesta y
+ * gestionar la lista de documentos ya incorporados.
  * Cada documento puede autorizarse (o no) para la nube por separado, sin
  * cambiar el valor por defecto, que es local.
  */
@@ -147,7 +148,7 @@ export function ImportScreen({
           <Text style={styles.cardTitle}>Sin documentos</Text>
           <Text style={styles.cardBody}>
             Adjunta un PDF, TXT o MD con tu temario. El texto se procesa en tu dispositivo y no sale
-            de él.
+            de él. Una imagen o un PDF escaneado se leen por OCR con tu consentimiento.
           </Text>
         </View>
       ) : (

@@ -161,6 +161,31 @@ export class HttpSyncClient implements SyncPort {
     });
   }
 
+  /**
+   * Reconoce el texto de una imagen con el OCR del servidor.
+   *
+   * La imagen viaja en base64 dentro del JSON; la clave del proveedor vive solo
+   * en el backend. El texto vuelve para entrar en el mismo pipeline de ingesta
+   * que un PDF con capa de texto. Sin sesión, devuelve `sin-sesion` y la
+   * importación degrada al extractor local.
+   */
+  public async recognizeText(
+    mimeType: string,
+    imageBase64: string,
+  ): Promise<Result<{ readonly text: string }, SyncError>> {
+    if (!this.token) {
+      return {
+        ok: false,
+        error: { code: 'sin-sesion', message: 'Inicia sesión para usar el OCR.' },
+      };
+    }
+    return this.request<{ text: string }>('/mayeutic/ocr', {
+      method: 'POST',
+      headers: this.headers(),
+      body: JSON.stringify({ mimeType, imageBase64 }),
+    });
+  }
+
   private async authenticate(
     path: string,
     email: string,
