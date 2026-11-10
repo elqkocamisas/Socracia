@@ -65,7 +65,7 @@ puerta no se da por cumplida sin evidencia ejecutada **en esta sesión**.
 ## Estado de esta sesión (2026-11-10)
 
 Trabajo realizado y verificado **hoy**, sobre `main` en `be140bc` + la rama
-`feat/motor-semantico-modo-conectado` (PR #19, 6 commits):
+`feat/motor-semantico-modo-conectado` (PR #19, 10 commits):
 
 1. **F0 — línea base real.** `npm ci --no-audit --no-fund` desde cero (Node
    v24.21.0, npm 11.21.0, 1124 paquetes, 21 s) y `npm run verify` **en verde**
@@ -103,6 +103,12 @@ remote` deja el `versionCode` a EAS. Versión 1.0.0 consistente en raíz,
    del proveedor caído). Ninguna firma pública del dominio cambió y no se modificó
    ninguna prueba existente (el test que fijaba el aborto sigue verde porque no
    activa la opción nueva).
+7. **G3 — desbloqueada con proveedor real (bloqueo principal, resuelto).** La
+   variable `GEMINI_API_KEY` del servicio de Render contenía un valor que no era
+   una clave de Gemini. Se repuso por una **válida** vía API de Render
+   (`PUT /services/{id}/env-vars/GEMINI_API_KEY`) y se redesplegó. `npm run
+eval:real` superó los umbrales (33 casos, 83.3 % / 100 % / 0 citas). Evidencia
+   en `docs/release-1.0-g3-evidence.txt`.
 
 ## Tabla de puertas G1–G9
 
