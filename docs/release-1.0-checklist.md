@@ -16,8 +16,10 @@ crítico:
   (`release-apk`, build `465412d7…` «Succeeded») o con el APK local (este último
   solo valida el modo heurístico).
 
-G3 y G7 quedaron cumplidos en esta sesión; se conservan abajo sus fichas como
-registro.
+G3 y G7 quedaron cumplidos en esta sesión, y el **PR #19 se fusionó en `main`**
+(fast-forward `be140bc` → `c24373b`) con despliegue automático de Render: el
+backend ya sirve OCR + D-072. Solo queda G8. Se conservan abajo las fichas de G3
+y G7 como registro.
 
 ## Camino crítico hacia 1.0
 

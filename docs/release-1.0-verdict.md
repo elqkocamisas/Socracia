@@ -13,6 +13,10 @@ tiendas.
 
 ### ⚠️ NO-GO (solo G8 pendiente de humano)
 
+El PR #19 se **fusionó en `main`** por fast-forward (`be140bc` → `c24373b`) y
+Render desplegó por `autoDeploy`; el backend ya sirve el código completo
+(OCR + D-072).
+
 Estado de las puertas: **G1, G2, G3, G4, G5, G6, G7 y G9 cumplidas** (evidencia
 ejecutada en esta sesión). **G8 pendiente** (smoke en dispositivo real), que es
 necesariamente humano. **G3 se desbloqueó en esta sesión**: la clave del
@@ -116,7 +120,7 @@ eval:real` superó los umbrales (33 casos, 83.3 % / 100 % / 0 citas). Evidencia
 | ------ | ------------------------------------------------------------------------------------------ | ------ | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | G1     | `npm run verify` en verde                                                                  | ✅     | **Ejecutado** (árbol limpio, `npm ci` + verify)         | 41 suites/**355** (core, evals 32/32) + 9/**66** (api) + 33/**227** (mobile) = **648 pruebas**, 0 fallos                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | G2     | Recorrido dorado con 3 documentos (TXT/MD/PDF) y coherencia por capa documentada           | ✅     | **Ejecutado con proveedor falso**                       | `goldenPath.test.ts` (núcleo: extracción por formato + ciclo completo en TXT, MD y PDF real) + `goldenPath.e2e.test.tsx` (pantallas). Los tres formatos → mismos 3 temas/3 conceptos y mismo cierre. Coherencia por capa en la sección siguiente.                                                                                                                                                                                                                                                                        |
-| G3     | Evals con proveedor real: ≥30 casos, veredicto ≥80 %, 0 citas inventadas, ≥90 % paráfrasis | ✅     | **Validado con proveedor real** (Gemini, clave propia)  | `npm run eval:real` contra `https://socracia.onrender.com` (2026-11-10, commit `be140bc`): **33 casos**, veredicto **83.3 %**, paráfrasis **100 %**, citas inventadas **0** → «G3 alcanzada». La clave del servicio se repuso (la anterior no era una clave de Gemini). Salida en `docs/release-1.0-g3-evidence.txt`.                                                                                                                                                                                                    |
+| G3     | Evals con proveedor real: ≥30 casos, veredicto ≥80 %, 0 citas inventadas, ≥90 % paráfrasis | ✅     | **Validado con proveedor real** (Gemini, clave propia)  | `npm run eval:real` contra `https://socracia.onrender.com`: **33 casos** con **83.3 %** de veredicto (commit `be140bc`) y **80.0 %** tras fusionar el PR #19 (commit `c24373b`); en ambas, paráfrasis **100 %** y citas inventadas **0** → «G3 alcanzada». Salida en `docs/release-1.0-g3-evidence.txt`.                                                                                                                                                                                                                 |
 | G4     | Degradación probada en los 4 supuestos de F2                                               | ✅     | **Ejecutado**                                           | `studyService.test.ts` («G4 — degradación en los cuatro supuestos de F2»): sin consentimiento (no llama al proveedor) + red/cuota/salida inválida (degrada y la sesión avanza). Además `consent.test.ts`, `httpProvider.test.ts`, `resilience.test.ts`, `llmEngine.test.ts` y `ocrImport.test.ts` por capa.                                                                                                                                                                                                              |
 | G5     | Sin secretos en cliente ni en el APK                                                       | ✅     | **Ejecutado** (escaneo real del APK y del tarball)      | Escaneo 2026-11-10 con `zipfile` sobre `dist/socracia-1.0.0.apk` (**1158 entradas**): **0** `AIza`, **0** `GEMINI_API_KEY` con valor, **0** `sk-…`, **0** JWT, **0** clave privada, **0** `api_key` literal. El tarball fuente (260 ficheros): las únicas coincidencias son **nombres** de variable y patrones en docs, nunca un valor.                                                                                                                                                                                  |
 | G6     | Textos legales alineados y marcados para revisión humana                                   | ✅     | **Implementado + revisión humana pendiente**            | `docs/privacy-policy.md`, `docs/terms-of-use.md`, `store/privacy-declarations.json`, `storeListing.test.ts`, `legalDocuments.test.ts` y `LegalScreen.test.tsx` en verde; ambos textos marcados «PENDIENTE DE REVISIÓN HUMANA».                                                                                                                                                                                                                                                                                           |
@@ -182,12 +186,15 @@ agota: `docs/build-apk-local.md`.
 
 ## Riesgos abiertos
 
-1. **G3 cerrada; queda un riesgo de reproducibilidad.** G3 se superó el
-   2026-11-10 (83.3 % / 100 % / 0 citas, 33 casos). Riesgo residual: el arnés no
-   reintenta un **502 por timeout**, y el servicio gratuito de Render sufre _cold
-   start_; una ejecución en frío puede dejar casos sin veredicto (ocurrió una vez
-   esta sesión). Mitigación: calentar el servicio (`curl /health`) antes de la
-   suite, o ampliar el reintento a los 502 por timeout (mejora, no bloqueante).
+1. **G3 cerrada, con variabilidad en el umbral.** G3 se superó el 2026-11-10
+   **dos veces**: 83.3 % (sobre `be140bc`) y 80.0 % (sobre `main` fusionado
+   `c24373b`); ambas con 100 % de paráfrasis y 0 citas. La concordancia **roza el
+   umbral** (≥80 %) y varía entre ejecuciones por el muestreo del modelo. Riesgo
+   residual: (a) el arnés no reintenta el **502 por timeout** y Render (free)
+   sufre _cold start_, así que una ejecución en frío puede quedar «no verificada»
+   (ocurrió una vez); (b) una salida mal formada del proveedor también detiene la
+   suite. Mitigación: calentar el servicio antes de la suite y, como mejora no
+   bloqueante, ampliar el reintento del arnés a los 502/timeout.
 2. **G7 completado; G8 pendiente de humano.** El build de EAS (run `42820435024`)
    **terminó con «Succeeded»** y produjo un APK de distribución interna; falta la
    **descarga e instalación** en dispositivo (paso humano) y el **smoke test**
@@ -204,17 +211,13 @@ agota: `docs/build-apk-local.md`.
 6. **Multitenencia inerte por construcción.** No hay código multitenante en el
    árbol (solo documentación D-053…D-056): no hay nada que apagar. Riesgo nulo
    para 1.0.
-7. **Divergencia rama `main` ↔ rama de trabajo (a cerrar al fusionar).** El
-   backend desplegado sirve **`main`** (`be140bc`), que **aún no contiene** la
-   ruta `/mayeutic/ocr` ni la resiliencia D-072: viven en
-   `feat/motor-semantico-modo-conectado` (PR #19), sobre la que sí se compiló el
-   APK de EAS. Consecuencia para el smoke (G8): en el modo conectado, la
-   **evaluación y generación** funcionan (esas rutas sí están en `main`, y G3 las
-   validó contra él), pero el **OCR en la nube** recibirá 404 del backend actual y
-   la app **degradará con aviso** (no rompe la sesión). El servicio tiene
-   `autoDeploy: yes` sobre `main`: **al fusionar el PR #19** se despliega la rama y
-   la brecha se cierra. Mitigación inmediata para el smoke: probar el OCR con el
-   backend local (`docs/release-1.0-smoke.md` lo contempla) o tras fusionar.
+7. **Divergencia rama `main` ↔ rama de trabajo — CERRADA (2026-11-10).** El PR
+   #19 se integró en `main` por **fast-forward** (`be140bc` → `c24373b`, 11
+   commits) y Render desplegó por `autoDeploy` (`dep-dbpnpmeq…`, `new_commit`).
+   Verificado tras el deploy: `/health` sirve `c24373b` con `ocr.configured:
+true`, y `POST /mayeutic/ocr` responde **401** (existe y exige sesión), no 404.
+   G3 se **re-ejecutó sobre `main` fusionado** y vuelve a superar los umbrales
+   (33 casos; ver nota de variabilidad abajo).
 
 ## Qué haría falta para convertir esto en GO
 
