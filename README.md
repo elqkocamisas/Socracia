@@ -35,7 +35,9 @@ hay código multitenante que activar ni que apagar.
 El dictamen de la versión y la evidencia de cada puerta de aceptación están en
 [`docs/release-1.0-verdict.md`](docs/release-1.0-verdict.md). El proceso
 mayéutico está verificado de extremo a extremo con proveedor falso (recorrido
-dorado sobre TXT, MD y PDF, más el camino OCR). El dictamen vigente es
+dorado sobre TXT, MD y PDF, más el camino OCR). El motor con modelo degrada a la
+heurística sin romper la sesión si el proveedor falla (red, cuota o salida
+inválida), y la insignia lo comunica (D-072). El dictamen vigente es
 **NO-GO**: la puerta **G3** (evals contra el proveedor real) **no se ha podido
 reproducir** —la clave del backend desplegado ya no es válida— y siguen
 pendientes el **APK por EAS** (G7, requiere `EXPO_TOKEN` y, si no hay keystore,

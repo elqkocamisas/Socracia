@@ -276,6 +276,103 @@ describe('StudyService: degradación a la heurística si el proveedor falla', ()
   });
 });
 
+describe('G4 — degradación en los cuatro supuestos de F2 sin romper la sesión', () => {
+  const DEGRADING_OPTIONS: StudyServiceOptions = {
+    ...DEFAULT_STUDY_OPTIONS,
+    degradeOnProviderFailure: true,
+  };
+
+  /** Proveedor que genera con plantilla-equivalente y falla la evaluación. */
+  function providerWithFailure(failure: 'red' | 'cuota' | 'invalida'): MayeuticSemanticProvider {
+    const messages = {
+      red: 'la petición no llegó al servidor',
+      cuota: '429: cuota agotada',
+      invalida: 'respuesta-invalida: el modelo no devolvió JSON',
+    } as const;
+    return {
+      canProcess: (document) => document.cloudConsent,
+      generateQuestions: async () =>
+        ok([
+          {
+            prompt: '¿Cómo aplicarías el principio a un caso nuevo?',
+            move: 'aplicar-caso',
+            level: 'aplicar',
+            expectedAnswer: 'Aplicar el principio y justificarlo.',
+            keyTerms: ['Administración'],
+            difficulty: 0.6,
+          },
+        ]),
+      evaluateAnswer: async () => err(new Error(messages[failure])),
+    };
+  }
+
+  async function prepareWith(provider: MayeuticSemanticProvider, cloudConsent: boolean) {
+    const { service, rag } = makeService(provider, DEGRADING_OPTIONS);
+    const curriculum = await ingestSample(rag);
+    const prepared = await service.prepareSession(
+      USER,
+      curriculum,
+      [{ ...SAMPLE_DOCUMENT, cloudConsent }],
+      NOW,
+      'g4-session',
+    );
+    if (!prepared.ok) {
+      throw new Error(prepared.error.message);
+    }
+    return { service, active: prepared.value };
+  }
+
+  it('sin consentimiento: no consulta al proveedor y evalúa en local', async () => {
+    let called = false;
+    const provider: MayeuticSemanticProvider = {
+      canProcess: () => false,
+      generateQuestions: async () => {
+        called = true;
+        return ok([]);
+      },
+      evaluateAnswer: async () => {
+        called = true;
+        return err(new Error('no debería llamarse'));
+      },
+    };
+    const { service, active } = await prepareWith(provider, false);
+
+    const result = await service.answer(
+      active,
+      USER,
+      'La Administración aplica el principio.',
+      300,
+      NOW,
+    );
+
+    expect(result.ok).toBe(true);
+    expect(called).toBe(false);
+  });
+
+  it.each(['red', 'cuota', 'invalida'] as const)(
+    'fallo del proveedor (%s): degrada a heurística y la sesión avanza',
+    async (failure) => {
+      const { service, active } = await prepareWith(providerWithFailure(failure), true);
+      const before = active.engine.progress().answered;
+
+      const result = await service.answer(
+        active,
+        USER,
+        'La Administración actúa conforme a la ley.',
+        300,
+        NOW,
+      );
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.evaluation.verdict).toBeDefined();
+        expect(result.value.degraded).toBe(true);
+      }
+      expect(active.engine.progress().answered).toBe(before + 1);
+    },
+  );
+});
+
 describe('StudyService.answer y progreso', () => {
   async function prepare() {
     const context = makeService();

@@ -4,10 +4,12 @@ Sprints restantes para convertir el dictamen NO-GO en GO, ordenados por **camino
 crítico**. Cada uno declara objetivo, tareas, puerta de aceptación, tamaño
 (S/M/L), dependencias y responsable (agente o humano).
 
-Contexto (2026-11-04): el proceso mayéutico funciona de extremo a extremo y
+Contexto (2026-11-10): el proceso mayéutico funciona de extremo a extremo y
 **G1, G2, G4, G5, G6 y G9 están en verde** (evidencia en
-`docs/release-1.0-verdict.md`). El OCR de imágenes y PDF escaneados está
-implementado y probado (D-070). Siguen abiertos, y son el camino crítico:
+`docs/release-1.0-verdict.md`). En esta sesión se corrigió además un defecto de
+operatividad del motor con modelo: el fallo del proveedor semántico ya no rompe
+la sesión, degrada a la heurística (D-072). Siguen abiertos, y son el camino
+crítico:
 
 - **G3** (evals con proveedor real): la clave del backend desplegado ya **no es
   válida** (400 «Please pass a valid API key»), así que la puerta queda **no

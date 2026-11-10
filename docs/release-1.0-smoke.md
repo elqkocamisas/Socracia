@@ -88,6 +88,12 @@ hubiera pasado.
       correcta parafraseada se acepta como «Correcto».
 - [ ] Al revocar el permiso, el asistente deja de usarse de inmediato (vuelve a
       la heurística) sin reiniciar la app.
+- [ ] **Degradación sin romper la sesión (D-072):** con el asistente activo, pon
+      el dispositivo en modo avión a mitad de una sesión y responde. La sesión
+      **continúa** (no aparece un error bloqueante) y la insignia del motor
+      deja de decir «IA semántica»: al pulsarla, explica que responde el motor
+      local. Al recuperar la conexión, la siguiente respuesta vuelve a usar el
+      modelo.
 
 ## 7. Cierre
 
