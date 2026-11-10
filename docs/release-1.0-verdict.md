@@ -198,6 +198,17 @@ agota: `docs/build-apk-local.md`.
 6. **Multitenencia inerte por construcción.** No hay código multitenante en el
    árbol (solo documentación D-053…D-056): no hay nada que apagar. Riesgo nulo
    para 1.0.
+7. **Divergencia rama `main` ↔ rama de trabajo (a cerrar al fusionar).** El
+   backend desplegado sirve **`main`** (`be140bc`), que **aún no contiene** la
+   ruta `/mayeutic/ocr` ni la resiliencia D-072: viven en
+   `feat/motor-semantico-modo-conectado` (PR #19), sobre la que sí se compiló el
+   APK de EAS. Consecuencia para el smoke (G8): en el modo conectado, la
+   **evaluación y generación** funcionan (esas rutas sí están en `main`, y G3 las
+   validó contra él), pero el **OCR en la nube** recibirá 404 del backend actual y
+   la app **degradará con aviso** (no rompe la sesión). El servicio tiene
+   `autoDeploy: yes` sobre `main`: **al fusionar el PR #19** se despliega la rama y
+   la brecha se cierra. Mitigación inmediata para el smoke: probar el OCR con el
+   backend local (`docs/release-1.0-smoke.md` lo contempla) o tras fusionar.
 
 ## Qué haría falta para convertir esto en GO
 
