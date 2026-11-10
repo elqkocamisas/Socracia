@@ -1,21 +1,21 @@
 Evidencia G3 — evals del motor mayéutico contra el proveedor semántico REAL
 
-⚠️ REGISTRO HISTÓRICO — NO REPRODUCIBLE HOY (2026-11-08). El backend desplegado
-responde ahora 400 «Please pass a valid API key»: la clave del proveedor ya no
-es válida. La puerta G3 queda «no verificada» y bloquea el GO (ver D-068 y
-docs/release-1.0-verdict.md). Se conserva este registro como referencia de que
-el motor superó los umbrales cuando el proveedor respondía.
+Fecha:      2026-11-10
+Ejecución:  SOCRA_REAL_EVAL_BASE_URL=https://socracia.onrender.com npm run eval:real
+Backend:    servicio «Socracia» de Render (https://socracia.onrender.com),
+            commit be140bc (main), versión 1.0.0.
+Proveedor:  Gemini API (nivel gratuito), clave propia del titular. La clave vive
+            solo en el servidor; el cliente no la conoce.
+Cuenta:     efímera, creada y borrada por el propio arnés.
 
-Fecha:      2026-11-06
-Ejecución:  node scripts/eval-real.mjs (npm run eval:real)
-Backend:    apps/api local (node apps/api/dist/index.js) con GEMINI_API_KEY real
-            y rotación de modelos gratuitos (GEMINI_MODELS); cuenta de prueba efímera.
-Proveedor:  Gemini API (nivel gratuito). La clave vive solo en el servidor; el
-            cliente no la conoce.
+Causa del desbloqueo: la variable GEMINI_API_KEY del servicio tenía un valor que
+no era una clave de Gemini (un secreto hexadecimal de 32 caracteres). Se
+reemplazó por una clave válida y se desplegó. Verificado antes contra el endpoint
+del proveedor (HTTP 200).
 
 --- Salida real de la ejecución ---
 
-Evals reales contra http://127.0.0.1:8796
+Evals reales contra https://socracia.onrender.com
 
 Informe por categoría
   evaluación: 30/30 casos con veredicto
@@ -35,3 +35,14 @@ G3 alcanzada con proveedor real.
   inventedCitations    0    → 0                                                 OK
 
 Código de salida: 0 (G3 alcanzada).
+
+--- Nota de reproducibilidad ---
+La primera ejecución de la sesión solo obtuvo veredicto en 13/30 casos: el
+servicio gratuito de Render estaba dormido y el primer lote de peticiones sufrió
+«cold start». El backend aborta cada llamada al proveedor a los 30 s
+(AbortSignal.timeout) y el arnés no reintenta un 502 que no mencione cuota, así
+que esos casos quedaron sin veredicto. Con el servicio ya despierto (una llamada
+previa a /health), la ejecución completa los 33 casos y supera los umbrales.
+
+Recomendación (no bloqueante para 1.0): calentar el servicio antes de la suite o
+ampliar el reintento del arnés a los 502 por timeout.

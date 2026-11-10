@@ -5,30 +5,28 @@ crítico**. Cada uno declara objetivo, tareas, puerta de aceptación, tamaño
 (S/M/L), dependencias y responsable (agente o humano).
 
 Contexto (2026-11-10): el proceso mayéutico funciona de extremo a extremo y
-**G1, G2, G4, G5, G6, G7 y G9 están en verde** (evidencia en
-`docs/release-1.0-verdict.md`). En esta sesión se corrigió además un defecto de
-operatividad del motor con modelo: el fallo del proveedor semántico ya no rompe
-la sesión, degrada a la heurística (D-072). Siguen abiertos, y son el camino
+**G1, G2, G3, G4, G5, G6, G7 y G9 están en verde** (evidencia en
+`docs/release-1.0-verdict.md`). En esta sesión se corrigió un defecto de
+operatividad del motor con modelo (el fallo del proveedor semántico ya no rompe
+la sesión: degrada a la heurística, D-072) y se **desbloqueó G3** reponiendo una
+clave de proveedor válida en el backend desplegado. Solo queda, como camino
 crítico:
 
-- **G3** (evals con proveedor real): la clave del backend desplegado ya **no es
-  válida** (400 «Please pass a valid API key»), así que la puerta queda **no
-  verificada** y **bloquea el GO**. Es el bloqueo principal.
-- **G7** (APK «oficial» por EAS): **cumplido** el 2026-11-10 con el workflow
-  `eas-build.yml` (perfil `release-apk`, Android) sobre `111f409`; el build
-  `465412d7…` **terminó con «Succeeded»** y produjo un APK de distribución
-  interna. Solo falta que el humano lo **descargue e instale**.
-- **G8** (smoke en dispositivo): humano; puede empezar con el APK de EAS o con el
-  APK local (este último solo valida el modo heurístico).
+- **G8** (smoke en dispositivo): **humano**. Puede empezar ya con el APK de EAS
+  (`release-apk`, build `465412d7…` «Succeeded») o con el APK local (este último
+  solo valida el modo heurístico).
+
+G3 y G7 quedaron cumplidos en esta sesión; se conservan abajo sus fichas como
+registro.
 
 ## Camino crítico hacia 1.0
 
-| #   | Sprint                    | Objetivo                                                                      | Puerta       | Tamaño | Depende de   | Responsable         |
-| --- | ------------------------- | ----------------------------------------------------------------------------- | ------------ | ------ | ------------ | ------------------- |
-| 1   | Restaurar G3              | Reponer una clave de proveedor válida (solo servidor) y repetir el arnés real | **G3**       | S      | Clave válida | **Humano**          |
-| 2   | Build de EAS              | Producir el APK de lanzamiento (keystore: paso humano la primera vez)         | **G7**       | S      | Cuota Expo   | Agente + **humano** |
-| 3   | Inspección del APK de EAS | Confirmar que no hay secretos en el APK firmado de EAS                        | **G5** (APK) | S      | #2           | Agente              |
-| 4   | Smoke test en dispositivo | Ejecutar el checklist manual en un teléfono real                              | **G8**       | M      | #2 (APK EAS) | **Humano**          |
+| #   | Sprint                    | Objetivo                                                                      | Puerta       | Tamaño | Depende de   | Responsable         | Estado                |
+| --- | ------------------------- | ----------------------------------------------------------------------------- | ------------ | ------ | ------------ | ------------------- | --------------------- |
+| 1   | Restaurar G3              | Reponer una clave de proveedor válida (solo servidor) y repetir el arnés real | **G3**       | S      | Clave válida | **Humano**          | ✅ hecho (2026-11-10) |
+| 2   | Build de EAS              | Producir el APK de lanzamiento (keystore: paso humano la primera vez)         | **G7**       | S      | Cuota Expo   | Agente + **humano** | ✅ build «Succeeded»  |
+| 3   | Inspección del APK de EAS | Confirmar que no hay secretos en el APK firmado de EAS                        | **G5** (APK) | S      | #2           | Agente              | ⏳ (al descargar)     |
+| 4   | Smoke test en dispositivo | Ejecutar el checklist manual en un teléfono real                              | **G8**       | M      | #2 (APK EAS) | **Humano**          | ⏳ pendiente          |
 
 > El APK local (`dist/socracia-1.0.0.apk`) permite adelantar el Sprint 4, pero
 > **solo valida el modo heurístico** si se compiló sin
@@ -37,14 +35,19 @@ crítico:
 
 ---
 
-## Sprint 1 — Restaurar G3 (evals con proveedor real) · **bloqueante**
+## Sprint 1 — Restaurar G3 (evals con proveedor real) · **✅ hecho**
 
 - **Objetivo:** volver a tener evidencia real de que el motor semántico responde
   dentro de los umbrales de G3.
-- **Contexto:** el arnés `npm run eval:real` contra el backend desplegado devuelve
-  **400 «Please pass a valid API key»**: la clave configurada en Render ya no es
-  válida (`/health` dice `configured: true`, que no implica `valid`). Sin clave
-  real, G3 queda «no verificada» y **bloquea el GO**.
+- **Resultado (2026-11-10):** la variable `GEMINI_API_KEY` del servicio de Render
+  contenía un valor que no era una clave de Gemini (secreto hexadecimal de 32
+  caracteres). Se reemplazó por una **clave válida** vía API de Render y se
+  redesplegó. `npm run eval:real` superó los umbrales: **33 casos**, veredicto
+  **83.3 %**, paráfrasis **100 %**, citas inventadas **0**. Evidencia en
+  `docs/release-1.0-g3-evidence.txt`.
+- **Contexto histórico:** antes de reponer la clave, el arnés devolvía
+  **400 «Please pass a valid API key»** (`/health` decía `configured: true`, que
+  no implica `valid`), y G3 quedaba «no verificada».
 - **Tareas:**
   1. **(Humano)** Obtener una clave válida del proveedor en su **nivel gratuito**
      (coste cero; ver `docs/free-stack.md`) y guardarla **solo** como variable de
@@ -125,11 +128,12 @@ crítico:
 
 ## Riesgos abiertos (resumen)
 
-- **G3 no reproducida (bloqueante):** la clave del backend desplegado ya no es
-  válida; sin evidencia real, la puerta queda «no verificada». Reponer clave y
-  repetir el arnés.
-- **G7 no verificable desde el entorno del agente:** falta `EXPO_TOKEN`; el
-  primer keystore, si no existe, exige interactividad humana.
+- **G3 cerrada (2026-11-10):** clave repuesta y arnés superado (83.3 % / 100 % /
+  0 citas). Riesgo residual de reproducibilidad: el arnés no reintenta el 502 por
+  _timeout_ y Render (free) sufre _cold start_; conviene calentar el servicio
+  antes de la suite.
+- **G7 completado:** build de EAS «Succeeded». Falta que el humano descargue e
+  instale el APK; el primer keystore, si no existiera, exigiría interactividad.
 - **Cuota de EAS:** 15 builds Android + 15 iOS al mes en el plan gratuito
   (verificado 2026-11-04). Reservar al menos una; usar la ruta local si se agota.
 - **Descarga del APK de EAS:** el enlace del artefacto no es público; exige sesión
