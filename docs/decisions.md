@@ -1609,3 +1609,43 @@ StudyError>`; el orden de preferencia es proveedor semántico → evaluador LLM
   (de un intento previo de conceptualización por modelo, sin fuente en `src`) se
   eliminan al reconstruir limpio; no están versionados (`dist/` está en
   `.gitignore`).
+
+## D-075 — El backend sirve la repregunta y la explicación del modelo por `/llm/complete`
+
+- **Fecha:** cierre de 1.0, motor mayéutico sobre el RAG (2026-11-11)
+- **Contexto:** el objetivo de 1.0 es que el modelo **actúe en modo mayéutica
+  sobre el RAG**. El recorrido estaba cableado (D-043, D-057, D-058): la app pide
+  la repregunta (`followUp`) y la explicación (`explainer`) al modelo a través de
+  `POST /llm/complete`. Pero `apps/api/src/server.ts` construía las dependencias
+  con `llm: null` **hardcodeado** y no existía ninguna implementación de
+  `LlmProvider` en `apps/api`. La ruta respondía **503 `no-configurado`**, así que
+  en la APK real la repregunta caía a las plantillas del RAG y la explicación
+  quedaba en `null`: el alumno **nunca** recibía el texto del modelo. Justo lo
+  contrario de lo que promete `docs/llm-engine.md`. Ninguna prueba lo cubría
+  porque las suites usaban un proveedor inyectado (falso) y la de integración
+  solo comprobaba el 503.
+- **Decisión:** se añade `apps/api/src/llmProvider.ts`, que construye un
+  `OpenAiCompatProvider` del núcleo apuntando al endpoint OpenAI-compatible de
+  Gemini (`https://generativelanguage.googleapis.com/v1beta/openai`), envuelto en
+  `ResilientLlmProvider` (timeout, reintentos, cortocircuito, presupuesto) y
+  cableado en `defaultDependencies()`. Sin `GEMINI_API_KEY` devuelve `null` y la
+  ruta sigue respondiendo 503, con la app degradando a la heurística. No se toca
+  ninguna firma pública ni la ruta `/mayeutic/*` (generación y evaluación).
+- **Motivos:** se reutiliza el adaptador que ya existe en el núcleo en vez de
+  escribir otro; Gemini expone el mismo dialecto de chat, así que no hace falta un
+  cliente nuevo. La clave sigue viviendo **solo** en el servidor. El cambio es de
+  composición (una fábrica y una línea en `defaultDependencies`), no de dominio,
+  así que no altera el contrato del motor ni rompe pruebas existentes.
+- **Alternativas descartadas:** (a) cablear el módulo LLM en el **cliente**
+  apuntando directo a Gemini: pondría la clave en el bundle, prohibido por D-044;
+  (b) ampliar `/mayeutic/*` para servir también repregunta y explicación: mezcla
+  dos dialectos y duplica la ruta que ya existe; (c) dejar el 503 y conformarse
+  con las plantillas: incumple el objetivo declarado de 1.0.
+- **Consecuencias:** con `GEMINI_API_KEY` válida en el servidor, la repregunta y
+  la explicación pasan a redactarse con el modelo; sin ella, el comportamiento no
+  cambia. La evidencia real de estas dos rutas exige el backend **desplegado con
+  esta versión**; hasta entonces quedan «probadas con proveedor falso», no
+  «validadas con proveedor real». Además se sube `max_tokens` de 1200 a 2400 en
+  `mayeutic.ts` (1200 truncaba el JSON de tres preguntas y provocaba un 502 de
+  formato) y se permite **rotar de modelo** ante un JSON inválido, no solo ante
+  cuota o indisponibilidad.

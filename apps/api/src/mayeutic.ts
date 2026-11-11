@@ -198,7 +198,10 @@ export class GeminiMayeuticService implements MayeuticAiService {
           body: JSON.stringify({
             model,
             temperature: 0.2,
-            max_tokens: 1200,
+            // 1200 truncaba el JSON cuando se pedían tres preguntas con
+            // `expectedAnswer` largos: el modelo se quedaba a medias y el parseo
+            // fallaba. 2400 deja margen para tres preguntas completas.
+            max_tokens: 2400,
             response_format: { type: 'json_object' },
             messages: [
               { role: 'system', content: system },
@@ -257,12 +260,16 @@ export class GeminiMayeuticService implements MayeuticAiService {
 }
 
 /**
- * Un fallo de cuota (429), de disponibilidad (503) o de red justifica probar otro
- * modelo; un error de formato o de datos no. Se decide por el mensaje ya
- * propagado porque el estado HTTP original no llega hasta aquí.
+ * ¿Conviene probar el siguiente modelo ante este error?
+ *
+ * Un fallo de cuota (429), de disponibilidad (503) o de red justifica rotar. Un
+ * JSON truncado o una pregunta con formato no válido también: son fallos de la
+ * salida de un modelo concreto, y otro del nivel gratuito suele acertar. Se
+ * decide por el mensaje ya propagado porque el estado HTTP original no llega
+ * hasta aquí.
  */
 function isRetryableProviderError(message: string): boolean {
-  return /respondió (429|500|502|503)|No se pudo contactar|quota|RESOURCE_EXHAUSTED|high demand|UNAVAILABLE/i.test(
+  return /respondió (429|500|502|503)|No se pudo contactar|quota|RESOURCE_EXHAUSTED|high demand|UNAVAILABLE|JSON inválido|formato no válido/i.test(
     message,
   );
 }
