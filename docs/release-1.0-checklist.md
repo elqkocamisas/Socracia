@@ -14,9 +14,12 @@ respondía 503, así que la repregunta caía a las plantillas y la explicación 
 aparecía) y se **re-verificó G3** con proveedor real (33 casos, 83.3 % / 100 % /
 0 citas). Queda, como camino crítico:
 
-- **D-075 sin desplegar** (Sprint 2): el cableado está hecho y probado con
-  proveedor falso, pero la repregunta y la explicación con el modelo no se han
-  validado aún con proveedor real. Es un despliegue, no código.
+- **D-075 desplegado, repregunta validada** (Sprint 2): el PR #20 se fusionó en
+  `main` y Render `autoDeploy` redesplegó (`/health` en `f25e0087…`,
+  `provider.configured: true`). La **repregunta** con el modelo devolvió 200 con
+  `parseFollowUp.ok: true`. La **explicación** devolvió un 200 truncado a 18 tokens
+  que no se pudo reproducir antes de agotar la cuota gratuita; queda como Sprint 2
+  (reproducir y, si se confirma, corregir).
 - **G7** (APK por EAS): el build `f2173e7a…` «Succeeded» es **anterior a D-074 y
   D-075**, así que hay que **recompilar** con el perfil `release-apk`. Requiere
   `EXPO_TOKEN` (humano) o lanzar el workflow de Actions.
@@ -73,30 +76,32 @@ de Render. Se conservan abajo las fichas como registro.
 - **Responsable:** **humano** (obtener/desplegar la clave); agente (ejecutar el
   arnés y registrar la evidencia).
 
-## Sprint 2 — Desplegar D-075 (repregunta y explicación del modelo) · **⏳ pendiente**
+## Sprint 2 — Validar la explicación del modelo en real (D-075) · **⏳ pendiente**
 
-- **Objetivo:** que `POST /llm/complete` deje de responder 503 y sirva con el
-  modelo la **repregunta** (`seguimiento`) y la **explicación** (`explicar`), que
-  son las dos tareas mayéuticas que el proveedor semántico (`/mayeutic/*`) no
-  cubre.
-- **Contexto:** hasta D-075, `apps/api/src/server.ts` construía las dependencias
-  con `llm: null` y no existía ningún `LlmProvider` en `apps/api`, así que en la
-  APK la repregunta caía a las plantillas y la explicación no aparecía. Ya está
-  **cableado y probado con proveedor falso** (4 pruebas nuevas, `npm run verify`
-  en 658 pruebas); falta **desplegarlo** y validarlo con proveedor real.
+- **Objetivo:** cerrar la última mitad del motor mayéutico con modelo: la
+  **explicación** (`explicar`) por `/llm/complete`, ya desplegada pero no validada.
+- **Contexto:** el PR #20 se fusionó en `main` y Render `autoDeploy` redesplegó
+  (`/health` en `f25e0087…`, `provider.configured: true`; `/llm/complete` ya no
+  responde 503). La **repregunta** se validó en real (200, `parseFollowUp.ok`). La
+  **explicación** devolvió **un** 200 truncado a 18 tokens (`completionTokens: 18`,
+  `"```json\n{\n  \"explanation\": \"¡No te preocupes, vamos a"`), que
+  `parseExplanation` rechaza; **no se pudo reproducir** antes de agotar la cuota
+  gratuita. `max_tokens` 400/1024/2048 dieron idéntico porque la clave de caché
+  **no incluye `maxTokens`** (fueron aciertos de caché), así que la causa sigue
+  **sin confirmar**.
 - **Tareas:**
-  1. **(Humano)** Integrar el commit de D-075 en `main` (Render `autoDeploy`
-     redespliega solo). No requiere variables nuevas: reutiliza `GEMINI_API_KEY`.
-  2. **(Agente/Humano)** Comprobar `/health` (`provider.configured: true`) y que
-     `POST /llm/complete` con sesión responde **200**, no 503.
-  3. **(Agente/Humano)** Ejecutar
-     `SOCRA_REAL_EVAL_BASE_URL=https://socracia.onrender.com npm run eval:real`
-     (incluye ahora casos de repregunta y explicación) y adjuntar la salida.
-- **Puerta de aceptación:** `/llm/complete` responde 200 con sesión; los casos
-  nuevos de repregunta y explicación del arnés se registran con proveedor real.
+  1. **(Agente/Humano)** Con la cuota repuesta, reproducir con **prompt limpio**
+     (distinto en cada intento) y `temperature: 0`: registrar `usage` y el texto
+     crudo.
+  2. **(Agente)** Si se confirma el truncado, corregirlo (revisar gasto en
+     razonamiento interno del modelo; subir `DEFAULT_EXPLAINER_OPTIONS.maxTokens`
+     y/o ampliar la clave de caché con `maxTokens`), con prueba que lo fije.
+  3. **(Agente/Humano)** Re-ejecutar `npm run eval:real` y adjuntar la salida.
+- **Puerta de aceptación:** la explicación real produce JSON válido que
+  `parseExplanation` acepta (cita tomada de un pasaje enviado).
 - **Tamaño:** S.
-- **Dependencias:** ninguna nueva (`GEMINI_API_KEY` ya existe en Render).
-- **Responsable:** **humano** (desplegar); agente (verificar y registrar).
+- **Dependencias:** cuota gratuita de Gemini disponible (Sprint 1).
+- **Responsable:** agente (reproducir y corregir); humano si hay que esperar cuota.
 
 ## Sprint 3 — Recompilar el APK de EAS (G7) · **⏳ pendiente**
 

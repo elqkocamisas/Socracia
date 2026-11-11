@@ -11,14 +11,16 @@ tiendas.
 
 ## Veredicto
 
-### ⚠️ NO-GO (D-075 sin desplegar, G7 a recompilar por D-074/D-075 y G8 pendiente de humano)
+### ⚠️ NO-GO (explicación del modelo no validada, G7 a recompilar por D-074/D-075 y G8 pendiente de humano)
 
 Estado de las puertas: **G1, G2, G3, G4, G5, G6 y G9 cumplidas** (evidencia
 ejecutada en esta sesión). **G7 queda parcial**: el APK de EAS existía y se
 inspeccionó, pero es **anterior** a los arreglos D-074 y D-075, así que hay que
 **recompilarlo**. **G8** (smoke en dispositivo real) es **humano**. Además, el
-motor mayéutico con modelo queda **completo en código** (D-075) pero **pendiente
-de despliegue** para validar la repregunta y la explicación con proveedor real.
+motor mayéutico con modelo está **desplegado** (PR #20 → `main` → Render): la
+**repregunta se validó con proveedor real** (200, `parseFollowUp.ok`), pero la
+**explicación no** —un 200 truncado a 18 tokens, no reproducido antes de agotar la
+cuota gratuita—, así que esa mitad no se declara cumplida.
 
 El proceso mayéutico **funciona de extremo a extremo**: demostrado con proveedor
 falso (recorrido dorado sobre TXT, MD y PDF real, en núcleo e interfaz) y con
@@ -311,10 +313,30 @@ dependencias con `llm: null` **hardcodeado** y no existía ningún `LlmProvider`
   validados con los mismos `parseFollowUp`/`parseExplanation` del núcleo.
 - **Verificación ejecutada:** `npm run verify` en verde (**658 pruebas**: 359 core
   —evals 32/32—, **70** api —4 nuevas—, 229 móvil). `lint` en verde.
-- **Nivel de evidencia:** **implementado y probado con proveedor falso** (las 4
-  pruebas nuevas usan un `fetch` falso). La validación **con proveedor real** de
-  estas dos rutas exige el backend **desplegado con esta versión**; hasta entonces
-  queda «no verificada» y **no se declara cumplida**.
+- **Despliegue confirmado (2026-11-11):** el PR #20 se fusionó en `main` y Render
+  `autoDeploy` redesplegó. `GET /health` devuelve
+  `commit f25e0087…` (= el merge) y `provider.configured: true`, así que
+  `/llm/complete` **ya no responde 503**.
+- **Validación con proveedor real (parcial):**
+  - **Repregunta (`seguimiento`) — ✅ validada.** `POST /llm/complete` con el
+    `followUpPrompt` real devolvió **HTTP 200** y `parseFollowUp.ok: true`
+    (`kind=acotar`): «¿Qué orgánulo contiene el pigmento verde que atrapa la luz
+    del sol en las células vegetales?». La pregunta ataca el error y **no revela**
+    la respuesta.
+  - **Explicación (`explicar`) — ⚠️ fallo real observado, no reproducido.**
+    Una llamada devolvió **HTTP 200** pero **truncada a 18 tokens**
+    (`completionTokens: 18`, 53 caracteres: `"```json\n{\n  \"explanation\":
+\"¡No te preocupes, vamos a"`), de modo que `parseExplanation` falla («la
+    respuesta no contiene un objeto JSON»). Con `maxTokens` 400/1024/2048 el
+    resultado fue idéntico, pero esas tres llamadas **acertaron la caché del
+    proveedor** (la clave de caché **no incluye `maxTokens`**), así que no son
+    evidencia de una causa. Un solo 200 limpio se observó antes de agotar la
+    cuota gratuita; **no se pudo reproducir**. Riesgo #8.
+- **Nivel de evidencia:** **implementado**; **repregunta validada con proveedor
+  real**; **explicación no validada** (un 200 truncado, no reproducido) y
+  **evaluación/generación ya validadas** en G3. Hasta reproducir y cerrar el
+  truncado, la mitad «explicación» del motor con modelo **no se declara
+  cumplida**.
 
 ## Riesgos abiertos
 
@@ -353,22 +375,28 @@ dependencias con `llm: null` **hardcodeado** y no existía ningún `LlmProvider`
 true`, y `POST /mayeutic/ocr` responde **401** (existe y exige sesión), no 404.
    G3 se **re-ejecutó sobre `main` fusionado** y vuelve a superar los umbrales
    (33 casos; ver nota de variabilidad abajo).
-8. **Repregunta y explicación con el modelo (D-075): implementado, pendiente de
-   despliegue.** El backend servía `llm: null` y `/llm/complete` respondía 503, así
-   que en la APK la repregunta caía a las plantillas y la explicación no aparecía.
-   Ya está cableado y probado con proveedor falso (4 pruebas nuevas), pero la
-   **validación con proveedor real** exige desplegar el backend con esta versión y
-   re-ejecutar los casos nuevos de `eval:real`. Riesgo: hasta el despliegue, la
-   mitad «repregunta/explicación» del motor mayéutico con modelo **no está
-   verificada en real**. No bloquea G3 (que mide evaluación, generación y citas),
-   pero sí el objetivo declarado de 1.0. Acción: desplegar (Render `autoDeploy`
-   desde `main`) y correr `npm run eval:real`.
+8. **Explicación con el modelo (D-075): desplegada, repregunta validada en real,
+   explicación no.** El backend servía `llm: null` y `/llm/complete` respondía 503;
+   ya está cableado, desplegado (PR #20 → `main` → Render, `/health` en
+   `f25e0087…` con `provider.configured: true`) y probado con proveedor falso. En
+   real, la **repregunta** devolvió 200 con `parseFollowUp.ok: true`. La
+   **explicación** devolvió **un** 200 truncado a 18 tokens que `parseExplanation`
+   rechaza; no se pudo reproducir antes de agotar la cuota gratuita de Gemini.
+   Causa **no confirmada**: `max_tokens` 400/1024/2048 dieron resultados idénticos
+   porque la **clave de caché no incluye `maxTokens`** (fueron aciertos de caché).
+   Acción: reproducir con prompt limpio cuando la cuota se reponga; si se confirma,
+   revisar el truncado por parte del proveedor (posible gasto en razonamiento
+   interno) y, si procede, subir `DEFAULT_EXPLAINER_OPTIONS.maxTokens` y ampliar la
+   clave de caché con `maxTokens`. No bloquea G3 (mide evaluación, generación y
+   citas), pero sí el objetivo declarado de 1.0.
 
 ## Qué haría falta para convertir esto en GO
 
-1. **Desplegar el backend con D-075** (repregunta y explicación del modelo) y
-   re-ejecutar `npm run eval:real` para validar esas dos rutas con proveedor real.
-   Es un despliegue, no un cambio de código: Render `autoDeploy` lo toma de `main`.
+1. **Reproducir y cerrar el truncado de la explicación (D-075).** El backend ya
+   está desplegado (`/health` en `f25e0087…`, `provider.configured: true`) y la
+   repregunta se validó en real. Falta **reproducir con prompt limpio** el 200
+   truncado a 18 tokens de la ruta `explicar` cuando la cuota gratuita de Gemini se
+   reponga, y, si se confirma, corregirlo. Es la única tarea de código pendiente.
 2. **Recompilar el APK en EAS con D-074 y D-075** (G7) y **ejecutar el smoke test
    en un teléfono real** (G8) siguiendo `docs/release-1.0-smoke.md`. Es **humano**
    (requiere `EXPO_TOKEN` y un teléfono). Comandos exactos:
