@@ -107,6 +107,16 @@ Primera versión completa del producto: app móvil de un solo usuario, local-fir
 - El arnés de evals reales espacia los casos y reintenta ante 429/503; ante un
   límite diario se detiene y deja la puerta «no verificada» en vez de esperar en
   vano.
+- **El backend sirve la repregunta y la explicación del modelo.** Hasta ahora
+  `apps/api` construía sus dependencias con `llm: null` y `POST /llm/complete`
+  respondía 503, así que en la APK la repregunta caía a las plantillas y la
+  explicación no aparecía; el alumno nunca recibía el texto del modelo para esas
+  dos tareas. `llmProvider.ts` cablea un `OpenAiCompatProvider` (Gemini) envuelto
+  en `ResilientLlmProvider` y sin clave sigue devolviendo 503 con degradación a
+  la heurística (D-075). El arnés de evals reales gana casos de repregunta y
+  explicación. También se sube `max_tokens` de 1200 a 2400 (truncaba el JSON de
+  tres preguntas y devolvía 502 de formato) y se permite rotar de modelo ante un
+  JSON inválido, no solo ante cuota o indisponibilidad.
 
 ### Notas
 

@@ -8,11 +8,17 @@ Contexto (2026-11-11): el proceso mayéutico funciona de extremo a extremo y
 **G1, G2, G3, G4, G5, G6 y G9 están en verde** (evidencia en
 `docs/release-1.0-verdict.md`). En esta sesión se corrigió el error reportado «al
 adjuntar el temario y pulsar Estudiar» (D-074: extracción de conceptos de
-temarios sin líneas en blanco y en forma de índice) y se **re-verificó G3** con
-proveedor real (33 casos, 83.3 % / 100 % / 0 citas). Queda, como camino crítico:
+temarios sin líneas en blanco y en forma de índice), se **completó el motor
+mayéutico con modelo** (D-075: el backend servía `llm: null` y `/llm/complete`
+respondía 503, así que la repregunta caía a las plantillas y la explicación no
+aparecía) y se **re-verificó G3** con proveedor real (33 casos, 83.3 % / 100 % /
+0 citas). Queda, como camino crítico:
 
-- **G7** (APK por EAS): el build `f2173e7a…` «Succeeded» es **anterior a D-074**,
-  así que hay que **recompilar** con el perfil `release-apk`. Requiere
+- **D-075 sin desplegar** (Sprint 2): el cableado está hecho y probado con
+  proveedor falso, pero la repregunta y la explicación con el modelo no se han
+  validado aún con proveedor real. Es un despliegue, no código.
+- **G7** (APK por EAS): el build `f2173e7a…` «Succeeded» es **anterior a D-074 y
+  D-075**, así que hay que **recompilar** con el perfil `release-apk`. Requiere
   `EXPO_TOKEN` (humano) o lanzar el workflow de Actions.
 - **G8** (smoke en dispositivo): **humano**. Puede empezar con el APK local, pero
   el smoke definitivo necesita el APK recompilado.
@@ -26,9 +32,10 @@ de Render. Se conservan abajo las fichas como registro.
 | #   | Sprint                    | Objetivo                                                                      | Puerta       | Tamaño | Depende de   | Responsable         | Estado                |
 | --- | ------------------------- | ----------------------------------------------------------------------------- | ------------ | ------ | ------------ | ------------------- | --------------------- |
 | 1   | Restaurar G3              | Reponer una clave de proveedor válida (solo servidor) y repetir el arnés real | **G3**       | S      | Clave válida | **Humano**          | ✅ hecho (2026-11-11) |
-| 2   | Recompilar el APK de EAS  | Producir el APK de lanzamiento con D-074 (keystore: ya existe)                | **G7**       | S      | `EXPO_TOKEN` | Agente + **humano** | ⏳ pendiente          |
-| 3   | Inspección del APK de EAS | Confirmar que no hay secretos en el APK firmado de EAS                        | **G5** (APK) | S      | #2           | Agente              | ⏳ (al recompilar)    |
-| 4   | Smoke test en dispositivo | Ejecutar el checklist manual en un teléfono real                              | **G8**       | M      | #2 (APK EAS) | **Humano**          | ⏳ pendiente          |
+| 2   | Desplegar D-075           | Servir repregunta y explicación del modelo por `/llm/complete` (hoy 503)      | G2/G3 (real) | S      | Ninguna      | **Humano**          | ⏳ pendiente          |
+| 3   | Recompilar el APK de EAS  | Producir el APK de lanzamiento con D-074 y D-075 (keystore: ya existe)        | **G7**       | S      | `EXPO_TOKEN` | Agente + **humano** | ⏳ pendiente          |
+| 4   | Inspección del APK de EAS | Confirmar que no hay secretos en el APK firmado de EAS                        | **G5** (APK) | S      | #3           | Agente              | ⏳ (al recompilar)    |
+| 5   | Smoke test en dispositivo | Ejecutar el checklist manual en un teléfono real                              | **G8**       | M      | #3 (APK EAS) | **Humano**          | ⏳ pendiente          |
 
 > El APK local (`dist/socracia-1.0.0.apk`) permite adelantar el Sprint 4, pero
 > **solo valida el modo heurístico** si se compiló sin
@@ -66,10 +73,36 @@ de Render. Se conservan abajo las fichas como registro.
 - **Responsable:** **humano** (obtener/desplegar la clave); agente (ejecutar el
   arnés y registrar la evidencia).
 
-## Sprint 2 — Recompilar el APK de EAS (G7) · **⏳ pendiente**
+## Sprint 2 — Desplegar D-075 (repregunta y explicación del modelo) · **⏳ pendiente**
+
+- **Objetivo:** que `POST /llm/complete` deje de responder 503 y sirva con el
+  modelo la **repregunta** (`seguimiento`) y la **explicación** (`explicar`), que
+  son las dos tareas mayéuticas que el proveedor semántico (`/mayeutic/*`) no
+  cubre.
+- **Contexto:** hasta D-075, `apps/api/src/server.ts` construía las dependencias
+  con `llm: null` y no existía ningún `LlmProvider` en `apps/api`, así que en la
+  APK la repregunta caía a las plantillas y la explicación no aparecía. Ya está
+  **cableado y probado con proveedor falso** (4 pruebas nuevas, `npm run verify`
+  en 658 pruebas); falta **desplegarlo** y validarlo con proveedor real.
+- **Tareas:**
+  1. **(Humano)** Integrar el commit de D-075 en `main` (Render `autoDeploy`
+     redespliega solo). No requiere variables nuevas: reutiliza `GEMINI_API_KEY`.
+  2. **(Agente/Humano)** Comprobar `/health` (`provider.configured: true`) y que
+     `POST /llm/complete` con sesión responde **200**, no 503.
+  3. **(Agente/Humano)** Ejecutar
+     `SOCRA_REAL_EVAL_BASE_URL=https://socracia.onrender.com npm run eval:real`
+     (incluye ahora casos de repregunta y explicación) y adjuntar la salida.
+- **Puerta de aceptación:** `/llm/complete` responde 200 con sesión; los casos
+  nuevos de repregunta y explicación del arnés se registran con proveedor real.
+- **Tamaño:** S.
+- **Dependencias:** ninguna nueva (`GEMINI_API_KEY` ya existe en Render).
+- **Responsable:** **humano** (desplegar); agente (verificar y registrar).
+
+## Sprint 3 — Recompilar el APK de EAS (G7) · **⏳ pendiente**
 
 - **Objetivo:** generar el APK de lanzamiento con el perfil `release-apk`,
-  **incluyendo el arreglo D-074** (extracción de conceptos).
+  **incluyendo los arreglos D-074** (extracción de conceptos) **y D-075**
+  (repregunta y explicación del modelo).
 - **Contexto:** existe un build previo `f2173e7a…` «Succeeded» (workflow
   `eas-build.yml` sobre `main` @ `962e8fa`), pero es **anterior a D-074** y no
   sirve para el smoke definitivo. No se pudo recompilar en la sesión del
@@ -92,7 +125,7 @@ de Render. Se conservan abajo las fichas como registro.
   1. **(Humano)** Lanzar el build (opción A o B) y esperar a que termine (free
      tier: cola de baja prioridad).
   2. **(Humano)** Descargar el APK.
-  3. **(Agente)** Inspeccionar el APK de EAS en busca de secretos (Sprint 3).
+  3. **(Agente)** Inspeccionar el APK de EAS en busca de secretos (Sprint 4).
 - **Puerta de aceptación:** APK descargable, con `versionName 1.0.0` y el
   `versionCode` asignado por EAS en remoto (`appVersionSource: remote`).
 - **Tamaño:** S.
@@ -106,7 +139,7 @@ de Render. Se conservan abajo las fichas como registro.
   `docs/build-apk-local.md` (JDK 21, SDK 36). No cuenta como G7 «APK por EAS»,
   pero permite el smoke test.
 
-## Sprint 3 — Inspección del APK de EAS (G5 sobre el artefacto remoto) · **✅ hecho**
+## Sprint 4 — Inspección del APK de EAS (G5 sobre el artefacto remoto) · **✅ hecho**
 
 - **Objetivo:** confirmar que el APK firmado de EAS no contiene secretos.
 - **Resultado (2026-11-11):** APK del build `b19ef0a8…` (sobre `main` @ `1ca235c`)
@@ -122,10 +155,10 @@ de Render. Se conservan abajo las fichas como registro.
   3. **(Agente)** Registrar el resultado en el dictamen.
 - **Puerta de aceptación:** 0 secretos en el APK firmado de EAS.
 - **Tamaño:** S.
-- **Dependencias:** Sprint 2.
+- **Dependencias:** Sprint 3.
 - **Responsable:** agente.
 
-## Sprint 4 — Smoke test en dispositivo (G8)
+## Sprint 5 — Smoke test en dispositivo (G8)
 
 - **Objetivo:** validar la app completa en un teléfono Android real.
 - **Tareas:**
@@ -136,8 +169,9 @@ de Render. Se conservan abajo las fichas como registro.
      bloqueen el recorrido y repetir.
 - **Puerta de aceptación:** checklist APTO, sin incidencias bloqueantes.
 - **Tamaño:** M.
-- **Dependencias:** Sprint 2 (APK de EAS). Para validar el modo conectado y el
-  OCR, además el Sprint 1 (clave válida).
+- **Dependencias:** Sprint 3 (APK de EAS). Para validar el modo conectado, la
+  repregunta y la explicación, además los Sprints 1 y 2 (clave válida y D-075
+  desplegado).
 - **Responsable:** **humano**.
 
 ---
