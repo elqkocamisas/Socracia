@@ -5,13 +5,15 @@ lanzamiento. Marca cada casilla con la evidencia observada (captura, nota o
 «OK»). Si algo falla, anota el paso exacto y detente: no continúes como si
 hubiera pasado.
 
-- **Build:** `release-apk` (APK, distribución interna). Hay un **APK 1.0.0 ya
-  compilado en local** (`dist/socracia-1.0.0.apk`, `com.socracia.app`, firmado
-  con clave de depuración) que sirve para este smoke test sin esperar a EAS, pero
-  **puede ser anterior a D-067**: si su bundle no trae
-  `EXPO_PUBLIC_CLOUD_PROCESSING=1`, solo valida el modo heurístico local y el
-  bloque 6 (y el OCR del bloque 1b) no aplican. Para el modo conectado usa el APK
-  de EAS (perfil `release-apk`, que sí hereda la variable de `production`).
+- **Build:** `release-apk` (APK, distribución interna). El **APK oficial de EAS**
+  es `dist/socracia-1.0.0-eas.apk` (build `f2173e7a…`, sobre `main` @ `962e8fa`),
+  que ya incluye el arreglo de áreas seguras (D-073) y el modo conectado
+  (`EXPO_PUBLIC_CLOUD_PROCESSING=1`). **No uses** el APK `b19ef0a8…`: es anterior
+  al arreglo y su UX no es operativa en Android 16. También hay un APK 1.0.0
+  compilado en local (`dist/socracia-1.0.0.apk`, firmado con clave de depuración)
+  que sirve para adelantar el smoke, pero **puede ser anterior a D-067**: si su
+  bundle no trae `EXPO_PUBLIC_CLOUD_PROCESSING=1`, solo valida el modo heurístico
+  local y el bloque 6 (y el OCR del bloque 1b) no aplican.
 - **Versión esperada:** `1.0.0` (el `versionCode` lo asigna EAS en remoto; el
   APK local trae `versionCode 1`)
 - **Preparación:** instala el APK (`adb install -r socracia-1.0.0.apk`) y abre la
@@ -23,6 +25,19 @@ hubiera pasado.
 - [ ] La app abre y muestra la pantalla de biblioteca («Adjuntar temario»).
 - [ ] En Ajustes, el modo de procesamiento aparece como **solo-dispositivo** por
       defecto.
+
+## 0b. Operatividad de la UX (regresión D-073)
+
+> Comprueba que nada queda bajo las barras del sistema (el fallo reportado en el
+> APK anterior). Hazlo también con gestos por navegación y con notch/recorte.
+
+- [ ] La cabecera (título y botones superiores) **no** queda bajo la barra de
+      estado.
+- [ ] La barra de pestañas (Biblioteca / Progreso / Cuenta) **no** queda bajo la
+      barra de navegación y **responde** al toque en los tres botones.
+- [ ] Al escribir una respuesta con el teclado abierto, el campo y el botón
+      «Enviar» siguen visibles y pulsables.
+- [ ] Girando a horizontal y volviendo a vertical, nada queda tapado.
 
 ## 1. Importación local (sin red)
 
