@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { openDatabaseAsync } from 'expo-sqlite';
 import { inMemoryStorage } from '@socracia/core';
 
@@ -97,28 +98,28 @@ export default function App(): React.JSX.Element {
     [boot],
   );
 
-  if (boot.kind === 'arrancando' || onboardingDone === null) {
-    return (
-      <ThemeProvider>
-        <BootScreen />
-      </ThemeProvider>
-    );
-  }
-
-  const { services, degraded } = boot;
-
-  if (!onboardingDone) {
-    return (
-      <ThemeProvider store={services.themeStore}>
-        <Onboarding onDone={finishOnboarding} onChoosePrivacy={(mode) => finishOnboarding(mode)} />
-      </ThemeProvider>
-    );
-  }
-
+  // El proveedor de áreas seguras va por fuera de todo: en Android 16 el
+  // edge-to-edge es obligatorio, así que sin insets la barra de estado tapa la
+  // cabecera y la barra de navegación tapa las pestañas.
   return (
-    <ThemeProvider store={services.themeStore}>
-      <AppShell services={services} degraded={degraded} route={route} goTo={goTo} />
-    </ThemeProvider>
+    <SafeAreaProvider>
+      {boot.kind === 'arrancando' || onboardingDone === null ? (
+        <ThemeProvider>
+          <BootScreen />
+        </ThemeProvider>
+      ) : !onboardingDone ? (
+        <ThemeProvider store={boot.services.themeStore}>
+          <Onboarding
+            onDone={finishOnboarding}
+            onChoosePrivacy={(mode) => finishOnboarding(mode)}
+          />
+        </ThemeProvider>
+      ) : (
+        <ThemeProvider store={boot.services.themeStore}>
+          <AppShell services={boot.services} degraded={boot.degraded} route={route} goTo={goTo} />
+        </ThemeProvider>
+      )}
+    </SafeAreaProvider>
   );
 }
 
@@ -126,11 +127,11 @@ function BootScreen(): React.JSX.Element {
   const { theme } = useTheme();
   const styles = makeStyles(theme.colors);
   return (
-    <View style={styles.centered}>
+    <SafeAreaView style={styles.centered}>
       <StatusBar style={theme.scheme} />
       <ActivityIndicator color={theme.colors.primary} />
       <Text style={styles.muted}>Preparando Socracia…</Text>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -147,19 +148,23 @@ function AppShell({
 }): React.JSX.Element {
   const { theme } = useTheme();
   const styles = makeStyles(theme.colors);
+  // El cuerpo respeta la barra de estado y la barra de pestañas respeta la de
+  // navegación: sin estos rellenos, el edge-to-edge obligatorio de Android 16
+  // dejaría la cabecera y las pestañas bajo las barras del sistema.
+  const insets = useSafeAreaInsets();
 
   return (
     <View style={styles.root}>
       <StatusBar style={theme.scheme} />
       {degraded ? (
-        <View style={styles.banner}>
+        <View testID="app-banner" style={[styles.banner, { paddingTop: insets.top + spacing.sm }]}>
           <Text style={styles.bannerText}>
             Modo sin guardado: el progreso no se conservará al cerrar la app.
           </Text>
         </View>
       ) : null}
 
-      <View style={styles.body}>
+      <View testID="app-body" style={[styles.body, degraded ? null : { paddingTop: insets.top }]}>
         {route.name === 'biblioteca' ? (
           <ImportScreen
             services={services}
@@ -188,7 +193,7 @@ function AppShell({
         ) : null}
       </View>
 
-      <View style={styles.tabs}>
+      <View testID="app-tabs" style={[styles.tabs, { paddingBottom: insets.bottom }]}>
         <TabButton
           label="Biblioteca"
           active={route.name === 'biblioteca'}

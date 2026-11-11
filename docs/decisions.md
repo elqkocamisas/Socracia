@@ -1529,3 +1529,40 @@ StudyError>`; el orden de preferencia es proveedor semántico → evaluador LLM
   opción; una en `apps/mobile/src/__tests__/studyEngineBadge.test.tsx` fija que
   un proveedor caído no deja la pantalla en error. `npm run verify` queda en 644
   pruebas (351 core, 66 api, 227 móvil).
+
+## D-073 — La app respeta las áreas seguras del sistema (edge-to-edge obligatorio)
+
+- **Fecha:** cierre de 1.0 (2026-11-11)
+- **Contexto:** el APK de 1.0 se instaló en un Android real y resultó **no
+  operativo**: la barra de estado tapaba la cabecera y la barra de navegación
+  tapaba la barra de pestañas. La causa es D-041: al retirar
+  `android.edgeToEdgeEnabled` «porque ya no existe» en el esquema de SDK 58, el
+  edge-to-edge pasó a ser **siempre obligatorio** (Android 16), pero nunca se
+  añadió el manejo de insets. La app pintaba a pantalla completa sin reservar
+  las zonas de las barras del sistema, de modo que los controles quedaban bajo
+  ellas y no se podían pulsar. Ninguna prueba lo detectaba: Jest no tiene
+  geometría de sistema y el recorrido dorado monta las pantallas sueltas, sin el
+  chasis de `App.tsx` que coloca la barra de pestañas.
+- **Decisión:** añadir `react-native-safe-area-context` (versión que fija Expo,
+  `~5.11.1`) y envolver la app en `SafeAreaProvider`; `AppShell` aplica el inset
+  superior al contenido (o al banner degradado, si lo hay) y el inferior a la
+  barra de pestañas, y `BootScreen` usa `SafeAreaView`. Es un cambio de
+  presentación: no toca firmas públicas, ni el núcleo, ni las pantallas (que
+  siguen siendo componentes puros montables en Jest).
+- **Motivos:** es la solución estándar del ecosistema y la única que respeta las
+  barras en todos los dispositivos y orientaciones sin hardcodear alturas. Hacer
+  el ajuste en el chasis, y no en cada pantalla, evita repetir el error cuando
+  se añada una pantalla nueva.
+- **Alternativas descartadas:** (a) `paddingTop` fijo con `StatusBar.currentHeight`:
+  no cubre la barra de navegación inferior ni los recortes de pantalla, y se
+  rompe en landscape; (b) restaurar `android.edgeToEdgeEnabled: false`: el campo
+  ya no existe en el esquema (D-041) y Android 16 lo ignora; (c) ajustar cada
+  pantalla por separado: duplica el cálculo y deja fuera a las futuras.
+- **Consecuencias:** nueva dependencia de runtime `react-native-safe-area-context`
+  (transitiva habitual de Expo, sin coste). `apps/mobile/src/__tests__/safeArea.test.tsx`
+  fija el contrato: monta `App` completo, cierra el onboarding y comprueba que el
+  inset inferior llega a la barra de pestañas y el superior al contenido. Es la
+  única prueba de la suite que dobla un módulo nativo (la geometría del sistema
+  no existe en Node); el doble se justifica en el propio fichero. `npm run verify`
+  queda en 649 pruebas (355 core, 66 api, 228 móvil). El APK anterior
+  (`b19ef0a8…`) queda **obsoleto** para la UX: hay que recompilarlo.

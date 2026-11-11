@@ -51,6 +51,13 @@ Primera versión completa del producto: app móvil de un solo usuario, local-fir
 
 ### Cambiado
 
+- **La app respeta las áreas seguras del sistema.** En Android 16 el edge-to-edge
+  es obligatorio, así que la barra de estado y la de navegación se superponen al
+  contenido; sin reservar sus zonas, la cabecera y la barra de pestañas quedaban
+  bajo ellas y no se podían pulsar. Ahora `App` va envuelta en `SafeAreaProvider`
+  y el chasis aplica los insets superior e inferior (D-073). Sin este arreglo, el
+  APK instalado en un dispositivo real resultaba **no operativo**.
+
 - **El fallo del proveedor semántico ya no rompe la sesión.** Si el proveedor no
   responde (red, cuota agotada o salida inválida), la app evalúa con la heurística
   local y continúa; el turno queda marcado como degradado y la insignia de motor

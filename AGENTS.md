@@ -131,6 +131,14 @@ npm run generate:assets # regenera iconos y capturas base
 - **Los campos `newArchEnabled` y `android.edgeToEdgeEnabled` ya no existen** en
   el esquema de SDK 58 (RN 0.88 solo tiene la nueva arquitectura y Android 16
   hace obligatorio el edge-to-edge). Añadirlos rompe la validación del esquema.
+  **Corolario (D-073):** como el edge-to-edge es obligatorio, la app **debe**
+  manejar los insets con `react-native-safe-area-context`; sin ellos, la barra de
+  estado tapa la cabecera y la de navegación tapa las pestañas, y el APK resulta
+  **no operativo** en un dispositivo real. El manejo vive en el chasis
+  (`App.tsx`), no en cada pantalla, y lo fija `src/__tests__/safeArea.test.tsx`.
+  Este fallo **no** lo detecta el recorrido dorado: monta pantallas sueltas sin
+  el chasis. Si se cambia el chasis, ejecutar el APK en dispositivo antes de
+  darlo por bueno.
 - **Ejecutar `npm run verify` junto a otra tarea pesada produce falsos fallos.**
   Las suites de interfaz (`ImportScreen`, `accountJourney`) tienen límite de 5 s
   y fallan por contención de CPU, no por un defecto. Verificar en solitario.
