@@ -240,4 +240,57 @@ describe('Recorrido dorado mayéutico en la interfaz', () => {
     fireEvent.press(screen.getByText('Ver progreso'));
     await waitFor(() => expect(screen.getByText('Tu progreso')).toBeTruthy());
   });
+
+  it('estudia un temario con el encabezado pegado a su párrafo (regresión «no hay material evaluable»)', async () => {
+    // Reproduce el fallo reportado: un TXT con «Tema N.» seguido de su párrafo
+    // sin línea en blanco entre ambos. Antes, la app respondía «El temario no
+    // contiene conceptos evaluables» al pulsar «Estudiar».
+    const sinBlancos = [
+      'Tema 1. La fotosíntesis',
+      'La fotosíntesis es el proceso por el cual las plantas transforman la luz solar en energía química almacenada como glucosa.',
+      'Tema 2. La clorofila',
+      'La clorofila es el pigmento verde que captura la energía luminosa y la transfiere a los centros de reacción del cloroplasto.',
+    ].join('\n');
+
+    const reader: FileBytesReader = { read: async () => ok(encoder.encode(sinBlancos)) };
+    const picker: DocumentPickerPort = {
+      pick: async (): Promise<PickedFile> => ({
+        name: 'temario.txt',
+        mimeType: 'text/plain',
+        uri: 'file:///temario.txt',
+        sizeBytes: sinBlancos.length,
+      }),
+    };
+    const services = createServices({
+      storage: inMemoryStorage(),
+      picker,
+      reader,
+      policy: { mode: 'allow-cloud' },
+      llm: makeBundle(new HeuristicEvaluator()),
+    });
+
+    const imported = await importDocument(
+      services,
+      {
+        name: 'temario.txt',
+        mimeType: 'text/plain',
+        uri: 'file:///temario.txt',
+        sizeBytes: sinBlancos.length,
+      },
+      NOW,
+    );
+    expect(imported.ok).toBe(true);
+    if (imported.ok) {
+      expect(imported.value.conceptCount).toBeGreaterThan(0);
+    }
+
+    await render(<TestRouter services={services} />);
+    await waitFor(() => expect(screen.getByText('temario')).toBeTruthy());
+    fireEvent.press(screen.getByText('Estudiar'));
+
+    // La sesión arranca con una pregunta anclada, no con el error.
+    await waitFor(() => expect(screen.getByText('Pregunta')).toBeTruthy());
+    expect(screen.queryByText(/no contiene conceptos evaluables/)).toBeNull();
+    expect(screen.getByText(/^Fuente:/)).toBeTruthy();
+  });
 });

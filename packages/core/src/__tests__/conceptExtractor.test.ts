@@ -79,3 +79,72 @@ describe('extractCurriculum', () => {
     expect(new Set(labels).size).toBe(labels.length);
   });
 });
+
+/**
+ * Regresión del defecto «no hay material evaluable»: un temario con el
+ * encabezado pegado a su párrafo (sin línea en blanco, como el texto copiado de
+ * un PDF o un TXT compacto) perdía todos los encabezados y no producía ningún
+ * concepto, porque el normalizador del RAG unía las líneas de un párrafo.
+ */
+describe('extractCurriculum — temarios sin línea en blanco y con viñetas', () => {
+  it('extrae conceptos aunque el encabezado no lleve línea en blanco detrás', () => {
+    const sinBlancos = `Tema 1. La Constitución Española
+La Constitución Española de 1978 regula la organización del Estado y reconoce los derechos fundamentales de los ciudadanos.
+Tema 2. El Gobierno
+El Gobierno dirige la política interior y exterior, la Administración civil y militar y la defensa del Estado.`;
+
+    const curriculum = extractCurriculum(sinBlancos);
+    expect(curriculum.topics.map((topic) => topic.title)).toEqual([
+      'La Constitución Española',
+      'El Gobierno',
+    ]);
+    expect(curriculum.concepts.map((concept) => concept.label)).toEqual([
+      'La Constitución Española',
+      'El Gobierno',
+    ]);
+  });
+
+  it('extrae conceptos de un temario descriptivo que no usa «X es…»', () => {
+    const descriptivo = `Tema 1. La Constitución
+La Constitución regula la organización del Estado y reconoce los derechos fundamentales de los ciudadanos.
+Tema 2. El Gobierno
+El Gobierno dirige la política interior y exterior del Estado y la defensa nacional.`;
+
+    expect(extractCurriculum(descriptivo).concepts).toHaveLength(2);
+  });
+
+  it('no arrastra el marcador de viñeta en la etiqueta del concepto', () => {
+    const vinetas = `Tema 1. La Constitución
+- La Constitución es la norma suprema del ordenamiento jurídico español que organiza los poderes del Estado.
+- El Estado social se caracteriza por garantizar la libertad, la justicia y la igualdad ante la ley.`;
+
+    const labels = extractCurriculum(vinetas).concepts.map((concept) => concept.label);
+    expect(labels).toEqual(['Constitución', 'Estado social']);
+    for (const label of labels) {
+      expect(label.startsWith('-')).toBe(false);
+    }
+  });
+
+  it('extrae conceptos de un temario en forma de índice (solo epígrafes)', () => {
+    const indice = `Tema 1. La Constitución Española de 1978
+Tema 2. El Gobierno y la Administración
+Tema 3. La Corona`;
+
+    const curriculum = extractCurriculum(indice);
+    expect(curriculum.topics.map((topic) => topic.title)).toEqual([
+      'La Constitución Española de 1978',
+      'El Gobierno y la Administración',
+      'La Corona',
+    ]);
+    // Un índice sigue siendo material evaluable: cada epígrafe da un concepto
+    // con sus términos clave, en vez de cero conceptos y el error en pantalla.
+    expect(curriculum.concepts.map((concept) => concept.label)).toEqual([
+      'La Constitución Española de 1978',
+      'El Gobierno y la Administración',
+      'La Corona',
+    ]);
+    for (const concept of curriculum.concepts) {
+      expect(concept.keywords.length).toBeGreaterThan(0);
+    }
+  });
+});

@@ -1566,3 +1566,46 @@ StudyError>`; el orden de preferencia es proveedor semántico → evaluador LLM
   no existe en Node); el doble se justifica en el propio fichero. `npm run verify`
   queda en 649 pruebas (355 core, 66 api, 228 móvil). El APK anterior
   (`b19ef0a8…`) queda **obsoleto** para la UX: hay que recompilarlo.
+
+## D-074 — Un temario con el encabezado pegado a su párrafo y un temario en forma de índice sí son material evaluable
+
+- **Fecha:** cierre de 1.0 (2026-11-04)
+- **Contexto:** al adjuntar un temario y pulsar «Estudiar», la app respondía «El
+  temario no contiene conceptos evaluables. Revisa el documento.»
+  (`studyService.ts`). El origen estaba en `extractCurriculum`
+  (`ingest/conceptExtractor.ts`), que devolvía cero conceptos por dos defectos
+  independientes: (1) usaba `normalizeText` del RAG, que une con espacios las
+  líneas de un mismo párrafo; un temario **sin línea en blanco** entre el
+  encabezado y su cuerpo —lo habitual al copiar de un PDF o un TXT compacto—
+  perdía todos los encabezados y quedaba como un bloque único, y (2) un temario
+  en **forma de índice** (solo epígrafes, sin cuerpo), que es la acepción literal
+  de «temario» en una oposición, no aportaba definiciones «X es…» y producía cero
+  conceptos aunque el documento sí tuviera temas. Además, las viñetas de lista se
+  arrastraban a la etiqueta del concepto («- El Estado social»).
+- **Decisión:** `extractCurriculum` deja de usar `normalizeText` y normaliza el
+  texto conservando la frontera de los encabezados y retirando el marcador de
+  viñeta (`normalizeForStructure`). Solo separa como párrafo propio los
+  encabezados inequívocos (`isStructuralHeading`: marcador de tema, `#` de
+  Markdown y línea corta en mayúsculas); **no** la numeración suelta (`1. …`),
+  que dentro de un tema es casi siempre un elemento de lista. `splitSections`
+  conserva los encabezados sin cuerpo, y si el documento entero no produjo
+  ningún concepto se activa un respaldo acotado que convierte cada epígrafe en un
+  concepto con sus términos clave. El respaldo solo actúa cuando el documento no
+  aportó ninguna definición, así que nunca añade ruido a un temario ya cubierto.
+- **Motivos:** el fallo dejaba la app inservible con la forma de temario más
+  común (encabezados sin línea en blanco e índices), que es justo lo que la app
+  promete leer. La corrección es de dominio puro (sin tocar firmas públicas) y la
+  protegen pruebas nuevas en `conceptExtractor.test.ts` y en el recorrido de
+  interfaz `goldenPath.e2e.test.tsx`.
+- **Alternativas descartadas:** (a) relajar el error de `studyService` para
+  permitir sesiones sin conceptos: oculta el defecto en lugar de corregirlo y
+  dejaría la sesión sin nada que preguntar; (b) separar también la numeración
+  suelta como encabezado: parte los párrafos que contienen listas numeradas
+  (regresión detectada y descartada); (c) activar el respaldo de índice siempre:
+  competiría con las definiciones reales y duplicaría conceptos.
+- **Consecuencias:** `npm run verify` queda en 654 pruebas (359 core, 66 api, 229
+  móvil). El APK debe recompilarse para incorporar el arreglo. Los artefactos
+  muertos `conceptualization.js` y `documentStructure.js` de `packages/core/dist`
+  (de un intento previo de conceptualización por modelo, sin fuente en `src`) se
+  eliminan al reconstruir limpio; no están versionados (`dist/` está en
+  `.gitignore`).

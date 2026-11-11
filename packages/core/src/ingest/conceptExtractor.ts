@@ -1,5 +1,4 @@
 import type { Concept, Topic } from '../domain/types';
-import { normalizeText } from '../rag/chunking';
 import { tokenize } from '../rag/embeddings';
 
 /** Temario extraído de un texto: temas y conceptos evaluables. */
@@ -105,7 +104,7 @@ export function extractCurriculum(
   rawText: string,
   options: ExtractCurriculumOptions = DEFAULT_EXTRACT_OPTIONS,
 ): ExtractedCurriculum {
-  const text = normalizeText(rawText);
+  const text = normalizeForStructure(rawText);
   if (text.length === 0) {
     return { topics: [], concepts: [] };
   }
@@ -141,6 +140,29 @@ export function extractCurriculum(
     });
   });
 
+  // Último recurso: un temario en forma de índice (solo epígrafes, sin cuerpo)
+  // no aporta definiciones, pero sus enunciados son material evaluable y la
+  // acepción literal de «temario» es justamente esa lista. Sin este respaldo,
+  // importar un índice y pulsar «Estudiar» responde «no hay material evaluable»
+  // aunque el documento sí tenga temas. Solo se activa cuando el documento
+  // entero no produjo ningún concepto, así que nunca añade ruido a un temario
+  // ya cubierto por definiciones. Los términos clave salen del propio epígrafe:
+  // sin ellos la evaluación no tendría ninguna señal con la que puntuar.
+  if (concepts.length === 0) {
+    topics.forEach((topic) => {
+      const label = cleanHeading(topic.title);
+      if (label.length >= MIN_INDEX_LABEL_CHARS) {
+        concepts.push({
+          id: `${topic.id}:c1`,
+          topicId: topic.id,
+          label,
+          definition: `${label}.`,
+          keywords: tokenize(label).slice(0, options.maxKeywords),
+        });
+      }
+    });
+  }
+
   return { topics, concepts };
 }
 
@@ -149,15 +171,96 @@ interface Section {
   readonly body: string;
 }
 
+/**
+ * Marcador de viñeta al inicio de una línea de lista (`- `, `• `, `* `, `– `).
+ * No incluye la numeración: un «1. X» o «1.1. X» puede ser un encabezado y se
+ * decide antes, en `headingOf`.
+ */
+const LIST_BULLET = /^\s*[-*•–—]\s+/;
+
+/**
+ * Encabezado que se separa como párrafo propio al normalizar.
+ *
+ * Se limita a las formas inequívocas (marcador de tema, encabezado Markdown y
+ * línea corta en mayúsculas). Deliberadamente **no** incluye la numeración
+ * suelta (`1. Iniciacion`): dentro de un tema, una línea numerada es casi
+ * siempre un elemento de lista y separarla partiría el párrafo que la contiene.
+ */
+function isStructuralHeading(line: string): boolean {
+  const trimmed = line.trim();
+  if (trimmed.length === 0 || trimmed.length > 120) {
+    return false;
+  }
+  if (MARKDOWN_HEADING.test(trimmed)) {
+    return true;
+  }
+  if (NAMED_HEADING.test(trimmed)) {
+    return true;
+  }
+  const letters = trimmed.replace(/[^\p{L}]/gu, '');
+  return letters.length >= 4 && letters === letters.toUpperCase() && !trimmed.endsWith('.');
+}
+
+/**
+ * Normaliza el texto conservando la frontera de los encabezados y de las viñetas.
+ *
+ * No sirve `normalizeText` (el del RAG): aquel une con espacios las líneas de un
+ * mismo párrafo, de modo que un temario con el encabezado pegado a su párrafo
+ * —sin línea en blanco, como el texto copiado de un PDF o un TXT compacto— pierde
+ * todos los encabezados y queda como un bloque único sin conceptos. Aquí cada
+ * encabezado se emite como su propio párrafo, el marcador de viñeta se retira (si
+ * no, el término saldría como «- El Estado social») y el resto de líneas se unen
+ * como antes, así que el resultado solo cambia cuando hay algo que rescatar.
+ */
+function normalizeForStructure(raw: string): string {
+  const lines = raw
+    .replace(/\r\n?/g, '\n')
+    .split('\n')
+    .map((line) => line.replace(/[ \t]+/g, ' ').trim());
+
+  const paragraphs: string[] = [];
+  let buffer: string[] = [];
+  const flush = (): void => {
+    if (buffer.length > 0) {
+      paragraphs.push(buffer.join(' '));
+      buffer = [];
+    }
+  };
+
+  for (const rawLine of lines) {
+    if (rawLine.length === 0) {
+      flush();
+      continue;
+    }
+    if (isStructuralHeading(rawLine)) {
+      flush();
+      paragraphs.push(rawLine);
+      continue;
+    }
+    const line = rawLine.replace(LIST_BULLET, '');
+    if (line.length === 0) {
+      continue;
+    }
+    buffer.push(line);
+  }
+  flush();
+
+  return paragraphs.join('\n\n');
+}
+
 function splitSections(text: string): Section[] {
   const lines = text.split('\n');
   const sections: Section[] = [];
   let title = 'Temario';
+  let hasHeading = false;
   let buffer: string[] = [];
 
   const flush = (): void => {
     const body = buffer.join('\n').trim();
-    if (body.length > 0) {
+    // Se conserva también un encabezado sin cuerpo: un temario en forma de
+    // índice (solo epígrafes) no tiene párrafos, y descartarlo perdería todos
+    // sus temas. Un encabezado real nunca se confunde con el título por defecto.
+    if (body.length > 0 || hasHeading) {
       sections.push({ title, body });
     }
     buffer = [];
@@ -168,6 +271,7 @@ function splitSections(text: string): Section[] {
     if (heading !== null) {
       flush();
       title = heading;
+      hasHeading = true;
       continue;
     }
     buffer.push(line);
@@ -414,6 +518,15 @@ function buildConcept(
     keywords: extractKeywords(label, body, options.maxKeywords),
   };
 }
+
+/**
+ * Longitud mínima del enunciado de un epígrafe para admitirlo como concepto
+ * cuando el documento no aporta ninguna definición (temario en forma de índice).
+ * Es más bajo que `minDefinitionChars` porque un título de tema —«La Corona»—
+ * es un epígrafe legítimo, no una definición; solo se descartan las etiquetas
+ * vacías o de una palabra insustancial.
+ */
+const MIN_INDEX_LABEL_CHARS = 8;
 
 /**
  * Palabras clave del concepto: los términos más frecuentes del tema que no
