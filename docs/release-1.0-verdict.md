@@ -382,12 +382,14 @@ true`, y `POST /mayeutic/ocr` responde **401** (existe y exige sesión), no 404.
    real, la **repregunta** devolvió 200 con `parseFollowUp.ok: true`. La
    **explicación** devolvió **un** 200 truncado a 18 tokens que `parseExplanation`
    rechaza; no se pudo reproducir antes de agotar la cuota gratuita de Gemini.
-   Causa **no confirmada**: `max_tokens` 400/1024/2048 dieron resultados idénticos
-   porque la **clave de caché no incluye `maxTokens`** (fueron aciertos de caché).
-   Acción: reproducir con prompt limpio cuando la cuota se reponga; si se confirma,
-   revisar el truncado por parte del proveedor (posible gasto en razonamiento
-   interno) y, si procede, subir `DEFAULT_EXPLAINER_OPTIONS.maxTokens` y ampliar la
-   clave de caché con `maxTokens`. No bloquea G3 (mide evaluación, generación y
+   **Hipótesis principal (sin confirmar):** `gemini-3.6-flash` gasta el
+   presupuesto de `max_tokens` en **razonamiento interno** (18 de 400 dejan ~382
+   para pensar); con `maxTokens` 400 la salida visible se corta. Encaja con que la
+   repregunta (JSON corto, 220 tokens) sí salga entera. `max_tokens` 400/1024/2048
+   dieron resultados idénticos porque la **clave de caché no incluye `maxTokens`**
+   (fueron aciertos de caché). Acción: reproducir con prompt limpio cuando la cuota
+   se reponga; si se confirma, subir `DEFAULT_EXPLAINER_OPTIONS.maxTokens` y añadir
+   `maxTokens` a la clave de caché. No bloquea G3 (mide evaluación, generación y
    citas), pero sí el objetivo declarado de 1.0.
 
 ## Qué haría falta para convertir esto en GO
