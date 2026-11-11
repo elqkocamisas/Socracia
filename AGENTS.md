@@ -225,6 +225,16 @@ Trampas conocidas:
 - **El backend ignora el `userId` del cuerpo** en `/sync/push` y usa el de la
   sesión. No "arreglar" esto pasando el del cliente: es lo que impide escribir
   el progreso de otro usuario.
+- **`extractCurriculum` no usa el `normalizeText` del RAG.** Ese normalizador une
+  con espacios las líneas de un párrafo, así que un temario **sin línea en blanco**
+  entre el encabezado y su cuerpo (lo habitual al copiar de un PDF o un TXT
+  compacto) perdía todos los encabezados y producía **cero conceptos**; la app
+  respondía «El temario no contiene conceptos evaluables» al pulsar «Estudiar».
+  Ahora se normaliza conservando la frontera de los encabezados inequívocos
+  (`isStructuralHeading`) y, solo si el documento no aportó ninguna definición,
+  cada epígrafe de un temario en forma de índice se convierte en un concepto con
+  sus términos clave (D-074). No separar la numeración suelta (`1. …`) como
+  encabezado: parte los párrafos con listas numeradas.
 
 ## OCR de imágenes y PDF escaneados (cierre de 1.0)
 
