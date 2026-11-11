@@ -62,6 +62,24 @@ en el binario. El token se lee en cada llamada desde el almacén de credenciales
 (`LlmHttpProvider.loadToken`), así que iniciar sesión activa el motor y cerrarla
 lo desactiva sin reconstruir los servicios.
 
+### Dos rutas, dos propósitos
+
+El móvil habla con el backend por dos rutas, cada una con su dialecto:
+
+- **`/mayeutic/generate` y `/mayeutic/evaluate`** — el proveedor semántico
+  (`apps/api/src/mayeutic.ts`). Sirven la **generación** de preguntas ancladas y
+  la **evaluación** de respuestas con cita. Es el camino principal (D-058).
+- **`/llm/complete`** — el motor de lenguaje genérico (`apps/api/src/llmProvider.ts`,
+  D-075). Sirve la **repregunta** (`followUp`) y la **explicación** (`explainer`),
+  que el proveedor semántico no cubre.
+
+La segunda ruta necesita un `LlmProvider` en el servidor. Se construye con
+`OpenAiCompatProvider` del núcleo apuntando al endpoint OpenAI-compatible de
+Gemini y envuelto en `ResilientLlmProvider`; sin `GEMINI_API_KEY` queda `null` y
+la ruta responde 503, con la app degradando a la heurística. **Si esta ruta no
+está configurada, la repregunta cae a las plantillas del RAG y la explicación no
+aparece**: por eso su activación es un requisito de 1.0.
+
 ## Qué sale del dispositivo
 
 Nada, salvo que el usuario lo autorice. Lo que viaja al backend es:

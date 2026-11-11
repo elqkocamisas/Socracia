@@ -28,6 +28,8 @@
 
 import { randomUUID } from 'node:crypto';
 
+import { explanationPrompt, followUpPrompt, parseExplanation, parseFollowUp } from '@socracia/core';
+
 const BASE_URL =
   process.env.SOCRA_REAL_EVAL_BASE_URL ??
   process.env.EXPO_PUBLIC_API_BASE_URL ??
@@ -269,6 +271,74 @@ function generationCases() {
   }));
 }
 
+/**
+ * Casos de seguimiento (repregunta): por tema, sobre una respuesta fallida.
+ *
+ * La repregunta la redacta el modelo a través de `/llm/complete` (ruta
+ * `seguimiento`), que es la que sirve `LlmFollowUpGenerator`. Se valida con el
+ * mismo `parseFollowUp` del núcleo: una repregunta que revele la respuesta
+ * esperada se rechaza, igual que en la app.
+ */
+function followUpCases() {
+  return THEMES.map((theme) => ({
+    id: `${theme.concept.id}-follow`,
+    theme,
+    question: {
+      id: `${theme.concept.id}:q0`,
+      conceptId: theme.concept.id,
+      prompt: theme.question.prompt,
+      move: theme.question.move,
+      level: theme.question.level,
+      expectedAnswer: theme.question.expectedAnswer,
+      keyTerms: theme.question.keyTerms,
+      difficulty: 0.4,
+      citation: {
+        documentId: `${theme.concept.id}-doc`,
+        documentTitle: `Tema ${theme.concept.label}`,
+        chunkId: `${theme.concept.id}-doc:0`,
+        excerpt: theme.excerpt,
+        charStart: 0,
+        charEnd: theme.excerpt.length,
+      },
+    },
+    answer: theme.answers.find((answer) => answer.expect === 'incorrecta') ?? theme.answers[0],
+  }));
+}
+
+/**
+ * Casos de explicación («explícame»): por tema, tras fallos repetidos.
+ *
+ * La explicación la redacta el modelo a través de `/llm/complete` (ruta
+ * `explicar`), que es la que sirve `LlmExplainer`. Se valida con el mismo
+ * `parseExplanation` del núcleo: una explicación sin cita que corresponda a un
+ * pasaje enviado se rechaza, de modo que una cita inventada cuenta como fallo.
+ */
+function explanationCases() {
+  return THEMES.map((theme) => ({
+    id: `${theme.concept.id}-explain`,
+    theme,
+    question: {
+      id: `${theme.concept.id}:q0`,
+      conceptId: theme.concept.id,
+      prompt: theme.question.prompt,
+      move: theme.question.move,
+      level: theme.question.level,
+      expectedAnswer: theme.question.expectedAnswer,
+      keyTerms: theme.question.keyTerms,
+      difficulty: 0.4,
+      citation: {
+        documentId: `${theme.concept.id}-doc`,
+        documentTitle: `Tema ${theme.concept.label}`,
+        chunkId: `${theme.concept.id}-doc:0`,
+        excerpt: theme.excerpt,
+        charStart: 0,
+        charEnd: theme.excerpt.length,
+      },
+    },
+    missingKeyTerms: theme.question.keyTerms.slice(0, 2),
+  }));
+}
+
 /** Espera `ms` milisegundos. */
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -384,7 +454,7 @@ async function main() {
   const generation = generationCases();
 
   let providerUnavailable = null;
-  const results = { evaluation: [], generation: [] };
+  const results = { evaluation: [], generation: [], followUp: [], explanation: [] };
 
   try {
     for (const testCase of evaluation) {
@@ -452,6 +522,93 @@ async function main() {
         });
       }
     }
+
+    if (!providerUnavailable) {
+      for (const testCase of followUpCases()) {
+        await sleep(PACE_MS);
+        const prompt = followUpPrompt({
+          question: testCase.question.prompt,
+          userAnswer: testCase.answer.text,
+          verdict: 'incorrecta',
+          missingKeyTerms: testCase.question.keyTerms,
+          rationale: 'La respuesta no menciona los términos clave del concepto.',
+        });
+        // Sin reintentos largos: un 503 aquí es «ruta no configurada» y debe
+        // resolverse en «no verificado», no en ocho esperas de 30 s.
+        const response = await post(
+          '/llm/complete',
+          {
+            system: prompt.system,
+            user: prompt.user,
+            purpose: prompt.purpose,
+            maxTokens: 220,
+            temperature: 0.3,
+          },
+          token,
+          1,
+        );
+        if (response.status === 503 || response.status === 429) {
+          providerUnavailable = response.payload?.message ?? `HTTP ${response.status}`;
+          break;
+        }
+        if (response.status !== 200 || typeof response.payload?.text !== 'string') {
+          results.followUp.push({ id: testCase.id, ok: false, reason: `HTTP ${response.status}` });
+          continue;
+        }
+        // Mismo validador que el núcleo: una repregunta que revele la respuesta
+        // se descarta y cuenta como fallo.
+        const parsed = parseFollowUp(response.payload.text, testCase.question);
+        const accepted = parsed.ok && parsed.value !== null;
+        results.followUp.push({ id: testCase.id, ok: true, accepted });
+      }
+    }
+
+    if (!providerUnavailable) {
+      for (const testCase of explanationCases()) {
+        await sleep(PACE_MS);
+        const prompt = explanationPrompt({
+          question: testCase.question.prompt,
+          expectedAnswer: testCase.question.expectedAnswer,
+          missingKeyTerms: testCase.missingKeyTerms,
+          passages: [
+            {
+              chunkId: testCase.question.citation.chunkId,
+              text: testCase.question.citation.excerpt,
+            },
+          ],
+        });
+        const response = await post(
+          '/llm/complete',
+          {
+            system: prompt.system,
+            user: prompt.user,
+            purpose: prompt.purpose,
+            maxTokens: 400,
+            temperature: 0.2,
+          },
+          token,
+          1,
+        );
+        if (response.status === 503 || response.status === 429) {
+          providerUnavailable = response.payload?.message ?? `HTTP ${response.status}`;
+          break;
+        }
+        if (response.status !== 200 || typeof response.payload?.text !== 'string') {
+          results.explanation.push({
+            id: testCase.id,
+            ok: false,
+            reason: `HTTP ${response.status}`,
+          });
+          continue;
+        }
+        // Mismo validador que el núcleo: sin una cita que corresponda a un
+        // pasaje enviado, la explicación se rechaza (cita inventada = fallo).
+        const parsed = parseExplanation(response.payload.text, [
+          { citation: testCase.question.citation },
+        ]);
+        results.explanation.push({ id: testCase.id, ok: true, accepted: parsed.ok });
+      }
+    }
   } finally {
     if (created) {
       await fetch(`${BASE_URL}/account`, {
@@ -479,10 +636,21 @@ async function main() {
       : paraphrases.filter((item) => item.actual === 'correcta').length / paraphrases.length;
   const inventedCitations = results.generation.filter((item) => item.ok && !item.grounded).length;
 
+  const followUps = results.followUp.filter((item) => item.ok);
+  const followUpAccepted = followUps.filter((item) => item.accepted).length;
+  const explanations = results.explanation.filter((item) => item.ok);
+  const explanationAccepted = explanations.filter((item) => item.accepted).length;
+
   console.log('\nInforme por categoría');
   console.log(`  evaluación: ${answered.length}/${evaluation.length} casos con veredicto`);
   console.log(
     `  generación: ${results.generation.filter((g) => g.ok).length}/${generation.length} casos`,
+  );
+  console.log(
+    `  repregunta (seguimiento): ${followUpAccepted}/${followUps.length} aceptadas (no revelan la respuesta)`,
+  );
+  console.log(
+    `  explicación: ${explanationAccepted}/${explanations.length} aceptadas (con cita verificada)`,
   );
   console.log('\nMétricas G3');
   console.log(`  concordancia de veredicto: ${(agreement * 100).toFixed(1)} % (≥ 80 %)`);
@@ -490,8 +658,18 @@ async function main() {
     `  paráfrasis correctas aceptadas: ${(paraphraseAcceptance * 100).toFixed(1)} % (≥ 90 %)`,
   );
   console.log(`  citas/preguntas inventadas: ${inventedCitations} (= 0)`);
+  console.log(
+    `  repreguntas aceptadas: ${followUpAccepted}/${followUps.length} (informativo, no bloquea G3)`,
+  );
+  console.log(
+    `  explicaciones aceptadas: ${explanationAccepted}/${explanations.length} (informativo, no bloquea G3)`,
+  );
 
-  const totalCases = answered.length + results.generation.filter((g) => g.ok).length;
+  const totalCases =
+    answered.length +
+    results.generation.filter((g) => g.ok).length +
+    followUps.length +
+    explanations.length;
   const passed =
     totalCases >= THRESHOLDS.minCases &&
     agreement >= THRESHOLDS.verdictAgreement &&

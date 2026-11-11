@@ -15,6 +15,7 @@ import type {
 import { AuthService, type AuthResult } from './auth';
 import { corsHeaders, type CorsOptions } from './cors';
 import { routeLlmCompletion } from './llm';
+import { createLlmProvider } from './llmProvider';
 import { GeminiMayeuticService, type MayeuticAiService } from './mayeutic';
 import { GeminiOcrService, MAX_OCR_BYTES, type MayeuticOcrService, type OcrInput } from './ocr';
 import { InMemoryProgressStore, type ProgressStore } from './store';
@@ -45,7 +46,9 @@ export function defaultDependencies(): ApiDependencies {
     auth: new AuthService(),
     store: new InMemoryProgressStore(),
     mayeuticAi: new GeminiMayeuticService(),
-    llm: null,
+    // Sin `GEMINI_API_KEY` queda `null` y `/llm/complete` responde 503; con
+    // clave, el modelo redacta la repregunta y la explicación (D-043).
+    llm: createLlmProvider(),
     ocr: new GeminiOcrService(),
   };
 }
