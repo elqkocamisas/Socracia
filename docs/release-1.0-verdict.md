@@ -118,7 +118,7 @@ eval:real` superó los umbrales (33 casos, 83.3 % / 100 % / 0 citas). Evidencia
 
 | Puerta | Descripción                                                                                | Estado | Nivel de evidencia                                                   | Evidencia ejecutada en esta sesión (2026-11-10)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | ------ | ------------------------------------------------------------------------------------------ | ------ | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| G1     | `npm run verify` en verde                                                                  | ✅     | **Ejecutado** (árbol limpio, `npm ci` + verify)                      | 41 suites/**355** (core, evals 32/32) + 9/**66** (api) + 34/**228** (mobile) = **649 pruebas**, 0 fallos. La prueba nueva `safeArea.test.tsx` fija el arreglo D-073.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| G1     | `npm run verify` en verde                                                                  | ✅     | **Ejecutado** (árbol limpio, `npm ci` + verify)                      | 41 suites/**359** (core, evals 32/32) + 9/**66** (api) + 34/**229** (mobile) = **654 pruebas**, 0 fallos. La prueba nueva `safeArea.test.tsx` fija el arreglo D-073 y las de `conceptExtractor.test.ts` / `goldenPath.e2e.test.tsx` fijan el arreglo D-074.                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | G2     | Recorrido dorado con 3 documentos (TXT/MD/PDF) y coherencia por capa documentada           | ✅     | **Ejecutado con proveedor falso**                                    | `goldenPath.test.ts` (núcleo: extracción por formato + ciclo completo en TXT, MD y PDF real) + `goldenPath.e2e.test.tsx` (pantallas). Los tres formatos → mismos 3 temas/3 conceptos y mismo cierre. Coherencia por capa en la sección siguiente.                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | G3     | Evals con proveedor real: ≥30 casos, veredicto ≥80 %, 0 citas inventadas, ≥90 % paráfrasis | ✅     | **Validado con proveedor real** (Gemini, clave propia)               | `npm run eval:real` contra `https://socracia.onrender.com`: **33 casos** con **83.3 %** de veredicto (commit `be140bc`) y **80.0 %** tras fusionar el PR #19 (commit `c24373b`); en ambas, paráfrasis **100 %** y citas inventadas **0** → «G3 alcanzada». Salida en `docs/release-1.0-g3-evidence.txt`.                                                                                                                                                                                                                                                                                                                                                                           |
 | G4     | Degradación probada en los 4 supuestos de F2                                               | ✅     | **Ejecutado**                                                        | `studyService.test.ts` («G4 — degradación en los cuatro supuestos de F2»): sin consentimiento (no llama al proveedor) + red/cuota/salida inválida (degrada y la sesión avanza). Además `consent.test.ts`, `httpProvider.test.ts`, `resilience.test.ts`, `llmEngine.test.ts` y `ocrImport.test.ts` por capa.                                                                                                                                                                                                                                                                                                                                                                        |
@@ -215,6 +215,40 @@ del sistema y no se podían pulsar.
 - **Nivel de evidencia:** **implementado y probado con prueba de regresión**; la
   verificación en **dispositivo real** sigue siendo humana (G8).
 
+## Arreglo del error «no hay material evaluable» (D-074) — sesión actual
+
+Al adjuntar un temario y pulsar «Estudiar», la app respondía «El temario no
+contiene conceptos evaluables. Revisa el documento.» Era un defecto real de
+coherencia entre significante y significado: el documento sí tenía temas, pero
+`extractCurriculum` (`ingest/conceptExtractor.ts`) devolvía cero conceptos.
+
+- **Causa raíz (dos defectos):**
+  1. El normalizador del RAG (`normalizeText`) une con espacios las líneas de un
+     párrafo. Un temario **sin línea en blanco** entre el encabezado y su cuerpo
+     —lo habitual al copiar de un PDF o un TXT compacto— perdía todos los
+     encabezados y quedaba como un bloque único sin conceptos.
+  2. Un temario en **forma de índice** (solo epígrafes, sin cuerpo), que es la
+     acepción literal de «temario» en una oposición, no aportaba definiciones
+     «X es…» y también daba cero conceptos. Además, las viñetas se arrastraban a
+     la etiqueta («- El Estado social»).
+- **Arreglo:** `normalizeForStructure` conserva la frontera de los encabezados
+  inequívocos (`isStructuralHeading`: marcador de tema, `#` de Markdown y línea
+  corta en mayúsculas) y retira el marcador de viñeta; **no** separa la numeración
+  suelta (`1. …`), que dentro de un tema es casi siempre un elemento de lista
+  (regresión detectada y descartada). `splitSections` conserva los encabezados
+  sin cuerpo y, **solo cuando el documento entero no produjo ningún concepto**,
+  cada epígrafe se convierte en un concepto con sus términos clave.
+- **Pruebas de regresión:** `conceptExtractor.test.ts` (encabezado sin blanco,
+  temario descriptivo, viñetas, índice) y `goldenPath.e2e.test.tsx` (reproduce el
+  escenario exacto: adjuntar TXT sin líneas en blanco → «Estudiar» → aparece una
+  pregunta anclada, no el error).
+- **Verificación ejecutada:** el recorrido de extremo a extremo (servicio +
+  controlador) produce preguntas con cita para TXT sin blancos, TXT con blancos,
+  MD y viñetas; y para un índice (3 epígrafes → 3 conceptos con términos clave).
+  `npm run verify` en verde (**654 pruebas**).
+- **Nivel de evidencia:** **implementado y probado** (núcleo + interfaz, proveedor
+  falso). El APK debe **recompilarse** para incorporar el arreglo.
+
 ## Riesgos abiertos
 
 1. **G3 cerrada, con variabilidad en el umbral.** G3 se superó el 2026-11-10
@@ -226,12 +260,15 @@ del sistema y no se podían pulsar.
    (ocurrió una vez); (b) una salida mal formada del proveedor también detiene la
    suite. Mitigación: calentar el servicio antes de la suite y, como mejora no
    bloqueante, ampliar el reintento del arnés a los 502/timeout.
-2. **G7 completado; G8 pendiente de humano.** El build de EAS (run `42820435024`)
-   **terminó con «Succeeded»** y produjo un APK de distribución interna; falta la
-   **descarga e instalación** en dispositivo (paso humano) y el **smoke test**
-   (G8). Existe además un APK local 1.0.0 que permite adelantar el smoke (solo
-   valida el modo heurístico si se compiló sin `EXPO_PUBLIC_CLOUD_PROCESSING=1`;
-   ver `docs/release-1.0-smoke.md`).
+2. **G7 completado; APK a recompilar por D-074 y G8 pendiente de humano.** El
+   build de EAS (run `42820435024`) **terminó con «Succeeded»** y produjo un APK
+   de distribución interna; falta la **descarga e instalación** en dispositivo
+   (paso humano) y el **smoke test** (G8). **Atención:** el arreglo D-074
+   (extracción de conceptos) es posterior al APK `f2173e7a…`, así que ese APK
+   **no incluye** la corrección; hay que recompilar con el perfil `release-apk`
+   antes del smoke definitivo. Existe además un APK local 1.0.0 que permite
+   adelantar el smoke (solo valida el modo heurístico si se compiló sin
+   `EXPO_PUBLIC_CLOUD_PROCESSING=1`; ver `docs/release-1.0-smoke.md`).
 3. **APK local no es el artefacto de EAS.** `dist/socracia-1.0.0.apk` se compiló
    en local (firma de depuración); sirve para probar, no para publicar. El APK
    «oficial» de lanzamiento sale del build de EAS con el perfil `release-apk`.

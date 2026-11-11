@@ -51,6 +51,17 @@ Primera versión completa del producto: app móvil de un solo usuario, local-fir
 
 ### Cambiado
 
+- **Un temario con el encabezado pegado a su párrafo o en forma de índice ya es
+  material evaluable.** Al adjuntar un temario y pulsar «Estudiar», la app podía
+  responder «El temario no contiene conceptos evaluables»: el normalizador del
+  RAG unía con espacios las líneas de un párrafo, así que un temario sin línea en
+  blanco entre el encabezado y su cuerpo (lo habitual al copiar de un PDF o un
+  TXT compacto) perdía todos los encabezados; y un temario en forma de índice
+  (solo epígrafes) no aportaba definiciones y también daba cero conceptos. Ahora
+  se conservan las fronteras de los encabezados y, cuando el documento no aporta
+  ninguna definición, cada epígrafe se convierte en un concepto con sus términos
+  clave (D-074).
+
 - **La app respeta las áreas seguras del sistema.** En Android 16 el edge-to-edge
   es obligatorio, así que la barra de estado y la de navegación se superponen al
   contenido; sin reservar sus zonas, la cabecera y la barra de pestañas quedaban

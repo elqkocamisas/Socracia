@@ -47,6 +47,13 @@ hubiera pasado.
 - [ ] Adjunta un **PDF con texto real** (no un escaneo de imagen).
 - [ ] Los tres documentos muestran un número de conceptos coherente con su
       contenido (no cero, no desproporcionado).
+- [ ] **Regresión D-074:** adjunta un **TXT de temario con el encabezado pegado a
+      su párrafo** (sin línea en blanco entre «Tema N.» y el texto). El documento
+      debe mostrar conceptos > 0 y, al pulsar «Estudiar», aparecer una pregunta
+      anclada — **no** el mensaje «El temario no contiene conceptos evaluables».
+- [ ] **Regresión D-074 (índice):** adjunta un **índice de temas** (solo epígrafes
+      «Tema N. …», sin cuerpo). Debe generar un concepto por epígrafe y permitir
+      estudiar.
 
 ## 1b. OCR de imagen (opcional, requiere sesión y consentimiento)
 
