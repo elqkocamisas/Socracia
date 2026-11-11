@@ -95,11 +95,14 @@ y G7 como registro.
   `docs/build-apk-local.md` (JDK 21, SDK 36). No cuenta como G7 «APK por EAS»,
   pero permite el smoke test.
 
-## Sprint 3 — Inspección del APK de EAS (G5 sobre el artefacto remoto)
+## Sprint 3 — Inspección del APK de EAS (G5 sobre el artefacto remoto) · **✅ hecho**
 
 - **Objetivo:** confirmar que el APK firmado de EAS no contiene secretos.
-- **Contexto:** G5 ya está en verde para el APK local (0 coincidencias); falta
-  repetirlo sobre el artefacto de EAS cuando exista.
+- **Resultado (2026-11-11):** APK del build `b19ef0a8…` (sobre `main` @ `1ca235c`)
+  descargado (75.6 MB) y escaneado con `zipfile` (1158 entradas): **0** `AIza`,
+  **0** `AQ.` (Gemini), **0** `sk-…`, **0** JWT, **0** clave privada, **0**
+  `github_pat_`, **0** `rnd_`. El bundle incrusta `https://socracia.onrender.com`
+  y `CLOUD_PROCESSING` (modo conectado correcto).
 - **Tareas:**
   1. **(Agente)** Extraer el APK de EAS (`zipfile`) y pasar `strings`/regex sobre
      el bundle JavaScript y los recursos.
