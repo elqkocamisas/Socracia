@@ -280,6 +280,18 @@ Trampas conocidas:
   fuera para que revocar el permiso bloquee también la caché). La clave del
   proveedor vive solo en el backend; el móvil llama a `POST /llm/complete` con su
   token de sesión. Detalle en `docs/llm-engine.md` (D-043).
+- **`/llm/complete` necesita un `LlmProvider` en el backend (D-075).** La
+  repregunta y la explicación con el modelo no van por `/mayeutic/*`, sino por
+  `POST /llm/complete`, y esa ruta lee `deps.llm`. Hasta D-075 el backend lo
+  construía como `null` hardcodeado y la ruta respondía **503**: la repregunta
+  caía a las plantillas y la explicación no aparecía, en silencio. La fábrica
+  `apps/api/src/llmProvider.ts` lo cablea con `OpenAiCompatProvider` + Gemini.
+  Al tocar la composición del backend, comprobar que `deps.llm` no vuelve a
+  quedar en `null`; la prueba `llmProvider.test.ts` lo protege.
+- **Generar 3 preguntas exige presupuesto de tokens.** Con `max_tokens: 1200` el
+  JSON de tres preguntas se truncaba y el backend devolvía 502 de formato (2 de
+  3 intentos fallaban); con 2400 pasa. No es una constante universal: si se sube
+  `maxQuestions`, revisar `mayeutic.ts`.
 - **El fallo del proveedor semántico degrada, no rompe.** `degradeOnProviderFailure`
   en `StudyServiceOptions` (por defecto `false`, la app la activa en
   `withLlmEngine`) hace que un fallo del proveedor (red, cuota o salida inválida)
