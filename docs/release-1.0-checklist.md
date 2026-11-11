@@ -4,30 +4,30 @@ Sprints restantes para convertir el dictamen NO-GO en GO, ordenados por **camino
 crítico**. Cada uno declara objetivo, tareas, puerta de aceptación, tamaño
 (S/M/L), dependencias y responsable (agente o humano).
 
-Contexto (2026-11-10): el proceso mayéutico funciona de extremo a extremo y
-**G1, G2, G3, G4, G5, G6, G7 y G9 están en verde** (evidencia en
-`docs/release-1.0-verdict.md`). En esta sesión se corrigió un defecto de
-operatividad del motor con modelo (el fallo del proveedor semántico ya no rompe
-la sesión: degrada a la heurística, D-072) y se **desbloqueó G3** reponiendo una
-clave de proveedor válida en el backend desplegado. Solo queda, como camino
-crítico:
+Contexto (2026-11-11): el proceso mayéutico funciona de extremo a extremo y
+**G1, G2, G3, G4, G5, G6 y G9 están en verde** (evidencia en
+`docs/release-1.0-verdict.md`). En esta sesión se corrigió el error reportado «al
+adjuntar el temario y pulsar Estudiar» (D-074: extracción de conceptos de
+temarios sin líneas en blanco y en forma de índice) y se **re-verificó G3** con
+proveedor real (33 casos, 83.3 % / 100 % / 0 citas). Queda, como camino crítico:
 
-- **G8** (smoke en dispositivo): **humano**. Puede empezar ya con el APK de EAS
-  (`release-apk`, build `465412d7…` «Succeeded») o con el APK local (este último
-  solo valida el modo heurístico).
+- **G7** (APK por EAS): el build `f2173e7a…` «Succeeded» es **anterior a D-074**,
+  así que hay que **recompilar** con el perfil `release-apk`. Requiere
+  `EXPO_TOKEN` (humano) o lanzar el workflow de Actions.
+- **G8** (smoke en dispositivo): **humano**. Puede empezar con el APK local, pero
+  el smoke definitivo necesita el APK recompilado.
 
-G3 y G7 quedaron cumplidos en esta sesión, y el **PR #19 se fusionó en `main`**
-(fast-forward `be140bc` → `c24373b`) con despliegue automático de Render: el
-backend ya sirve OCR + D-072. Solo queda G8. Se conservan abajo las fichas de G3
-y G7 como registro.
+G3 y G7 (build previo) quedaron cumplidos en sesiones anteriores; el **PR #19 se
+fusionó en `main`** (fast-forward `be140bc` → `c24373b`) con despliegue automático
+de Render. Se conservan abajo las fichas como registro.
 
 ## Camino crítico hacia 1.0
 
 | #   | Sprint                    | Objetivo                                                                      | Puerta       | Tamaño | Depende de   | Responsable         | Estado                |
 | --- | ------------------------- | ----------------------------------------------------------------------------- | ------------ | ------ | ------------ | ------------------- | --------------------- |
-| 1   | Restaurar G3              | Reponer una clave de proveedor válida (solo servidor) y repetir el arnés real | **G3**       | S      | Clave válida | **Humano**          | ✅ hecho (2026-11-10) |
-| 2   | Build de EAS              | Producir el APK de lanzamiento (keystore: paso humano la primera vez)         | **G7**       | S      | Cuota Expo   | Agente + **humano** | ✅ build «Succeeded»  |
-| 3   | Inspección del APK de EAS | Confirmar que no hay secretos en el APK firmado de EAS                        | **G5** (APK) | S      | #2           | Agente              | ⏳ (al descargar)     |
+| 1   | Restaurar G3              | Reponer una clave de proveedor válida (solo servidor) y repetir el arnés real | **G3**       | S      | Clave válida | **Humano**          | ✅ hecho (2026-11-11) |
+| 2   | Recompilar el APK de EAS  | Producir el APK de lanzamiento con D-074 (keystore: ya existe)                | **G7**       | S      | `EXPO_TOKEN` | Agente + **humano** | ⏳ pendiente          |
+| 3   | Inspección del APK de EAS | Confirmar que no hay secretos en el APK firmado de EAS                        | **G5** (APK) | S      | #2           | Agente              | ⏳ (al recompilar)    |
 | 4   | Smoke test en dispositivo | Ejecutar el checklist manual en un teléfono real                              | **G8**       | M      | #2 (APK EAS) | **Humano**          | ⏳ pendiente          |
 
 > El APK local (`dist/socracia-1.0.0.apk`) permite adelantar el Sprint 4, pero
@@ -66,30 +66,41 @@ y G7 como registro.
 - **Responsable:** **humano** (obtener/desplegar la clave); agente (ejecutar el
   arnés y registrar la evidencia).
 
-## Sprint 2 — Build de EAS (G7) · **lanzado**
+## Sprint 2 — Recompilar el APK de EAS (G7) · **⏳ pendiente**
 
-- **Objetivo:** generar el APK de lanzamiento con el perfil `release-apk`.
-- **Contexto:** el build se **lanzó el 2026-11-10** con el workflow
-  `.github/workflows/eas-build.yml` (usa el secreto `EXPO_TOKEN` de Actions sin
-  exponerlo) sobre `feat/motor-semantico-modo-conectado` @ `111f409`:
-  run de GitHub `42820435024` (`success`) y build de EAS `465412d7…`. El keystore
-  ya existía (`TnBsQO-OGA`), así que no hizo falta el paso interactivo. Al cerrar
-  la sesión la compilación seguía **en cola** (free tier).
+- **Objetivo:** generar el APK de lanzamiento con el perfil `release-apk`,
+  **incluyendo el arreglo D-074** (extracción de conceptos).
+- **Contexto:** existe un build previo `f2173e7a…` «Succeeded» (workflow
+  `eas-build.yml` sobre `main` @ `962e8fa`), pero es **anterior a D-074** y no
+  sirve para el smoke definitivo. No se pudo recompilar en la sesión del
+  2026-11-11 porque **`EXPO_TOKEN` no está disponible** como variable de entorno
+  (solo vive como secreto de GitHub Actions).
+- **Comandos exactos (humano):**
+  ```bash
+  # Opción A — terminal del propietario con EXPO_TOKEN en el entorno:
+  cd apps/mobile
+  npx eas-cli build --platform android --profile release-apk --non-interactive
+
+  # Opción B — sin token local: GitHub → Actions → «Expo EAS» → Run workflow,
+  # perfil release-apk, plataforma android (usa el secreto EXPO_TOKEN de Actions).
+
+  # Descargar e instalar:
+  npx eas-cli build:download --profile release-apk --platform android
+  adb install -r socracia-1.0.0.apk
+  ```
 - **Tareas:**
-  1. **(Humano)** Esperar a que la compilación termine en EAS (free tier: cola de
-     baja prioridad) y **descargar el APK** desde la página del build o con
-     `npx eas-cli build:download --profile release-apk --platform android`.
-  2. **(Agente)** Inspeccionar el APK de EAS en busca de secretos (Sprint 3).
-  3. **(Solo si no hubiera keystore)** primer build en modo interactivo:
-     `cd apps/mobile && npx eas-cli login && npx eas-cli build --profile release-apk --platform android`
-     y aceptar la generación del keystore.
+  1. **(Humano)** Lanzar el build (opción A o B) y esperar a que termine (free
+     tier: cola de baja prioridad).
+  2. **(Humano)** Descargar el APK.
+  3. **(Agente)** Inspeccionar el APK de EAS en busca de secretos (Sprint 3).
 - **Puerta de aceptación:** APK descargable, con `versionName 1.0.0` y el
   `versionCode` asignado por EAS en remoto (`appVersionSource: remote`).
 - **Tamaño:** S.
-- **Dependencias:** cuenta de Expo con acceso al proyecto; cuota gratuita de EAS
-  disponible (verificado el 2026-11-04 en <https://expo.dev/pricing>: **15 builds
-  Android + 15 iOS** de baja prioridad al mes, reset mensual).
-- **Responsable:** agente (preparar/configurar) + **humano** (keystore, login,
+- **Dependencias:** `EXPO_TOKEN` (o el workflow de Actions); keystore ya existente
+  (`TnBsQO-OGA`); cuota gratuita de EAS disponible (verificado el 2026-11-11 en
+  <https://expo.dev/pricing>: **15 builds Android + 15 iOS** de baja prioridad al
+  mes, reset mensual).
+- **Responsable:** agente (preparar/configurar) + **humano** (lanzar con token,
   descarga).
 - **Respaldo si la cuota está agotada:** compilar en local con
   `docs/build-apk-local.md` (JDK 21, SDK 36). No cuenta como G7 «APK por EAS»,
@@ -133,18 +144,21 @@ y G7 como registro.
 
 ## Riesgos abiertos (resumen)
 
-- **G3 cerrada (2026-11-10):** clave repuesta y arnés superado (83.3 % / 100 % /
-  0 citas). Riesgo residual de reproducibilidad: el arnés no reintenta el 502 por
-  _timeout_ y Render (free) sufre _cold start_; conviene calentar el servicio
-  antes de la suite.
-- **G7 completado:** build de EAS «Succeeded». Falta que el humano descargue e
-  instale el APK; el primer keystore, si no existiera, exigiría interactividad.
+- **G3 cerrada (2026-11-11):** clave válida y arnés superado (33 casos,
+  83.3 % / 100 % / 0 citas). Riesgo residual de reproducibilidad: el arnés no
+  reintenta el 502 por _timeout_ y Render (free) sufre _cold start_; conviene
+  calentar el servicio antes de la suite (de 3 intentos, 1 falló por frío).
+- **G7 a recompilar (2026-11-11):** el build `f2173e7a…` es anterior a D-074.
+  Hace falta recompilar con `release-apk`; `EXPO_TOKEN` no está en el entorno del
+  agente (es un secreto de Actions), así que es paso humano.
 - **Cuota de EAS:** 15 builds Android + 15 iOS al mes en el plan gratuito
-  (verificado 2026-11-04). Reservar al menos una; usar la ruta local si se agota.
+  (verificado 2026-11-11 en <https://expo.dev/pricing>). Reservar al menos una;
+  usar la ruta local si se agota.
 - **Descarga del APK de EAS:** el enlace del artefacto no es público; exige sesión
   de Expo del propietario o `npx eas-cli build:download`.
 - **APK local:** valida el modo heurístico; para el conectado hace falta la
-  variable de build y un backend con clave válida.
+  variable de build y un backend con clave válida. Además, el APK local actual es
+  **anterior a D-074**.
 - **Recalibración del RAG:** si se adopta un proveedor semántico real, revisar
   `DEFAULT_RELEVANCE.minScore` (hoy 0.2, calibrado para el proveedor léxico).
 - **Textos legales:** coherentes con el comportamiento, pero pendientes de
