@@ -149,16 +149,34 @@ export function extractCurriculum(
   // ya cubierto por definiciones. Los términos clave salen del propio epígrafe:
   // sin ellos la evaluación no tendría ninguna señal con la que puntuar.
   if (concepts.length === 0) {
-    topics.forEach((topic) => {
-      const label = cleanHeading(topic.title);
-      if (label.length >= MIN_INDEX_LABEL_CHARS) {
+    sections.forEach((section, sectionIndex) => {
+      const topicId = `t${sectionIndex + 1}`;
+      const label = cleanHeading(section.title);
+      // Un epígrafe real vale como concepto aunque sea corto («La Ley», «El
+      // Rey»): antes se exigían ocho caracteres y se descartaban títulos
+      // legítimos, dejando el temario sin material evaluable. El título por
+      // defecto («Temario») no cuenta: no es un epígrafe del documento.
+      if (section.title !== DEFAULT_TOPIC_TITLE && hasMeaningfulWord(label)) {
+        // Los términos clave salen del epígrafe; si no aporta ninguno (p. ej.
+        // «Fe»), se derivan del cuerpo, o la pregunta quedaría sin señal con la
+        // que evaluar y el filtro de trivialidad la descartaría.
+        const keywords = indexKeywords(label, section.body, options);
         concepts.push({
-          id: `${topic.id}:c1`,
-          topicId: topic.id,
+          id: `${topicId}:c1`,
+          topicId,
           label,
           definition: `${label}.`,
-          keywords: tokenize(label).slice(0, options.maxKeywords),
+          keywords,
         });
+        return;
+      }
+      // Sin epígrafe utilizable, el cuerpo aún puede dar material evaluable: un
+      // temario en forma de lista numerada de enunciados o un texto sin
+      // encabezados. Se toma su primera oración con contenido, en vez de dejar
+      // el documento sin conceptos y bloquear el estudio.
+      const fromBody = conceptFromBody(topicId, section.body, options);
+      if (fromBody) {
+        concepts.push(fromBody);
       }
     });
   }
@@ -519,14 +537,108 @@ function buildConcept(
   };
 }
 
+/** Título que `splitSections` asigna al bloque sin ningún encabezado. */
+const DEFAULT_TOPIC_TITLE = 'Temario';
+
+/** Palabras funcionales que, solas, no identifican un epígrafe. */
+const EPIGRAPH_STOP_WORDS = new Set([
+  'el',
+  'la',
+  'los',
+  'las',
+  'un',
+  'una',
+  'unos',
+  'unas',
+  'tema',
+  'temas',
+  'unidad',
+  'bloque',
+  'apartado',
+  'introduccion',
+  'introducción',
+  'indice',
+  'índice',
+]);
+
 /**
- * Longitud mínima del enunciado de un epígrafe para admitirlo como concepto
- * cuando el documento no aporta ninguna definición (temario en forma de índice).
- * Es más bajo que `minDefinitionChars` porque un título de tema —«La Corona»—
- * es un epígrafe legítimo, no una definición; solo se descartan las etiquetas
- * vacías o de una palabra insustancial.
+ * `true` si la etiqueta contiene alguna palabra con contenido propio.
+ *
+ * Evita que un título genérico («Temario») o un resto de numeración («1.») se
+ * convierta en concepto, pero admite epígrafes cortos y legítimos como «La Ley»
+ * o «Fe». No se usa `tokenize` porque este descarta las palabras de dos letras,
+ * y un epígrafe válido puede serlo.
  */
-const MIN_INDEX_LABEL_CHARS = 8;
+function hasMeaningfulWord(label: string): boolean {
+  return label
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .split(/[^a-z0-9ñ]+/)
+    .some((word) => word.length >= 2 && !EPIGRAPH_STOP_WORDS.has(word));
+}
+
+/**
+ * Términos clave de un epígrafe de índice: los del propio título y, si no
+ * aporta ninguno, los del cuerpo que lo acompaña. Sin al menos una palabra
+ * clave la pregunta no tendría señal con la que puntuar y el filtro de
+ * trivialidad la descartaría, dejando el tema sin material evaluable.
+ */
+function indexKeywords(label: string, body: string, options: ExtractCurriculumOptions): string[] {
+  const fromLabel = tokenize(label);
+  if (fromLabel.length > 0) {
+    return fromLabel.slice(0, options.maxKeywords);
+  }
+  const fromBody = extractKeywords(label, body, options.maxKeywords);
+  if (fromBody.length > 0) {
+    return fromBody;
+  }
+  // Último recurso: el epígrafe es la única señal («Fe»). `tokenize` descarta
+  // las palabras de dos letras, así que aquí se conservan tal cual.
+  return label
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .split(/[^a-z0-9ñ]+/)
+    .filter((word) => word.length >= 2)
+    .slice(0, options.maxKeywords);
+}
+
+/**
+ * Concepto de respaldo a partir del cuerpo del tema.
+ *
+ * Se usa cuando el documento no aporta definiciones ni un epígrafe utilizable:
+ * una lista numerada de enunciados o un texto sin encabezados. Toma la primera
+ * oración con contenido suficiente como definición y deriva la etiqueta de sus
+ * primeras palabras, para que el tema siga siendo estudiable en vez de quedar
+ * sin conceptos. Devuelve `null` si el cuerpo no da material evaluable.
+ */
+function conceptFromBody(
+  topicId: string,
+  rawBody: string,
+  options: ExtractCurriculumOptions,
+): Concept | null {
+  const body = rawBody.trim();
+  if (body.length < options.minDefinitionChars) {
+    return null;
+  }
+  const definition = ensureSentence(body.split('\n')[0]?.trim() ?? '');
+  if (definition.length < options.minDefinitionChars) {
+    return null;
+  }
+  const words = tokenize(definition);
+  const label = words.slice(0, 6).join(' ').trim();
+  if (!hasMeaningfulWord(label)) {
+    return null;
+  }
+  return {
+    id: `${topicId}:c1`,
+    topicId,
+    label,
+    definition,
+    keywords: words.slice(0, options.maxKeywords),
+  };
+}
 
 /**
  * Palabras clave del concepto: los términos más frecuentes del tema que no

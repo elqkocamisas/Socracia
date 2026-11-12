@@ -1649,3 +1649,37 @@ StudyError>`; el orden de preferencia es proveedor semántico → evaluador LLM
   `mayeutic.ts` (1200 truncaba el JSON de tres preguntas y provocaba un 502 de
   formato) y se permite **rotar de modelo** ante un JSON inválido, no solo ante
   cuota o indisponibilidad.
+
+## D-076 — Un índice con epígrafes cortos y una lista numerada de enunciados también son material evaluable
+
+- **Fecha:** cierre de 1.0 (2026-11-04)
+- **Contexto:** tras D-074 seguía habiendo documentos **con texto** que devolvían
+  cero conceptos y, al pulsar «Estudiar», el mensaje «El temario no contiene
+  conceptos evaluables». El respaldo de índice de `extractCurriculum`
+  (`ingest/conceptExtractor.ts`) exigía **ocho caracteres** de etiqueta
+  (`MIN_INDEX_LABEL_CHARS`), así que descartaba epígrafes legítimos y cortos
+  («Tema 1. Ley», «Tema 2. Fe», «Tema 3. Paz») y dejaba el temario vacío. Además,
+  un documento en forma de **lista numerada de enunciados** (`1. …`, `2. …`) sin
+  encabezados reconocibles no aportaba ni definiciones «X es…» ni epígrafes, y
+  también daba cero conceptos.
+- **Decisión:** el respaldo de índice deja de contar caracteres y comprueba que
+  la etiqueta tenga **alguna palabra con contenido** (`hasMeaningfulWord`),
+  excluyendo el título genérico «Temario» y las palabras funcionales. Los términos
+  clave del concepto se toman del epígrafe y, si este no aporta ninguno («Fe»), del
+  cuerpo o de las palabras del propio título (`indexKeywords`): sin ellos la
+  pregunta no tendría señal con la que puntuar y el filtro de trivialidad la
+  descartaría. Si el tema no tiene epígrafe utilizable, se deriva un concepto de su
+  **primera oración con contenido** (`conceptFromBody`), que cubre la lista
+  numerada y el texto sin encabezados.
+- **Motivos:** el fallo dejaba la app inservible con la forma de temario más común
+  en una oposición —el índice de epígrafes— y con las listas numeradas. La
+  corrección es de dominio puro, sin tocar firmas públicas, y la protegen cuatro
+  pruebas nuevas en `conceptExtractor.test.ts`.
+- **Alternativas descartadas:** (a) bajar `MIN_INDEX_LABEL_CHARS` a un valor fijo
+  pequeño: seguiría descartando por longitud y no distinguiría un epígrafe real de
+  un resto de numeración; (b) relajar el error de `studyService`: oculta el defecto
+  en vez de corregirlo; (c) admitir cualquier título como concepto: colaría el
+  título por defecto «Temario» y restos de numeración.
+- **Consecuencias:** `npm run verify` queda en 662 pruebas (363 core, 70 api, 229
+  móvil), con las evals del motor 32/32. El APK debe recompilarse para incorporar
+  el arreglo (el de EAS sigue siendo anterior a D-074/D-075/D-076).

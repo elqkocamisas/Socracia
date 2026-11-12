@@ -148,3 +148,44 @@ Tema 3. La Corona`;
     }
   });
 });
+
+/**
+ * Regresión del defecto «El temario no contiene conceptos evaluables» en
+ * documentos que sí tienen texto: un índice con epígrafes cortos y legítimos
+ * («Tema 1. Ley») o una lista numerada de enunciados producían cero conceptos y
+ * bloqueaban el estudio. El respaldo de índice exigía ocho caracteres de
+ * etiqueta y no miraba el cuerpo, así que descartaba material evaluable real.
+ */
+describe('extractCurriculum — documentos con texto que no daban conceptos', () => {
+  it('admite epígrafes cortos y legítimos de un índice', () => {
+    const indice = `Tema 1. Ley
+Tema 2. Fe
+Tema 3. Paz`;
+
+    const labels = extractCurriculum(indice).concepts.map((concept) => concept.label);
+    expect(labels).toEqual(['Ley', 'Fe', 'Paz']);
+  });
+
+  it('da términos clave a cada epígrafe para que la pregunta sea evaluable', () => {
+    // Un epígrafe de una sola palabra corta no aporta términos por sí mismo; sin
+    // respaldo, su pregunta se descartaría por trivial y el tema quedaría vacío.
+    const curriculum = extractCurriculum(`Tema 1. Fe
+Tema 2. Ley`);
+    for (const concept of curriculum.concepts) {
+      expect(concept.keywords.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('extrae un concepto de una lista numerada de enunciados', () => {
+    const lista = `1. El acto administrativo es la declaración unilateral de voluntad de la Administración.
+2. La notificación es la comunicación formal del acto al interesado.`;
+
+    const curriculum = extractCurriculum(lista);
+    expect(curriculum.concepts.length).toBeGreaterThan(0);
+    expect(curriculum.concepts[0]?.definition.length).toBeGreaterThanOrEqual(25);
+  });
+
+  it('no inventa concepto cuando el documento no tiene ningún texto', () => {
+    expect(extractCurriculum('   \n\n   ')).toEqual({ topics: [], concepts: [] });
+  });
+});

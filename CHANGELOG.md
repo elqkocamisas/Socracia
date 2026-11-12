@@ -62,6 +62,14 @@ Primera versión completa del producto: app móvil de un solo usuario, local-fir
   ninguna definición, cada epígrafe se convierte en un concepto con sus términos
   clave (D-074).
 
+- **Un índice de epígrafes cortos y una lista numerada de enunciados también son
+  material evaluable.** El respaldo de índice exigía ocho caracteres de etiqueta,
+  así que descartaba epígrafes legítimos («Tema 1. Ley») y dejaba el temario sin
+  conceptos; y un documento en forma de lista numerada (`1. …`, `2. …`) sin
+  encabezados no aportaba nada. Ahora se admite cualquier epígrafe con una palabra
+  con contenido, sus términos clave salen del título o del cuerpo, y si el tema no
+  tiene epígrafe utilizable se deriva un concepto de su primera oración (D-076).
+
 - **La app respeta las áreas seguras del sistema.** En Android 16 el edge-to-edge
   es obligatorio, así que la barra de estado y la de navegación se superponen al
   contenido; sin reservar sus zonas, la cabecera y la barra de pestañas quedaban
