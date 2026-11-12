@@ -35,16 +35,17 @@ hay código multitenante que activar ni que apagar.
 El dictamen de la versión y la evidencia de cada puerta de aceptación están en
 [`docs/release-1.0-verdict.md`](docs/release-1.0-verdict.md). El proceso
 mayéutico está verificado de extremo a extremo con proveedor falso (recorrido
-dorado sobre TXT, MD y PDF, más el camino OCR). El motor con modelo degrada a la
-heurística sin romper la sesión si el proveedor falla (red, cuota o salida
-inválida), y la insignia lo comunica (D-072). El dictamen vigente es
-**NO-GO**: la puerta **G3** (evals contra el proveedor real) **no se ha podido
-reproducir** —la clave del backend desplegado ya no es válida— y siguen
-pendientes el **APK por EAS** (G7, requiere `EXPO_TOKEN` y, si no hay keystore,
-un paso interactivo humano) y el **smoke test en dispositivo** (G8). Hay un APK
-1.0.0 instalable compilado en local (`dist/socracia-1.0.0.apk`). Los pasos
-exactos están en [`docs/release-1.0-checklist.md`](docs/release-1.0-checklist.md)
-y el checklist manual en [`docs/release-1.0-smoke.md`](docs/release-1.0-smoke.md).
+dorado sobre TXT, MD y PDF, más el camino OCR) **y con proveedor real** (evals de
+G3). El motor con modelo degrada a la heurística sin romper la sesión si el
+proveedor falla (red, cuota o salida inválida), y la insignia lo comunica (D-072).
+El dictamen vigente es **NO-GO**: la **G3** se supera con proveedor real
+(concordancia 80.0 %, paráfrasis 100 %, 0 citas inventadas), pero faltan dos
+puertas: el **APK por EAS** (G7) —que exige `EXPO_TOKEN` y, por el primer keystore
+de Android, un paso humano interactivo— y el **smoke test en dispositivo real**
+(G8), también humano. Hay un APK 1.0.0 instalable compilado en local y al día
+(`dist/socracia-1.0.0-local-d076.apk`). Los pasos exactos están en
+[`docs/release-1.0-checklist.md`](docs/release-1.0-checklist.md) y el checklist
+manual en [`docs/release-1.0-smoke.md`](docs/release-1.0-smoke.md).
 
 ## Stack
 

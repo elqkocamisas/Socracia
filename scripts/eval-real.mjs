@@ -396,6 +396,34 @@ function isQuotaError(response) {
   );
 }
 
+/**
+ * Salida irregular de un modelo concreto (JSON truncado, pregunta o evaluación
+ * con formato no válido). No es indisponibilidad del proveedor: el backend rota
+ * modelos ante estos fallos, así que reintentar el caso suele resolverlo. Se
+ * reintenta, pero si persiste cuenta como caso fallido, no como puerta no
+ * verificada.
+ */
+function isIrregularOutput(response) {
+  if (response.status !== 502) {
+    return false;
+  }
+  return /formato no válido|JSON inválido|respuesta inválida|no devolvió contenido|preguntas repetidas|no contiene preguntas/i.test(
+    String(response.payload?.message ?? ''),
+  );
+}
+
+/**
+ * El proveedor está caído (no puede servir ninguna petición): 503 —ruta sin
+ * configurar o circuito abierto— o cuota diaria agotada. Solo entonces la puerta
+ * queda «no verificada». Un 502 por salida irregular es un caso fallido.
+ */
+function isProviderDown(response) {
+  if (response.status === 503) {
+    return true;
+  }
+  return isQuotaError(response);
+}
+
 async function postMayeutic(path, body, token, attempts = 8) {
   for (let attempt = 1; ; attempt += 1) {
     const response = await post(path, body, token, 1);
@@ -407,6 +435,10 @@ async function postMayeutic(path, body, token, attempts = 8) {
         return response;
       }
       await sleep(wait);
+      continue;
+    }
+    if (isIrregularOutput(response) && attempt < attempts) {
+      await sleep(Math.min(2_000 * attempt, 10_000));
       continue;
     }
     return response;
@@ -472,12 +504,16 @@ async function main() {
         },
         token,
       );
-      if (response.status === 503 || response.status === 502) {
+      if (isProviderDown(response)) {
         providerUnavailable = response.payload?.message ?? `HTTP ${response.status}`;
         break;
       }
       if (response.status !== 200) {
-        results.evaluation.push({ id: testCase.id, ok: false, reason: `HTTP ${response.status}` });
+        results.evaluation.push({
+          id: testCase.id,
+          ok: false,
+          reason: response.payload?.message ?? `HTTP ${response.status}`,
+        });
         continue;
       }
       const verdict = classify(Number(response.payload?.score));
@@ -498,7 +534,7 @@ async function main() {
           { concept: testCase.concept, citation: testCase.citation, maxQuestions: 2 },
           token,
         );
-        if (response.status === 503 || response.status === 502) {
+        if (isProviderDown(response)) {
           providerUnavailable = response.payload?.message ?? `HTTP ${response.status}`;
           break;
         }
@@ -506,7 +542,7 @@ async function main() {
           results.generation.push({
             id: testCase.id,
             ok: false,
-            reason: `HTTP ${response.status}`,
+            reason: response.payload?.message ?? `HTTP ${response.status}`,
           });
           continue;
         }
@@ -547,9 +583,17 @@ async function main() {
           token,
           1,
         );
-        if (response.status === 503 || response.status === 429) {
+        if (response.status === 503) {
           providerUnavailable = response.payload?.message ?? `HTTP ${response.status}`;
           break;
+        }
+        if (response.status === 429) {
+          // La ruta existe y responde, pero este modelo agotó su cuota: la
+          // repregunta es informativa (no bloquea G3). Se registra sin evidencia
+          // y se sigue, en vez de descartar la evaluación y la generación ya
+          // recogidas, que son las que sí sostienen la puerta.
+          results.followUp.push({ id: testCase.id, ok: false, reason: 'HTTP 429 (cuota)' });
+          continue;
         }
         if (response.status !== 200 || typeof response.payload?.text !== 'string') {
           results.followUp.push({ id: testCase.id, ok: false, reason: `HTTP ${response.status}` });
@@ -589,9 +633,15 @@ async function main() {
           token,
           1,
         );
-        if (response.status === 503 || response.status === 429) {
+        if (response.status === 503) {
           providerUnavailable = response.payload?.message ?? `HTTP ${response.status}`;
           break;
+        }
+        if (response.status === 429) {
+          // Igual que en la repregunta: la explicación es informativa, no bloquea
+          // G3. Un 429 de este modelo no debe anular la evidencia de evaluación.
+          results.explanation.push({ id: testCase.id, ok: false, reason: 'HTTP 429 (cuota)' });
+          continue;
         }
         if (response.status !== 200 || typeof response.payload?.text !== 'string') {
           results.explanation.push({

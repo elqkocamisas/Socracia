@@ -468,10 +468,24 @@ Trampas conocidas:
   quedó no verificada** y bloquea el GO (D-068). Antes de dar G3 por buena,
   re-ejecutar `npm run eval:real` contra el backend real; una evidencia histórica
   que no se reproduce hoy no vale como puerta.
-- **La cuota gratuita de EAS son 15 builds Android + 15 iOS/mes** (baja
-  prioridad, reset mensual; verificado 2026-11-08 en <https://expo.dev/pricing>).
-  El primer keystore de Android exige modo interactivo («you will be prompted to
-  generate credentials»), pero si ya existe, la build corre en CI no interactivo.
+- **La cuota gratuita de EAS son builds de baja prioridad al mes** (reset el día
+  1 del mes natural, sin sobrecoste; verificado 2026-11-02 en
+  <https://docs.expo.dev/billing/plans/> y `/billing/faq/`). Al agotarse no hay
+  builds hasta el reinicio: usar la ruta local de `docs/build-apk-local.md`. El
+  primer keystore de Android exige modo interactivo («you will be prompted to
+  generate credentials»); si ya existe, la build corre en CI no interactivo.
+- **El arnés `eval:real` distingue caso fallido de proveedor caído (D-077).** Un
+  **429** en las categorías informativas (repregunta/explicación) o un **502** por
+  salida irregular de un modelo **no** deben abortar la corrida ni marcar G3 «no
+  verificada»: son un caso fallido o cuota transitoria. Solo **503** o cuota
+  diaria agotada dejan G3 «no verificada». Antes de D-077, cualquiera de esos
+  fallos descartaba la evidencia de evaluación/generación ya recogida.
+- **`/llm/complete` usa un único modelo; `/mayeutic/*` rota tres.** La ruta de
+  repregunta/explicación (`createLlmProvider`, `OpenAiCompatProvider`) no rota, así
+  que al agotarse la cuota diaria gratuita de ese modelo devuelve **429 constante**
+  aunque `/mayeutic/*` siga en 200. La app degrada a la heurística (F2/D-072), pero
+  la mitad «con modelo» de esas tareas queda limitada. Mejora pendiente (no
+  bloqueante): rotar modelos en `/llm/complete` como en `apps/api/src/mayeutic.ts`.
 - **El APK de EAS se descarga con sesión de Expo.** El enlace del artefacto no es
   público; hay que entrar en la página del build con la cuenta del propietario o
   usar `npx eas-cli build:download --platform android --latest`. El agente puede

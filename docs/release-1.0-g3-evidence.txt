@@ -1,17 +1,47 @@
 # Evidencia G3 — evals con proveedor real (Gemini)
 
-Fecha: 2026-11-11T17:37Z
+Fecha: 2026-11-12T19:44Z
 Backend: https://socracia.onrender.com
 Comando: SOCRA_REAL_EVAL_BASE_URL=https://socracia.onrender.com npm run eval:real
+Commit: be1d0c8 (main local, incluye D-076)
 
 ```
-Evals reales contra https://socracia.onrender.com
+
 Informe por categoría
   evaluación: 30/30 casos con veredicto
-  generación: 3/3 casos
+  generación: 2/3 casos
+  repregunta (seguimiento): 0/0 aceptadas (no revelan la respuesta)
+  explicación: 0/0 aceptadas (con cita verificada)
+
 Métricas G3
-  concordancia de veredicto: 83.3 % (≥ 80 %)
+  concordancia de veredicto: 80.0 % (≥ 80 %)
   paráfrasis correctas aceptadas: 100.0 % (≥ 90 %)
   citas/preguntas inventadas: 0 (= 0)
+  repreguntas aceptadas: 0/0 (informativo, no bloquea G3)
+  explicaciones aceptadas: 0/0 (informativo, no bloquea G3)
+
 G3 alcanzada con proveedor real.
 ```
+
+## Nota de instrumentación
+
+El arnés se corrigió en esta sesión para no confundir un fallo de un caso con
+indisponibilidad del proveedor:
+
+- Un 429 en las categorías **informativas** (repregunta/explicación, que el propio
+  informe marca «no bloquea G3») ya no aborta la corrida; se registra sin evidencia.
+- Un 502 por **salida irregular** de un modelo (formato no válido) se reintenta y,
+  si persiste, cuenta como **caso fallido**, no como puerta «no verificada».
+- Solo 503 o cuota diaria agotada dejan G3 «no verificada».
+
+Antes del arreglo, la primera ejecución abortó con «El proveedor ha limitado la
+frecuencia» (429 en /llm/complete) y la segunda con «evaluación con formato no
+válido» (502), descartando la evidencia real de evaluación y generación.
+
+## Limitación conocida (no bloquea G3)
+
+`/llm/complete` (repregunta y explicación generadas por el modelo) usa **un solo
+modelo**; al agotar su cuota diaria devuelve 429 constante, mientras `/mayeutic/*`
+(evaluación/generación) rota entre tres modelos y responde 200. La app degrada a
+la heurística para repregunta/explicación (D-043), que es el comportamiento
+exigido por F2 ante «cuota agotada». Categorías informativas: 0/0 en esta corrida.

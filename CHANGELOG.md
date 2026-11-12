@@ -115,6 +115,13 @@ Primera versión completa del producto: app móvil de un solo usuario, local-fir
 - El arnés de evals reales espacia los casos y reintenta ante 429/503; ante un
   límite diario se detiene y deja la puerta «no verificada» en vez de esperar en
   vano.
+- **El arnés de evals reales ya no confunde un caso fallido con la caída del
+  proveedor.** Un 429 en las categorías informativas (repregunta/explicación, que
+  el propio informe marca «no bloquea G3») ya no aborta la corrida, y un 502 por
+  salida irregular de un modelo («formato no válido») se reintenta y cuenta como
+  caso fallido, no como puerta «no verificada»; solo un 503 o la cuota diaria
+  agotada dejan G3 «no verificada» (D-077). Antes, cualquiera de esos dos fallos
+  transitorios descartaba la evidencia real de evaluación y generación.
 - **El backend sirve la repregunta y la explicación del modelo.** Hasta ahora
   `apps/api` construía sus dependencias con `llm: null` y `POST /llm/complete`
   respondía 503, así que en la APK la repregunta caía a las plantillas y la

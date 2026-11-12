@@ -1683,3 +1683,40 @@ StudyError>`; el orden de preferencia es proveedor semántico → evaluador LLM
 - **Consecuencias:** `npm run verify` queda en 662 pruebas (363 core, 70 api, 229
   móvil), con las evals del motor 32/32. El APK debe recompilarse para incorporar
   el arreglo (el de EAS sigue siendo anterior a D-074/D-075/D-076).
+
+## D-077 — El arnés de evals G3 distingue un caso fallido de la indisponibilidad del proveedor
+
+- **Fecha:** cierre de 1.0 (2026-11-12)
+- **Contexto:** al re-ejecutar `npm run eval:real` (puerta G3) la corrida se
+  abortó dos veces con «Proveedor semántico NO disponible», descartando la
+  evidencia real ya recogida. La primera vez por un **429** del proveedor y la
+  segunda por un **502 «evaluación con formato no válido»** de un modelo concreto.
+  Ninguno de los dos es indisponibilidad del proveedor: el primero es cuota
+  (transitoria, reintentable) y el segundo una salida irregular que el propio
+  backend (`apps/api/src/mayeutic.ts`) ya sortea rotando de modelo. Además, el
+  429 llegaba por `/llm/complete` (repregunta/explicación), categorías que el
+  propio informe declara «informativas, no bloquean G3».
+- **Decisión:** el arnés separa tres situaciones. (a) **Cuota** (429/502 con
+  mención de cuota): se reintenta con la espera sugerida. (b) **Salida irregular**
+  (502 «formato no válido», «JSON inválido», etc.): se reintenta y, si persiste,
+  cuenta como **caso fallido**, no como puerta «no verificada». (c) **Proveedor
+  caído** (503, o cuota diaria agotada que no se resuelve esperando): solo
+  entonces G3 queda «no verificada». Un 429 en las categorías informativas se
+  registra sin evidencia y no aborta la corrida, para no tirar la evidencia de
+  evaluación y generación, que son las que sostienen la puerta.
+- **Motivos:** la puerta G3 mide la **calidad** del motor con proveedor real
+  (concordancia, paráfrasis, citas inventadas). Un fallo de un caso concreto es
+  un dato de esa medición; confundirlo con «proveedor no disponible» hace que el
+  instrumento mienta y que una puerta alcanzable parezca no verificable.
+- **Alternativas descartadas:** (a) subir los reintentos y esperar más: no arregla
+  la confusión conceptual y alarga la corrida en vano; (b) dar G3 por «no
+  verificada» ante cualquier 429/502: es precisamente el error que se corrige;
+  (c) tocar `/llm/complete` para que rote modelos como `/mayeutic/*`: es una
+  mejora real de producto, pero de otro alcance (afecta al motor del alumno, no
+  al instrumento de medida) y se deja como recomendación.
+- **Consecuencias:** G3 se alcanzó en esta sesión con **30/30** evaluación,
+  concordancia **80.0 %**, paráfrasis **100 %**, citas inventadas **0** (evidencia
+  en `docs/release-1.0-g3-evidence.txt`). Recomendación abierta (no bloqueante):
+  que `/llm/complete` rote modelos de respaldo como hace `/mayeutic/*`, para que
+  la repregunta y la explicación del modelo no dependan de un único modelo cuya
+  cuota diaria gratuita se agota enseguida.

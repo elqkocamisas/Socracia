@@ -5,19 +5,20 @@ lanzamiento. Marca cada casilla con la evidencia observada (captura, nota o
 «OK»). Si algo falla, anota el paso exacto y detente: no continúes como si
 hubiera pasado.
 
-- **Build:** `release-apk` (APK, distribución interna). El **APK oficial de EAS**
-  es `dist/socracia-1.0.0-eas.apk` (build `f2173e7a…`, sobre `main` @ `962e8fa`),
-  que ya incluye el arreglo de áreas seguras (D-073) y el modo conectado
-  (`EXPO_PUBLIC_CLOUD_PROCESSING=1`). **No uses** el APK `b19ef0a8…`: es anterior
-  al arreglo y su UX no es operativa en Android 16. También hay un APK 1.0.0
-  compilado en local (`dist/socracia-1.0.0.apk`, firmado con clave de depuración)
-  que sirve para adelantar el smoke, pero **puede ser anterior a D-067**: si su
-  bundle no trae `EXPO_PUBLIC_CLOUD_PROCESSING=1`, solo valida el modo heurístico
-  local y el bloque 6 (y el OCR del bloque 1b) no aplican.
+- **Build:** `release-apk` (APK, distribución interna). El **APK de EAS**
+  vigente es `dist/socracia-1.0.0-eas.apk` (build `f2173e7a…`, sobre `main` @
+  `962e8fa`), que ya incluye el arreglo de áreas seguras (D-073) y el modo
+  conectado (`EXPO_PUBLIC_CLOUD_PROCESSING=1`), pero es **anterior a D-074/D-075/D-076**.
+  **No uses** el APK `b19ef0a8…`: es anterior al arreglo y su UX no es operativa
+  en Android 16. Para un smoke **al día** usa el APK compilado en local en esta
+  entrega, `dist/socracia-1.0.0-local-d076.apk` (firmado con clave de depuración,
+  `versionName 1.0.0`, `versionCode 1`, 4 ABIs), que incluye D-074, D-075 y D-076 y
+  el modo conectado. Los APK locales anteriores (`dist/socracia-1.0.0.apk`,
+  `dist/socracia-1.0.0-local-conectado.apk`) quedan como histórico.
 - **Versión esperada:** `1.0.0` (el `versionCode` lo asigna EAS en remoto; el
   APK local trae `versionCode 1`)
-- **Preparación:** instala el APK (`adb install -r socracia-1.0.0.apk`) y abre la
-  app con el dispositivo **sin conexión** para el bloque 1.
+- **Preparación:** instala el APK (`adb install -r socracia-1.0.0-local-d076.apk`)
+  y abre la app con el dispositivo **sin conexión** para el bloque 1.
 
 ## 0. Preparación
 
@@ -145,11 +146,16 @@ no para publicar). Ver [`docs/build-apk-local.md`](build-apk-local.md):
 cd apps/mobile
 npx expo prebuild --platform android --no-install --clean
 cd android
-EXPO_PUBLIC_API_BASE_URL=https://socracia-api.onrender.com \
+EXPO_PUBLIC_API_BASE_URL=https://socracia.onrender.com \
   EXPO_PUBLIC_CLOUD_PROCESSING=1 \
   GRADLE_USER_HOME=/tmp/gradle-home ./gradlew assembleRelease --no-daemon
-# Sale en app/build/outputs/apk/release/app-release.apk (copiado a dist/socracia-1.0.0.apk)
+# Sale en app/build/outputs/apk/release/app-release.apk
+# (copiado a dist/socracia-1.0.0-local-d076.apk en esta entrega)
 ```
+
+> `https://socracia.onrender.com` es el servicio con el proveedor semántico
+> configurado (`provider.configured=true`). El host `socracia-api.onrender.com`
+> existe pero **no** tiene proveedor: úsalo solo para probar el modo heurístico.
 
 > Las variables `EXPO_PUBLIC_*` se **incrustan en el bundle** en el momento de
 > compilar; no son secretos. `EXPO_PUBLIC_API_BASE_URL` apunta al backend y
