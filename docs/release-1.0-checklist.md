@@ -22,14 +22,14 @@ El NO-GO se sostiene **solo** en dos puertas, ambas humanas:
 - **G8** (smoke en dispositivo): **humano**. Puede empezar ya con el APK local al
   día; el smoke definitivo necesita el APK de EAS recompilado.
 
-> **Intento de lanzar EAS el 2026-11-12 (bloqueado).** Se intentó disparar el
-> workflow `Expo EAS` (que usa el secreto `EXPO_TOKEN` de Actions) y ejecutar
-> `eas build` en local. Ambos caminos están **bloqueados** desde este entorno:
-> (a) **no hay `EXPO_TOKEN`** ni sesión de Expo; (b) el **token de GitHub es de
-> solo lectura** —403 al crear refs, listar secretos, leer permisos de Actions y
-> disparar el workflow—, así que tampoco se puede empujar el código ni lanzar el
-> workflow por API. Además, `origin/main` (`ed0b1b5`) **aún no contiene D-076**:
-> el APK de EAS solo incluirá los arreglos si primero se sube el código.
+> **EAS lanzado el 2026-11-14 (en curso).** Con un token con permiso de escritura
+> se empujó `main` (`ed0b1b5 → c554f9f`, incluye D-076) y se disparó el workflow
+> `Expo EAS` (run `43610275031`, `success`) con perfil `release-apk`, plataforma
+> `android`, `--no-wait`. El build quedó **en cola en EAS**:
+> [`efbcfa72-68ea-44ea-8b3e-ca33337bb478`](https://expo.dev/accounts/camiseros-team/projects/socracia/builds/efbcfa72-68ea-44ea-8b3e-ca33337bb478).
+> Falta la **descarga e instalación** del artefacto (paso humano con sesión de
+> Expo) y el smoke test (G8). El APK local al día
+> (`dist/socracia-1.0.0-local-d076.apk`) permite adelantar el smoke mientras tanto.
 
 ## Camino crítico hacia 1.0
 
