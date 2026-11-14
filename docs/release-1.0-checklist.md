@@ -46,10 +46,13 @@ en tres frentes:
 | 5   | Inspección del APK             | Confirmar que no hay secretos en el APK                              | **G5**       | S      | APK                  | Agente              | ✅ hecho (APK local)  |
 | 6   | Smoke test en dispositivo      | Ejecutar el checklist manual en un teléfono real                     | **G8**       | M      | #4 (APK EAS) o local | **Humano**          | ⏳ pendiente          |
 
-> El APK local al día (`dist/socracia-1.0.0-local-d076.apk`) **sí** trae
-> `EXPO_PUBLIC_CLOUD_PROCESSING=1` y apunta a `https://socracia.onrender.com`, así
-> que permite adelantar el Sprint 6 en modo conectado, no solo heurístico. No es el
-> artefacto de EAS (firma de depuración): no sirve para publicar ni sustituye a G7.
+> El APK local (`dist/socracia-1.0.0-local-d076.apk`) trae
+> `EXPO_PUBLIC_CLOUD_PROCESSING=1` y apunta a `https://socracia.onrender.com`, pero
+> es **anterior a D-078**: su modo conectado arrastra el defecto del doble
+> contenedor de política, así que la nube puede no surtir efecto. Sirve para
+> adelantar el smoke de las capas local y de UX; el smoke **conectado** definitivo
+> necesita el APK de EAS recompilado (Sprint 4). No es el artefacto de EAS (firma
+> de depuración): no sirve para publicar ni sustituye a G7.
 
 ---
 
@@ -203,9 +206,10 @@ en tres frentes:
      bloqueen el recorrido y repetir.
 - **Puerta de aceptación:** checklist APTO, sin incidencias bloqueantes.
 - **Tamaño:** M.
-- **Dependencias:** APK instalable (el local al día ya sirve para empezar; el de
-  EAS tras el Sprint 4). Para ejercer repregunta y explicación **con modelo**,
-  además el Sprint 3.
+- **Dependencias:** APK instalable. El local (`local-d076`) sirve para las capas
+  local y de UX, pero es **anterior a D-078**; el smoke **conectado** (nube y
+  motor con modelo) necesita el APK de EAS recompilado (Sprint 4). Para ejercer
+  repregunta y explicación **con modelo**, además el Sprint 3.
 - **Responsable:** **humano**.
 
 ---
