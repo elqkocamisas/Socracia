@@ -3,7 +3,8 @@ import { StatusBar } from 'expo-status-bar';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { openDatabaseAsync } from 'expo-sqlite';
-import { inMemoryStorage } from '@socracia/core';
+import { requireOptionalNativeModule } from 'expo';
+import { inMemoryStorage, type EdgeLlmNativeModule } from '@socracia/core';
 
 import { ImportScreen } from './src/screens/ImportScreen';
 import { ProgressScreen } from './src/screens/ProgressScreen';
@@ -18,6 +19,24 @@ import { setProcessingPolicy } from './src/services/privacySettings';
 import { minTouchTarget, radius, spacing, type ThemeColors } from './src/theme/tokens';
 
 /**
+ * Carga el módulo nativo on-device (`edge-llm`) si esta compilación lo incluye.
+ *
+ * `requireOptionalNativeModule` devuelve `null` en lugar de lanzar cuando el
+ * módulo no existe, así que un build sin `edge-llm` (el actual: el paquete no
+ * está instalado) sigue arrancando. Se devuelve `undefined` en ese caso para que
+ * `bootstrap` lo trate como «no incluido» y no anuncie una degradación que nunca
+ * ocurrió. Si en el futuro se instala un `edge-llm` funcional, se detectará aquí
+ * y `bootstrap` lo sondeará antes de aceptarlo, sin tocar nada más.
+ */
+function loadEdgeLlmModule(): EdgeLlmNativeModule | undefined {
+  try {
+    return requireOptionalNativeModule<EdgeLlmNativeModule>('Mediapipe') ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
  * Arranca los servicios sobre SQLite y cae a memoria si la base no abre.
  *
  * Nunca se bloquea el arranque de la app por un fallo de almacenamiento: en el
@@ -26,8 +45,14 @@ import { minTouchTarget, radius, spacing, type ThemeColors } from './src/theme/t
 async function startServices(): Promise<{ services: AppServices; degraded: boolean }> {
   const picker = new ExpoDocumentPicker();
   const reader = new ExpoFileReader();
+  const nativeModule = loadEdgeLlmModule();
   try {
-    const services = await bootstrap({ picker, reader, openDatabase: openDatabaseAsync });
+    const services = await bootstrap({
+      picker,
+      reader,
+      openDatabase: openDatabaseAsync,
+      nativeModule,
+    });
     return { services, degraded: false };
   } catch {
     return {

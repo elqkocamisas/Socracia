@@ -4,21 +4,24 @@ Sprints restantes para convertir el dictamen NO-GO en GO, ordenados por **camino
 crítico**. Cada uno declara objetivo, tareas, puerta de aceptación, tamaño
 (S/M/L), dependencias y responsable (agente o humano).
 
-Contexto (2026-11-12): el proceso mayéutico funciona de extremo a extremo y
-**G1, G2, G3, G4, G5, G6 y G9 están en verde** (evidencia en
-`docs/release-1.0-verdict.md`). En esta sesión se **re-verificó G3** con proveedor
-real (30/30 evaluación, **80.0 % / 100 % / 0 citas**) tras **corregir el
-instrumento** (D-077: el arnés abortaba la corrida ante un 429 informativo o un
-502 de salida irregular, descartando la evidencia ya recogida), se **inspeccionó
-el APK nuevo** (G5: 0 secretos) y se compiló en local un **APK al día**
-(`dist/socracia-1.0.0-local-d076.apk`, con D-074/D-075/D-076 y modo conectado).
-El NO-GO se sostiene **solo** en dos puertas, ambas humanas:
+Contexto (sesión de consolidación de 1.0): el proceso mayéutico funciona de
+extremo a extremo y **G1, G2, G4, G5, G6 y G9 están en verde** (evidencia en
+`docs/release-1.0-verdict.md`). **G3 se alcanza pero es flaky**: en tres corridas
+consecutivas de `npm run eval:real` una quedó por debajo del umbral (76.7 % /
+91.7 %) y dos lo superaron (80.0 % / 100 %). La sesión de consolidación corrigió
+además **dos defectos reales del arranque** (D-078): el doble contenedor de
+política y la degradación on-device anunciada sin intento. El NO-GO se sostiene
+en tres frentes:
 
+- **G3** (flaky): la concordancia roza el umbral (≥80 %) y el muestreo del modelo
+  la cruza en ambos sentidos. Requiere **reducir la varianza** (temperatura fija,
+  más casos o mediana de varias corridas).
 - **G7** (APK por EAS): el build `f2173e7a…` «Succeeded» es **anterior a D-074,
-  D-075 y D-076**, así que hay que **recompilar** con el perfil `release-apk`.
-  Requiere `EXPO_TOKEN` (o el workflow de Actions) y, si no existiera keystore, una
-  corrida interactiva. No se pudo hacer aquí: **`EXPO_TOKEN` no está disponible**
-  y el primer keystore **no se genera en no interactivo** (docs oficiales Expo).
+  D-075, D-076 y D-078**, así que hay que **recompilar** con el perfil
+  `release-apk`. Requiere `EXPO_TOKEN` (o el workflow de Actions) y, si no
+  existiera keystore, una corrida interactiva. No se pudo hacer aquí:
+  **`EXPO_TOKEN` no está disponible** y el primer keystore **no se genera en no
+  interactivo** (docs oficiales Expo).
 - **G8** (smoke en dispositivo): **humano**. Puede empezar ya con el APK local al
   día; el smoke definitivo necesita el APK de EAS recompilado.
 
@@ -35,10 +38,11 @@ El NO-GO se sostiene **solo** en dos puertas, ambas humanas:
 
 | #   | Sprint                         | Objetivo                                                             | Puerta       | Tamaño | Depende de           | Responsable         | Estado                |
 | --- | ------------------------------ | -------------------------------------------------------------------- | ------------ | ------ | -------------------- | ------------------- | --------------------- |
+| 0   | Estabilizar G3                 | Reducir la varianza del veredicto para que G3 pase de forma estable  | **G3**       | S      | —                    | Agente              | ⏳ pendiente          |
 | 1   | Restaurar G3                   | Reponer una clave de proveedor válida y repetir el arnés real        | **G3**       | S      | Clave válida         | Humano              | ✅ hecho (2026-11-12) |
 | 2   | Arreglar el instrumento G3     | No confundir caso fallido con proveedor caído (429/502 informativos) | **G3**       | S      | —                    | Agente              | ✅ hecho (2026-11-12) |
 | 3   | Validar la explicación (D-075) | Reproducir/cerrar el truncado de la explicación del modelo           | G2/G3 (real) | S      | Cuota del proveedor  | Agente + humano     | ⏳ pendiente          |
-| 4   | Recompilar el APK de EAS       | Producir el APK de lanzamiento con D-074/D-075/D-076                 | **G7**       | S      | `EXPO_TOKEN`         | Agente + **humano** | ⏳ pendiente          |
+| 4   | Recompilar el APK de EAS       | Producir el APK de lanzamiento con D-074/D-075/D-076/**D-078**       | **G7**       | S      | `EXPO_TOKEN`         | Agente + **humano** | ⏳ pendiente          |
 | 5   | Inspección del APK             | Confirmar que no hay secretos en el APK                              | **G5**       | S      | APK                  | Agente              | ✅ hecho (APK local)  |
 | 6   | Smoke test en dispositivo      | Ejecutar el checklist manual en un teléfono real                     | **G8**       | M      | #4 (APK EAS) o local | **Humano**          | ⏳ pendiente          |
 
@@ -48,6 +52,29 @@ El NO-GO se sostiene **solo** en dos puertas, ambas humanas:
 > artefacto de EAS (firma de depuración): no sirve para publicar ni sustituye a G7.
 
 ---
+
+## Sprint 0 — Estabilizar G3 (reducir la varianza) · **⏳ pendiente**
+
+- **Objetivo:** que la puerta G3 pase **de forma estable**, no por suerte del
+  muestreo del modelo.
+- **Contexto:** en la sesión de consolidación, tres corridas consecutivas dieron
+  **76.7 % / 91.7 %** (fallo), **80.0 % / 100 %** (éxito) y **80.0 % / 100 %**
+  (éxito). La concordancia **roza el umbral** (≥80 %). Las citas inventadas son
+  **0** en las tres; la paráfrasis nunca baja de 91.7 %. El problema es la
+  **varianza del veredicto**, no la calidad media.
+- **Tareas (agente):**
+  1. Revisar la `temperature` efectiva de la ruta de evaluación
+     (`/mayeutic/evaluate`, `apps/api/src/mayeutic.ts`): si no es 0, fijarla a 0
+     para el veredicto (la creatividad no aporta aquí y sí añade ruido).
+  2. Ampliar el conjunto de evaluación por encima de 30 casos para que la métrica
+     tenga menos varianza de muestreo (el umbral se mantiene).
+  3. Re-ejecutar `npm run eval:real` **tres veces** y exigir que **las tres**
+     superen el umbral (o documentar la mediana como criterio de la puerta).
+- **Puerta de aceptación:** tres corridas consecutivas con concordancia ≥80 %,
+  paráfrasis ≥90 % y 0 citas inventadas.
+- **Tamaño:** S.
+- **Dependencias:** cuota gratuita del proveedor disponible.
+- **Responsable:** agente.
 
 ## Sprint 1 — Restaurar G3 (evals con proveedor real) · **✅ hecho**
 
@@ -110,7 +137,8 @@ El NO-GO se sostiene **solo** en dos puertas, ambas humanas:
 
 - **Objetivo:** generar el APK de lanzamiento con el perfil `release-apk`,
   **incluyendo D-074** (extracción de conceptos), **D-075** (repregunta y
-  explicación del modelo) y **D-076** (índices cortos y listas numeradas).
+  explicación del modelo), **D-076** (índices cortos y listas numeradas) y
+  **D-078** (contenedor de política compartido y aviso on-device corregido).
 - **Contexto:** el build previo `f2173e7a…` «Succeeded» es **anterior** a esos
   arreglos. No se pudo recompilar porque **`EXPO_TOKEN` no está disponible** como
   variable de entorno (vive como secreto de GitHub Actions) y el primer keystore
@@ -184,14 +212,15 @@ El NO-GO se sostiene **solo** en dos puertas, ambas humanas:
 
 ## Riesgos abiertos (resumen)
 
-- **G3 cerrada (2026-11-12):** clave válida, instrumento corregido (D-077) y arnés
-  superado (30/30, 80.0 % / 100 % / 0 citas). Riesgo residual: la concordancia
-  **roza el umbral** (≥80 %) y varía por el muestreo; conviene calentar Render
-  (_cold start_) antes de la suite.
-- **G7 a recompilar (2026-11-12):** el build `f2173e7a…` es anterior a
-  D-074/D-075/D-076. `EXPO_TOKEN` no está en el entorno del agente (es un secreto
-  de Actions), así que es paso humano. El primer keystore no se genera en no
-  interactivo.
+- **G3 flaky (sesión de consolidación):** clave válida e instrumento corregido
+  (D-077), pero de tres corridas consecutivas **una falló** (76.7 % / 91.7 %) y
+  **dos pasaron** (80.0 % / 100 %). La concordancia **roza el umbral** (≥80 %) y
+  varía por el muestreo; conviene calentar Render (_cold start_) y estabilizar
+  (Sprint 0).
+- **G7 a recompilar (sesión de consolidación):** el build `f2173e7a…` es anterior
+  a D-074/D-075/D-076/**D-078**. `EXPO_TOKEN` no está en el entorno del agente (es
+  un secreto de Actions), así que es paso humano. El primer keystore no se genera
+  en no interactivo.
 - **Cuota de EAS:** plan gratuito con builds de baja prioridad **al mes**, reset el
   día 1, sin sobrecoste (verificado 2026-11-02). Reservar al menos una; usar la
   ruta local si se agota.

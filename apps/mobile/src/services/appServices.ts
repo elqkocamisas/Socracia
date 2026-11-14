@@ -203,6 +203,13 @@ export interface CreateServicesOptions {
   readonly embedding?: ResolvedEmbeddingProvider;
   /** Política de procesamiento; por defecto, solo-dispositivo. */
   readonly policy?: ProcessingPolicy;
+  /**
+   * Contenedor de política ya creado. Lo usa `bootstrap` para compartir **una
+   * sola** instancia entre los servicios y el motor con modelo: si cada uno
+   * creara la suya, activar la nube en Ajustes no abriría el guardián de
+   * consentimiento del motor y este seguiría denegando cada llamada.
+   */
+  readonly policyHolder?: ProcessingPolicyHolder;
   /** Persistencia de la política; por defecto, en memoria. */
   readonly policyStore?: ProcessingPolicyStore;
   /** `true` si este build ofrece procesamiento en la nube. */
@@ -215,7 +222,11 @@ export interface CreateServicesOptions {
   readonly llm?: LlmEngineBundle | null;
   /**
    * Módulo nativo `edge-llm` si está disponible en esta compilación.
-   * `null` o ausente significa «no hay modelo on-device»: se usa el léxico.
+   *
+   * `undefined` (o ausente) significa «este build no incluye el modelo
+   * on-device»: es el caso base y **no** se anuncia como degradación, porque no
+   * hubo intento que fallara. Un objeto significa «se intentó»: se sondea y, si
+   * no entrega vectores completos, se degrada al léxico con el motivo visible.
    */
   readonly nativeModule?: EdgeLlmNativeModule | null;
   /** `fetch` inyectable; lo usa el motor con modelo en las pruebas. */
@@ -254,7 +265,8 @@ export function createServices(options: CreateServicesOptions): AppServices {
     new HttpSyncClient({ baseUrl: options.apiBaseUrl ?? DEFAULT_API_BASE_URL });
   const credentials = options.credentials ?? new InMemoryCredentialStore();
   const account = new AccountService(syncClient, credentials, options.storage, LOCAL_USER_ID);
-  const policy = new ProcessingPolicyHolder(options.policy ?? DEFAULT_PROCESSING_POLICY);
+  const policy =
+    options.policyHolder ?? new ProcessingPolicyHolder(options.policy ?? DEFAULT_PROCESSING_POLICY);
   const cloudAvailable = options.cloudAvailable ?? CLOUD_PROCESSING_AVAILABLE;
   const cloudProcessingEnabled = (): boolean =>
     cloudAvailable && syncClient.hasSession() && allowsCloudProcessing(policy.current());
@@ -359,10 +371,15 @@ export async function bootstrap(
   // Se resuelve aquí, y no en `createServices`, porque el sondeo del módulo
   // nativo es asíncrono. Si el modelo on-device no está utilizable, se degrada
   // al proveedor léxico y el motivo queda visible en `services.embedding`.
+  //
+  // `nativeModule` se pasa **sin** coercionar a `null`: `undefined` significa
+  // «este build no incluye el modelo on-device» y no debe anunciarse como una
+  // degradación (no hubo intento que fallara). Solo cuando se aporta un módulo
+  // (aunque sea `null` explícito) se sondea y, si no sirve, se explica por qué.
   const embedding =
     options.embedding ??
     (await resolveEmbeddingProvider({
-      nativeModule: options.nativeModule ?? null,
+      nativeModule: options.nativeModule,
       fallback: options.provider ?? new HashingEmbeddingProvider(256),
     }));
   const policyStore = options.policyStore ?? new SqliteProcessingPolicyStore(db);
@@ -374,6 +391,11 @@ export async function bootstrap(
   // llamada: así el motor entra en juego en cuanto el usuario inicia sesión,
   // sin reconstruir los servicios. Sin backend, `llm` queda en `null` y el
   // estudio usa su camino heurístico.
+  //
+  // El contenedor de política se comparte con `createServices` (más abajo) para
+  // que el guardián de consentimiento del motor vea el mismo valor que cambia
+  // el ajuste de privacidad: con dos contenedores distintos, activar la nube no
+  // abría el guardián y el motor denegaba toda llamada con `sin-consentimiento`.
   const llm =
     options.llm !== undefined
       ? options.llm
@@ -391,7 +413,7 @@ export async function bootstrap(
     credentials,
     embedding,
     policyStore,
-    policy: initialPolicy,
+    policyHolder: policy,
     llm,
     themeStore: options.themeStore ?? new SqliteThemeStore(db),
     onboardingStore: options.onboardingStore ?? new SqliteOnboardingStore(db),

@@ -468,6 +468,43 @@ Trampas conocidas:
   quedó no verificada** y bloquea el GO (D-068). Antes de dar G3 por buena,
   re-ejecutar `npm run eval:real` contra el backend real; una evidencia histórica
   que no se reproduce hoy no vale como puerta.
+
+## Sesión de consolidación de 1.0
+
+- **Dos defectos del arranque, invisibles a las suites (D-078).** Ambos en
+  `apps/mobile/src/services/appServices.ts` `bootstrap`:
+  1. **Doble `ProcessingPolicyHolder`.** El motor (`buildLlmEngine`) y los
+     servicios (`createServices`) recibían contenedores distintos. El ajuste de
+     privacidad mutaba el de los servicios; el guardián del motor seguía en
+     `local-only` y denegaba con `sin-consentimiento`. Activar la nube **no**
+     abría el motor. Arreglo: `bootstrap` crea **uno** y lo pasa por
+     `CreateServicesOptions.policyHolder` a los servicios y a `buildLlmEngine`.
+     Prueba: `apps/mobile/src/__tests__/policySharing.test.ts`.
+  2. **`nativeModule ?? null` anunciaba degradación sin intento.** Un build sin
+     `edge-llm` mostraba siempre «Modelo local no disponible». Arreglo:
+     `resolveEmbeddingProvider` distingue `undefined` («no incluido», sin aviso)
+     de un módulo aportado; `App.tsx` carga con `requireOptionalNativeModule` de
+     `expo` y pasa `undefined` si no existe. Pruebas en
+     `embeddingResolution.test.ts` (a nivel de `bootstrap`).
+- **Por qué no las detectó ningún test:** las suites montan las piezas por
+  separado (`createServices` o el motor), nunca el `bootstrap` real que las une.
+  Regla: si un defecto vive en el **cableado**, hace falta una prueba del
+  cableado, no solo de las piezas.
+- **G3 es flaky.** Tres corridas consecutivas de `npm run eval:real` dieron
+  **76.7 % / 91.7 %** (fallo), **80.0 % / 100 %** (éxito) y **80.0 % / 100 %**
+  (éxito). La concordancia **roza el umbral** (≥80 %) y el muestreo del modelo la
+  cruza en ambos sentidos. Las citas inventadas son **0** siempre. No dar G3 por
+  cumplida con **una** corrida verde: repetir y mirar la varianza (Sprint 0 del
+  checklist).
+- **`requireOptionalNativeModule` de `expo`** devuelve `null` (no lanza) si el
+  módulo nativo no existe, así que un build sin `edge-llm` arranca igual. Importar
+  desde `expo` (dependencia directa), no desde `expo-modules-core` (transitiva).
+- **Verificar los límites del plan gratuito en la página oficial, con fecha.** Hoy
+  (2026-11-04) <https://expo.dev/pricing> confirma «15 Android and 15 iOS builds»
+  de baja prioridad al mes, sin acumulación. La documentación vigente
+  (<https://docs.expo.dev/app-signing/managed-credentials/>) sigue diciendo que
+  `eas build` «prompts to generate credentials» si no existen: el **primer**
+  keystore es interactivo; con keystore ya creado, `--non-interactive` funciona.
 - **La cuota gratuita de EAS son builds de baja prioridad al mes** (reset el día
   1 del mes natural, sin sobrecoste; verificado 2026-11-02 en
   <https://docs.expo.dev/billing/plans/> y `/billing/faq/`). Al agotarse no hay

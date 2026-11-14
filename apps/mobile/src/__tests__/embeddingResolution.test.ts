@@ -1,5 +1,7 @@
+import type { SQLiteDatabase } from 'expo-sqlite';
 import { HashingEmbeddingProvider, inMemoryStorage, ok } from '@socracia/core';
-import { createServices, resolveEmbeddingProvider } from '../services/appServices';
+import { bootstrap, createServices, resolveEmbeddingProvider } from '../services/appServices';
+import { createNodeSqliteAdapter } from './helpers/nodeSqliteAdapter';
 
 /**
  * La resolución del proveedor decide si la app recupera con un modelo semántico
@@ -106,5 +108,37 @@ describe('createServices: diagnóstico de embeddings', () => {
     });
 
     expect(app.embedding.degradedReason).toContain('no expone embed');
+  });
+});
+
+/**
+ * Regresión del defecto de la APK: `bootstrap` coercía
+ * `options.nativeModule ?? null`, de modo que un build **sin** `edge-llm` (el
+ * actual) parecía «con módulo declarado» y la pantalla de Cuenta mostraba
+ * siempre «Modelo local no disponible: El módulo nativo edge-llm no está
+ * instalado». Un build que no incluye el modelo on-device no debe anunciar una
+ * degradación: no hubo intento que fallara.
+ */
+describe('bootstrap: diagnóstico de embeddings sin módulo on-device', () => {
+  async function boot(nativeModule: unknown): Promise<string | null> {
+    const db = createNodeSqliteAdapter() as unknown as SQLiteDatabase;
+    const app = await bootstrap({
+      picker: { pick: async () => null },
+      reader: { read: async () => ok(new Uint8Array()) },
+      openDatabase: async () => db,
+      ...(nativeModule === undefined ? {} : { nativeModule: nativeModule as never }),
+    });
+    return app.embedding.degradedReason;
+  }
+
+  it('no anuncia degradación cuando el build no aporta el módulo', async () => {
+    expect(await boot(undefined)).toBeNull();
+  });
+
+  it('sí la anuncia cuando el módulo se aporta y no sirve', async () => {
+    const reason = await boot({
+      embedTest: async () => ({ length: 384, sample: [1, 2, 3, 4, 5] }),
+    });
+    expect(reason).toContain('5 de 384');
   });
 });

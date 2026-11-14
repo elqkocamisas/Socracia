@@ -1,5 +1,48 @@
 # Evidencia G3 — evals con proveedor real (Gemini)
 
+## Sesión de consolidación de 1.0 — G3 es FLAKY (3 corridas consecutivas)
+
+Backend: https://socracia.onrender.com
+Comando: SOCRA_REAL_EVAL_BASE_URL=https://socracia.onrender.com npm run eval:real
+Commit: ed4bd51 (main local, incluye D-076; D-078 sin commitear)
+
+```
+Corrida 1 (FALLO)
+  evaluación: 30/30 casos con veredicto
+  generación: 3/3 casos
+  concordancia de veredicto: 76.7 % (≥ 80 %)   ← por debajo
+  paráfrasis correctas aceptadas: 91.7 % (≥ 90 %)
+  citas/preguntas inventadas: 0 (= 0)
+  G3 NO alcanzada.
+
+Corrida 2 (ÉXITO)
+  evaluación: 30/30 casos con veredicto
+  generación: 3/3 casos
+  concordancia de veredicto: 80.0 % (≥ 80 %)
+  paráfrasis correctas aceptadas: 100.0 % (≥ 90 %)
+  citas/preguntas inventadas: 0 (= 0)
+  G3 alcanzada con proveedor real.
+
+Corrida 3 (ÉXITO)
+  evaluación: 30/30 casos con veredicto
+  generación: 3/3 casos
+  concordancia de veredicto: 80.0 % (≥ 80 %)
+  paráfrasis correctas aceptadas: 100.0 % (≥ 90 %)
+  citas/preguntas inventadas: 0 (= 0)
+  G3 alcanzada con proveedor real.
+```
+
+**Interpretación honesta:** G3 **se alcanza** (2 de 3 corridas) pero **no de forma
+estable**: la concordancia roza el umbral (≥80 %) y el muestreo del modelo la cruza
+en ambos sentidos (76.7 % ↔ 80.0 %). Las citas inventadas son **0** en las tres
+corridas, y la paráfrasis nunca baja de 91.7 %. La puerta no puede darse por
+cumplida de forma estable hasta reducir la varianza (p. ej. fijar `temperature: 0`
+en el backend, ampliar el conjunto de casos o repetir la corrida y tomar la mediana).
+
+---
+
+# Evidencia G3 — evals con proveedor real (Gemini)
+
 Fecha: 2026-11-12T19:44Z
 Backend: https://socracia.onrender.com
 Comando: SOCRA_REAL_EVAL_BASE_URL=https://socracia.onrender.com npm run eval:real

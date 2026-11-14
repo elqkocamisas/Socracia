@@ -8,13 +8,18 @@ hubiera pasado.
 - **Build:** `release-apk` (APK, distribución interna). El **APK de EAS**
   vigente es `dist/socracia-1.0.0-eas.apk` (build `f2173e7a…`, sobre `main` @
   `962e8fa`), que ya incluye el arreglo de áreas seguras (D-073) y el modo
-  conectado (`EXPO_PUBLIC_CLOUD_PROCESSING=1`), pero es **anterior a D-074/D-075/D-076**.
+  conectado (`EXPO_PUBLIC_CLOUD_PROCESSING=1`), pero es **anterior a
+  D-074/D-075/D-076/D-078**.
   **No uses** el APK `b19ef0a8…`: es anterior al arreglo y su UX no es operativa
   en Android 16. Para un smoke **al día** usa el APK compilado en local en esta
   entrega, `dist/socracia-1.0.0-local-d076.apk` (firmado con clave de depuración,
   `versionName 1.0.0`, `versionCode 1`, 4 ABIs), que incluye D-074, D-075 y D-076 y
-  el modo conectado. Los APK locales anteriores (`dist/socracia-1.0.0.apk`,
-  `dist/socracia-1.0.0-local-conectado.apk`) quedan como histórico.
+  el modo conectado. **Aviso:** ese APK local es **anterior a D-078**, así que su
+  modo conectado puede no surtir efecto (el ajuste de nube no abre el motor por el
+  defecto del doble contenedor de política); el smoke definitivo debe hacerse con
+  el **APK de EAS recompilado** tras D-078. Los APK locales anteriores
+  (`dist/socracia-1.0.0.apk`, `dist/socracia-1.0.0-local-conectado.apk`) quedan
+  como histórico.
 - **Versión esperada:** `1.0.0` (el `versionCode` lo asigna EAS en remoto; el
   APK local trae `versionCode 1`)
 - **Preparación:** instala el APK (`adb install -r socracia-1.0.0-local-d076.apk`)

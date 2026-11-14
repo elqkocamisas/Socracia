@@ -133,6 +133,23 @@ Primera versión completa del producto: app móvil de un solo usuario, local-fir
   tres preguntas y devolvía 502 de formato) y se permite rotar de modelo ante un
   JSON inválido, no solo ante cuota o indisponibilidad.
 
+- **Activar la nube en Ajustes ya abre de verdad el motor con modelo.** El
+  arranque construía **dos** contenedores de política de procesamiento: uno para
+  el motor (`buildLlmEngine`) y otro para los servicios. El ajuste de privacidad
+  mutaba el de los servicios, pero el guardián de consentimiento del motor leía el
+  primero, que seguía en solo-dispositivo. Resultado: el usuario activaba la nube
+  y la sesión seguía evaluándose en local, con toda llamada denegada por
+  `sin-consentimiento`. Ahora `bootstrap` comparte **un solo** contenedor entre
+  servicios y motor (D-078).
+
+- **La app deja de anunciar una degradación on-device que no ocurrió.** Un build
+  **sin** el modelo `edge-llm` (el actual: el paquete no está instalado) mostraba
+  siempre en Cuenta «Modelo local no disponible: El módulo nativo edge-llm no está
+  instalado». El arranque coercía el módulo a `null`, así que parecía «con módulo
+  declarado». Ahora la ausencia del módulo es el caso base y no se anuncia; el
+  aviso solo aparece si el módulo se aporta y resulta inservible. El módulo se
+  carga con `requireOptionalNativeModule` de `expo` (D-078).
+
 ### Notas
 
 - **El perfil `preview` fija el backend y el modo conectado.** El APK de

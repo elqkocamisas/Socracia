@@ -1720,3 +1720,52 @@ StudyError>`; el orden de preferencia es proveedor semántico → evaluador LLM
   que `/llm/complete` rote modelos de respaldo como hace `/mayeutic/*`, para que
   la repregunta y la explicación del modelo no dependan de un único modelo cuya
   cuota diaria gratuita se agota enseguida.
+
+## D-078 — El motor con modelo y los servicios comparten un solo contenedor de política; el módulo on-device ausente no se anuncia como degradación
+
+- **Fecha:** sesión de consolidación de 1.0
+- **Contexto:** la auditoría del arranque real encontró **dos defectos** que
+  rompían el modo conectado y la pantalla de Cuenta, y que ninguna prueba
+  cubría porque las suites montan las piezas por separado:
+  1. **Doble contenedor de política.** `bootstrap` creaba un
+     `ProcessingPolicyHolder` para el motor (`buildLlmEngine`) y pasaba la
+     **política inicial** a `createServices`, que construía **otro** contenedor.
+     El ajuste de privacidad (`setProcessingPolicy`) mutaba el de los servicios,
+     pero el guardián `ConsentGatedLlmProvider` del motor leía el primero, que
+     seguía en `local-only`. Resultado: activar la nube en Ajustes **no** abría el
+     motor y toda llamada se denegaba con `sin-consentimiento`; el alumno veía
+     «IA semántica» activada pero la sesión se evaluaba en local. El proveedor
+     semántico de `/mayeutic/*` sí funcionaba cuando se invocaba directamente, lo
+     que despistaba el diagnóstico.
+  2. **Degradación on-device anunciada sin intento.** `bootstrap` coercionaba
+     `options.nativeModule ?? null`, de modo que un build **sin** `edge-llm` (el
+     actual: el paquete no está instalado) parecía «con módulo declarado» y la
+     pantalla de Cuenta mostraba siempre «Modelo local no disponible: El módulo
+     nativo edge-llm no está instalado». Es una degradación que nunca ocurrió.
+- **Decisión:**
+  1. `CreateServicesOptions` acepta un `policyHolder` ya creado; `bootstrap`
+     construye **uno solo** y lo comparte con `createServices` y con
+     `buildLlmEngine`. Sin `policyHolder`, `createServices` sigue creando el suyo
+     (comportamiento previo intacto para las pruebas y los usos aislados).
+  2. `resolveEmbeddingProvider` distingue `undefined` («este build no incluye el
+     modelo on-device») de un módulo aportado: solo el segundo se sondea y, si no
+     sirve, se explica el motivo. `bootstrap` deja de coercer a `null`. `App.tsx`
+     carga el módulo con `requireOptionalNativeModule('Mediapipe')` de `expo` y
+     pasa `undefined` cuando no existe.
+- **Motivos:** sin el arreglo 1, la funcionalidad central de 1.0 (motor
+  semántico opcional con consentimiento) estaba **rota en el camino real**, no en
+  los tests; sin el arreglo 2, la app mostraba una alarma falsa permanente en
+  Cuenta. Ambos son de cambio mínimo: ninguna firma pública cambia y los tests
+  existentes pasan sin tocarse.
+- **Alternativas descartadas:** (a) que `bootstrap` reconstruyera el motor al
+  cambiar la política: rompe la lectura «en el momento de cada llamada» de
+  `ConsentGatedLlmProvider` y complica el ciclo de vida; (b) importar `edge-llm`
+  directamente: sigue sin entregar vectores (D-034) y añadiría una dependencia
+  inútil; (c) silenciar el aviso en la UI: oculta el síntoma en vez de corregir
+  la causa.
+- **Consecuencias:** `npm run verify` en verde (**666 pruebas**: 363 core —evals
+  32/32—, 70 api, 233 móvil). Nuevas regresiones:
+  `apps/mobile/src/__tests__/policySharing.test.ts` (el contenedor compartido
+  abre el guardián sin reconstruir el motor) y dos casos en
+  `embeddingResolution.test.ts` (a nivel de `bootstrap`). El APK debe
+  recompilarse para incorporar ambos arreglos.
