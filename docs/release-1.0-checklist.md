@@ -25,14 +25,17 @@ en tres frentes:
 - **G8** (smoke en dispositivo): **humano**. Puede empezar ya con el APK local al
   día; el smoke definitivo necesita el APK de EAS recompilado.
 
-> **EAS lanzado el 2026-11-14 (en curso).** Con un token con permiso de escritura
-> se empujó `main` (`ed0b1b5 → c554f9f`, incluye D-076) y se disparó el workflow
-> `Expo EAS` (run `43610275031`, `success`) con perfil `release-apk`, plataforma
-> `android`, `--no-wait`. El build quedó **en cola en EAS**:
-> [`efbcfa72-68ea-44ea-8b3e-ca33337bb478`](https://expo.dev/accounts/camiseros-team/projects/socracia/builds/efbcfa72-68ea-44ea-8b3e-ca33337bb478).
-> Falta la **descarga e instalación** del artefacto (paso humano con sesión de
-> Expo) y el smoke test (G8). El APK local al día
-> (`dist/socracia-1.0.0-local-d076.apk`) permite adelantar el smoke mientras tanto.
+> **EAS recompilado el 2026-11-15 (`Succeeded`).** Con un token con permiso de
+> escritura se empujó `main` (`355afaf`, incluye D-074/D-075/D-076/**D-078**) y se
+> disparó el workflow `Expo EAS` (run
+> [`43711949398`](https://github.com/elqkocamisas/Socracia/actions/runs/43711949398),
+> `success`) con perfil `release-apk`, plataforma `android`. El build
+> [`01643295-4187-4c11-bf02-2889a32540a4`](https://expo.dev/accounts/camiseros-team/projects/socracia/builds/01643295-4187-4c11-bf02-2889a32540a4)
+> terminó con **status `Succeeded`** y artefacto **APK**. Falta la **descarga e
+> instalación** del artefacto (paso humano con sesión de Expo), su **escaneo**
+> (G5, `npm run scan:apk -- <ruta.apk>`) y el smoke test (G8). El APK local
+> (`dist/socracia-1.0.0-local-d076.apk`, **anterior a D-078**) permite adelantar
+> el smoke de las capas local y de UX mientras tanto.
 
 ## Camino crítico hacia 1.0
 
