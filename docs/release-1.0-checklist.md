@@ -228,9 +228,10 @@ concordancia (≥ 80 %, mediana 96.7 %), **100 %** de paráfrasis correctas (≥
   **descargar** el artefacto (sesión de Expo o `npx eas-cli build:download`),
   instalarlo y escanearlo (`npm run scan:apk`). `EXPO_TOKEN` no está en el entorno
   del agente (es un secreto de Actions), así que es paso humano.
-- **Cuota de EAS:** plan gratuito con builds de baja prioridad **al mes**, reset el
-  día 1, sin sobrecoste (verificado 2026-11-02). Reservar al menos una; usar la
-  ruta local si se agota.
+- **Cuota de EAS:** plan gratuito con **15 builds Android + 15 iOS al mes**, cola
+  de baja prioridad, timeout de 45 min; los créditos **no se acumulan** y se
+  reinician cada periodo (verificado 2026-11-16 en <https://expo.dev/pricing>).
+  Reservar al menos una; usar la ruta local (`docs/build-apk-local.md`) si se agota.
 - **Repregunta/explicación con un único modelo:** `/llm/complete` no rota modelos;
   al agotarse la cuota diaria devuelve 429 y la app degrada a la heurística. No
   bloquea G3 ni el funcionamiento (F2 lo exige así), pero limita la mitad «con
