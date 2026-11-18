@@ -237,8 +237,8 @@ describe('GeminiMayeuticService', () => {
     );
 
     expect(system).toContain('bandas');
-    expect(system).toContain('0.6-0.79 si es correcta pero escueta');
-    expect(system).toContain('Una paráfrasis fiel es correcta');
+    expect(system).toContain('explica el porqué');
+    expect(system).toContain('paráfrasis fiel es correcta');
   });
 
   it('propaga el motivo cuando el proveedor devuelve el error en un array (OpenAI)', async () => {
