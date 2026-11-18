@@ -27,6 +27,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
+import { writeFileSync } from 'node:fs';
 
 import { explanationPrompt, followUpPrompt, parseExplanation, parseFollowUp } from '@socracia/core';
 
@@ -516,13 +517,16 @@ async function main() {
         });
         continue;
       }
-      const verdict = classify(Number(response.payload?.score));
+      const score = Number(response.payload?.score);
+      const verdict = classify(score);
       results.evaluation.push({
         id: testCase.id,
         ok: true,
         expected: testCase.answer.expect,
         actual: verdict,
+        score,
         paraphrase: testCase.answer.paraphrase,
+        text: testCase.answer.text,
       });
     }
 
@@ -715,11 +719,43 @@ async function main() {
     `  explicaciones aceptadas: ${explanationAccepted}/${explanations.length} (informativo, no bloquea G3)`,
   );
 
+  // Diagnóstico: qué casos concretos discrepan y con qué puntuación. La varianza
+  // de G3 vive en la banda «parcial ↔ correcta» (umbral 0.6), así que ver el
+  // score de cada discrepancia es lo que permite decidir si el ruido es del
+  // modelo (temperatura) o del instrumento (umbral).
+  const mismatches = answered.filter((item) => item.expected !== item.actual);
+  console.log('\nDiscrepancias (esperado ≠ obtenido)');
+  if (mismatches.length === 0) {
+    console.log('  ninguna');
+  }
+  for (const item of mismatches) {
+    console.log(
+      `  ${item.id} [esperado ${item.expected} → ${item.actual}] score ${item.score.toFixed(3)} — «${item.text}»`,
+    );
+  }
+
+  const jsonOut = process.env.SOCRA_REAL_EVAL_JSON;
   const totalCases =
     answered.length +
     results.generation.filter((g) => g.ok).length +
     followUps.length +
     explanations.length;
+  if (jsonOut) {
+    writeFileSync(
+      jsonOut,
+      JSON.stringify(
+        {
+          baseUrl: BASE_URL,
+          metrics: { agreement, paraphraseAcceptance, inventedCitations, totalCases },
+          results,
+        },
+        null,
+        2,
+      ),
+    );
+    console.log(`\nResultados por caso escritos en ${jsonOut}`);
+  }
+
   const passed =
     totalCases >= THRESHOLDS.minCases &&
     agreement >= THRESHOLDS.verdictAgreement &&

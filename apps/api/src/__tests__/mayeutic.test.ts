@@ -160,6 +160,87 @@ describe('GeminiMayeuticService', () => {
     });
   });
 
+  it('fija temperature 0 en la evaluación (veredicto reproducible)', async () => {
+    // La puerta G3 oscilaba en el umbral por muestreo: el veredicto es una
+    // clasificación y no debe depender de la temperatura del modelo.
+    const temperatures: number[] = [];
+    const service = new GeminiMayeuticService('test-key', 'gemini-test', async (_input, init) => {
+      temperatures.push(JSON.parse(String(init?.body)).temperature);
+      return providerResponse({ score: 0.9, matchedKeyTerms: [], feedback: 'ok' });
+    });
+
+    await service.evaluateAnswer(
+      {
+        id: 'c1:q0',
+        conceptId: 'c1',
+        prompt: '¿Qué significa aplicar este principio?',
+        move: 'aplicar-caso',
+        level: 'aplicar',
+        expectedAnswer: 'Una respuesta fundamentada en el fragmento.',
+        keyTerms: [],
+        citation: {
+          documentId: 'd1',
+          documentTitle: 'Tema 1',
+          chunkId: 'd1:0',
+          excerpt: 'El principio sirve de fundamento.',
+          charStart: 0,
+          charEnd: 34,
+        },
+        difficulty: 0.7,
+      },
+      {
+        questionId: 'c1:q0',
+        text: 'Una explicación equivalente con palabras diferentes.',
+        answeredAt: 1,
+        latencyMs: 1_000,
+      },
+    );
+
+    expect(temperatures).toEqual([0]);
+  });
+
+  it('incluye la rúbrica de puntuación en la instrucción de evaluación', async () => {
+    // Sin bandas explícitas, el modelo puntuaba conclusiones telegráficas como
+    // «correctas» (0.66-0.80), pegadas al umbral 0.6 del núcleo.
+    let system = '';
+    const service = new GeminiMayeuticService('test-key', 'gemini-test', async (_input, init) => {
+      const body = JSON.parse(String(init?.body));
+      system = body.messages[0].content;
+      return providerResponse({ score: 0.9, matchedKeyTerms: [], feedback: 'ok' });
+    });
+
+    await service.evaluateAnswer(
+      {
+        id: 'c1:q0',
+        conceptId: 'c1',
+        prompt: '¿Qué significa aplicar este principio?',
+        move: 'aplicar-caso',
+        level: 'aplicar',
+        expectedAnswer: 'Una respuesta fundamentada en el fragmento.',
+        keyTerms: [],
+        citation: {
+          documentId: 'd1',
+          documentTitle: 'Tema 1',
+          chunkId: 'd1:0',
+          excerpt: 'El principio sirve de fundamento.',
+          charStart: 0,
+          charEnd: 34,
+        },
+        difficulty: 0.7,
+      },
+      {
+        questionId: 'c1:q0',
+        text: 'Una explicación equivalente con palabras diferentes.',
+        answeredAt: 1,
+        latencyMs: 1_000,
+      },
+    );
+
+    expect(system).toContain('rúbrica');
+    expect(system).toContain('parcial, no correcta');
+    expect(system).toContain('paráfrasis correcta es correcta');
+  });
+
   it('propaga el motivo cuando el proveedor devuelve el error en un array (OpenAI)', async () => {
     // El endpoint OpenAI-compatible envuelve el error en `[{ error: {...} }]`;
     // si no se desenvuelve, el motivo —y la pista de reintento— se pierde.
