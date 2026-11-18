@@ -1,7 +1,7 @@
 # Dictamen de release — Socracia 1.0.0
 
-**Fecha:** 12 de noviembre de 2026 (re-verificado en la sesión de consolidación;
-ver «Estado de esta sesión (consolidación de 1.0)»)
+**Fecha:** 16 de noviembre de 2026 (G3 estabilizada en la sesión de estabilización
+de G3; ver «Estado de esta sesión (estabilización de G3)»)
 **Versión evaluada:** `1.0.0` (raíz, workspaces, `app.json` y ficha de tienda)
 **Alcance:** app móvil de un solo usuario, local-first; importación de documentos
 (con OCR opcional); motor mayéutico; proveedor semántico opcional con
@@ -11,18 +11,19 @@ tiendas.
 
 ## Veredicto
 
-### ⚠️ NO-GO (G3 flaky; faltan G7 —APK por EAS— y G8 —smoke humano—)
+### ⚠️ NO-GO (G3 estabilizada; quedan G7 —descarga/instalación del APK— y G8 —smoke humano—)
 
-Estado de las puertas: **G1, G2, G4, G5, G6 y G9 cumplidas** con evidencia
-**ejecutada**. **G3 es flaky**: de tres corridas consecutivas de `npm run
-eval:real` en la sesión de consolidación, **una falló** (76.7 % / 91.7 %) y **dos
-pasaron** (80.0 % / 100 %), siempre con 0 citas inventadas. La concordancia **roza
-el umbral** (≥80 %) y el muestreo del modelo la cruza en ambos sentidos, así que
-**no puede darse por cumplida de forma estable**. **G7 queda parcial pero
-avanzada**: el APK de EAS se **recompiló el 2026-11-15** con D-074/D-075/D-076/D-078
-(build `01643295…`, **status `Succeeded`**, perfil `release-apk`), y falta **solo
-descargarlo, instalarlo y escanearlo** (paso humano con sesión de Expo).
-**G8** (smoke en dispositivo real) es **humano**.
+Estado de las puertas: **G1, G2, G3, G4, G5, G6 y G9 cumplidas** con evidencia
+**ejecutada**. **G3 dejó de ser flaky**: tres corridas consecutivas de `npm run
+eval:real` tras D-079 dan **100.0 % / 96.7 % / 96.6 %** de concordancia (≥ 80 %,
+mediana 96.7 %), **100 %** de paráfrasis correctas aceptadas (≥ 90 %) y **0** citas
+inventadas. El margen sobre el umbral es ≥ 16.6 puntos, frente al margen cero que
+hacía oscilar la puerta. La corrección (temperature 0 en la evaluación y rúbrica
+anclada en la justificación) está en `main` (`d3d189e`) y desplegada en el backend.
+**G7 queda parcial pero avanzada**: el APK de EAS se **recompiló el 2026-11-15** con
+D-074/D-075/D-076/D-078 (build `01643295…`, **status `Succeeded`**, perfil
+`release-apk`), y falta **solo descargarlo, instalarlo y escanearlo** (paso humano
+con sesión de Expo). **G8** (smoke en dispositivo real) es **humano**.
 
 La sesión de consolidación corrigió además **dos defectos reales del camino de
 arranque** que las suites no cubrían y que rompían la funcionalidad central de 1.0
@@ -31,14 +32,14 @@ la degradación on-device anunciada sin intento.
 
 El proceso mayéutico **funciona de extremo a extremo**: demostrado con proveedor
 falso (recorrido dorado sobre TXT, MD y PDF real, en núcleo e interfaz) **y con
-proveedor real** (evals G3), y ahora también **en el arranque real** (D-078).
+proveedor real** (evals G3, ahora estables), y también **en el arranque real**
+(D-078).
 
-**G3 (evals con proveedor real)** se ha verificado repetidamente: `npm run
+**G3 (evals con proveedor real)** verificada de forma estable: `npm run
 eval:real` contra `https://socracia.onrender.com` → **30/30 casos de evaluación**,
-concordancia **80.0 %** (≥80 %) en las corridas buenas, paráfrasis correctas
-aceptadas **100 %** (≥90 %), citas inventadas **0**. **Pero una de cada tres
-corridas queda por debajo** (76.7 % / 91.7 %): la puerta se alcanza, no de forma
-estable. Salida completa en `docs/release-1.0-g3-evidence.txt`.
+concordancia **100.0 % / 96.7 % / 96.6 %** en tres corridas consecutivas (≥ 80 %),
+paráfrasis correctas aceptadas **100 %** (≥ 90 %), citas inventadas **0**. Salida
+completa en `docs/release-1.0-g3-evidence.txt`.
 
 Para llegar a esa evidencia se corrigió un **defecto real del instrumento** (D-077):
 el arnés `scripts/eval-real.mjs` abortaba toda la corrida al ver un **429** de
@@ -70,6 +71,44 @@ restantes (`docs/release-1.0-checklist.md`).
 Se distingue con precisión qué está **documentado**, **implementado**, **probado
 con proveedor falso** y **validado con proveedor real o en dispositivo**. Una
 puerta no se da por cumplida sin evidencia ejecutada **en esta sesión**.
+
+## Estado de esta sesión (estabilización de G3)
+
+Sesión de **estabilización de G3** (la puerta flaky). Objetivo: que la
+concordancia de veredicto con proveedor real deje de oscilar en el umbral, sin
+tocar el número de casos ni tomar medias para enmascarar la varianza.
+
+1. **F0 — línea base.** `npm run verify` **en verde** (**668 pruebas**: 363 core
+   —evals 32/32—, 72 api, 233 móvil), 41+10+35 suites, 0 fallos.
+2. **Diagnóstico con datos reales.** Se añadió al arnés `scripts/eval-real.mjs` el
+   volcado de **discrepancias por caso** y una salida JSON opcional
+   (`SOCRA_REAL_EVAL_JSON`). El volcado mostró la causa: la concordancia quedaba
+   **clavada en 24/30 (80.0 %)** con **6 discrepancias sistemáticas**, todas
+   «parcial → correcta», con puntuaciones **0.66–0.80** pegadas al umbral 0.6 del
+   núcleo.
+3. **Causa raíz (D-079).** Dos defectos del adaptador, no del modelo ni del
+   umbral: (a) la ruta de evaluación usaba `temperature: 0.2` —un veredicto es una
+   clasificación—; (b) el prompt no fijaba las bandas de puntuación, así que el
+   modelo puntuaba **conclusiones telegráficas** como correctas.
+4. **Corrección (mínima, sin firmas públicas).** `temperature: 0` en la evaluación
+   (la generación conserva 0.2) y **rúbrica de bandas** anclada en **explicar el
+   porqué**, alineada con los umbrales del núcleo (0.6 / 0.3). Se añadieron dos
+   casos en `apps/api/src/__tests__/mayeutic.test.ts` que fijan temperature 0 y la
+   rúbrica; los tests existentes pasan sin tocarse.
+5. **G3 — estabilizada con proveedor real.** Tres corridas consecutivas de `npm run
+eval:real` contra `https://socracia.onrender.com` (backend en `d3d189e`):
+   **100.0 % / 96.7 % / 96.6 %** de concordancia (mediana 96.7 %, ≥ 80 %), **100 %**
+   de paráfrasis correctas aceptadas (≥ 90 %), **0** citas inventadas. El margen
+   sobre el umbral pasó de **cero** a **≥ 16.6 puntos**. Evidencia en
+   `docs/release-1.0-g3-evidence.txt`.
+6. **Pendiente (informativo).** `followUp` y `explanation` no se verifican con
+   proveedor real: la cuota gratuita diaria por modelo se agota en los 33 casos
+   previos y las 6 llamadas devuelven 429. El arnés las registra sin evidencia y
+   continúa; no bloquean G3. Ver «Riesgos abiertos».
+
+**Conclusión de la sesión:** G3 **deja de ser flaky** y pasa a **cumplida con
+evidencia ejecutada**. El dictamen sigue siendo **NO-GO**, ahora sostenido **solo
+en G7 (descarga/instalación del APK de EAS) y G8 (smoke humano)**.
 
 ## Estado de esta sesión (consolidación de 1.0)
 
@@ -250,17 +289,17 @@ eval:real` superó los umbrales (33 casos, 83.3 % / 100 % / 0 citas). Evidencia
 
 ## Tabla de puertas G1–G9
 
-| Puerta | Descripción                                                                                | Estado | Nivel de evidencia                                                 | Evidencia ejecutada en esta sesión (2026-11-12)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| ------ | ------------------------------------------------------------------------------------------ | ------ | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| G1     | `npm run verify` en verde                                                                  | ✅     | **Ejecutado** (árbol limpio)                                       | **666 pruebas** (363 core —evals 32/32—, 70 api, **233** móvil), 41 suites, 0 fallos, tras D-078. Sesión de consolidación.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| G2     | Recorrido dorado con 3 documentos (TXT/MD/PDF) y coherencia por capa documentada           | ✅     | **Ejecutado con proveedor falso**                                  | `goldenPath.test.ts` (núcleo, **14/14**) + `goldenPath.e2e.test.tsx` (pantallas, **2/2**) en verde. Los tres formatos → mismos 3 temas/3 conceptos y mismo cierre. Coherencia por capa en la sección siguiente.                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| G3     | Evals con proveedor real: ≥30 casos, veredicto ≥80 %, 0 citas inventadas, ≥90 % paráfrasis | ⚠️     | **Validado con proveedor real, pero flaky** (Gemini, clave propia) | Sesión de consolidación: **3 corridas** de `npm run eval:real` → **fallo** (76.7 % / 91.7 %), **éxito** (80.0 % / 100 %), **éxito** (80.0 % / 100 %); 0 citas inventadas siempre. La concordancia **roza el umbral** (≥80 %) y el muestreo la cruza en ambos sentidos: la puerta se alcanza, **no de forma estable**. Evidencia en `docs/release-1.0-g3-evidence.txt`. Histórico: 2026-11-12 → 80.0 %; 2026-11-11 → 83.3 %; 2026-11-10 → 83.3 %/80.0 %.                                                                                                                                                                                                            |
-| G4     | Degradación probada en los 4 supuestos de F2                                               | ✅     | **Ejecutado**                                                      | `studyService.test.ts` («G4 — degradación en los cuatro supuestos de F2»): sin consentimiento (no llama al proveedor) + red/cuota/salida inválida (degrada y la sesión avanza, turno `degraded`). Además `consent.test.ts`, `httpProvider.test.ts`, `resilience.test.ts`, `llmEngine.test.ts` y `ocrImport.test.ts` por capa.                                                                                                                                                                                                                                                                                                                                      |
-| G5     | Sin secretos en cliente ni en el APK                                                       | ✅     | **Ejecutado** (escaneo real del APK nuevo)                         | Escaneo **2026-11-12** con `zipfile` sobre `dist/socracia-1.0.0-local-d076.apk` (**1162 entradas**): **0** `AIza…`, **0** `sk-…`, **0** `github_pat_`, **0** JWT, **0** clave privada, **0** `api_key` literal. El bundle trae `https://socracia.onrender.com` y **no** `localhost:8787`. Escaneo previo sobre el APK de EAS (`f2173e7a…`): 0 coincidencias. El tarball fuente: solo **nombres** de variable y patrones en docs, nunca un valor.                                                                                                                                                                                                                   |
-| G6     | Textos legales alineados y marcados para revisión humana                                   | ✅     | **Implementado + revisión humana pendiente**                       | `docs/privacy-policy.md`, `docs/terms-of-use.md`, `store/privacy-declarations.json`, `storeListing.test.ts`, `legalDocuments.test.ts` y `LegalScreen.test.tsx` en verde; ambos textos marcados «PENDIENTE DE REVISIÓN HUMANA». El apartado 2.3 y `privacy-declarations.json` describen el motor real (pregunta, respuesta y fragmento citado salen solo con consentimiento; el servidor no los almacena).                                                                                                                                                                                                                                                          |
-| G7     | APK generado por EAS, instalable, versión 1.0.0                                            | ⚠️     | **Parcial: build EAS `Succeeded`; falta descargar/instalar**       | **2026-11-15:** empujado `main` (`355afaf`, con D-074/D-075/D-076/D-078) y disparado el workflow `Expo EAS` (run [`43711949398`](https://github.com/elqkocamisas/Socracia/actions/runs/43711949398), `success`); build EAS [`01643295…`](https://expo.dev/accounts/camiseros-team/projects/socracia/builds/01643295-4187-4c11-bf02-2889a32540a4) con **status `Succeeded`**, artefacto **APK**, perfil `release-apk`, distribución interna, `appVersion 1.0.0`. Falta **descargar** el artefacto (sesión de Expo o `eas-cli build:download`), instalarlo y escanearlo (G5). Alternativa local: `dist/socracia-1.0.0-local-d076.apk` (76 MB, **anterior a D-078**). |
-| G8     | Smoke test humano en dispositivo real                                                      | ⏳     | **Pendiente (humano)**                                             | Checklist actualizado: `docs/release-1.0-smoke.md` (apunta al APK al día `dist/socracia-1.0.0-local-d076.apk`). No ejecutable por un agente (requiere teléfono).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| G9     | Documentación y paquete fuente reproducibles                                               | ✅     | **Ejecutado** (reproducido en esta sesión)                         | `npm run package:source` → `dist/socracia-1.0.0-fuente.tar.gz` (**264 ficheros**) + manifiesto. `npm run verify` reproducido en verde (662 pruebas). El tarball no contiene valores de secreto (solo nombres de patrón en docs).                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Puerta | Descripción                                                                                | Estado | Nivel de evidencia                                               | Evidencia ejecutada en esta sesión (2026-11-12)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ------ | ------------------------------------------------------------------------------------------ | ------ | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| G1     | `npm run verify` en verde                                                                  | ✅     | **Ejecutado** (árbol limpio)                                     | **666 pruebas** (363 core —evals 32/32—, 70 api, **233** móvil), 41 suites, 0 fallos, tras D-078. Sesión de consolidación.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| G2     | Recorrido dorado con 3 documentos (TXT/MD/PDF) y coherencia por capa documentada           | ✅     | **Ejecutado con proveedor falso**                                | `goldenPath.test.ts` (núcleo, **14/14**) + `goldenPath.e2e.test.tsx` (pantallas, **2/2**) en verde. Los tres formatos → mismos 3 temas/3 conceptos y mismo cierre. Coherencia por capa en la sección siguiente.                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| G3     | Evals con proveedor real: ≥30 casos, veredicto ≥80 %, 0 citas inventadas, ≥90 % paráfrasis | ✅     | **Validado con proveedor real y estable** (Gemini, clave propia) | Sesión de estabilización (D-079, commit `d3d189e`): **3 corridas** de `npm run eval:real` → **100.0 % / 96.7 % / 96.6 %** de concordancia (mediana 96.7 %, ≥ 80 %), **100 %** de paráfrasis correctas aceptadas (≥ 90 %), **0** citas inventadas. Margen ≥ 16.6 puntos sobre el umbral (antes: margen cero, 76.7 %↔80.0 %). La corrección: temperature 0 en la evaluación y rúbrica anclada en la justificación. Evidencia en `docs/release-1.0-g3-evidence.txt`. Pendiente (informativo): `followUp`/`explanation` con proveedor real (la cuota gratuita se agota antes).                                                                                         |
+| G4     | Degradación probada en los 4 supuestos de F2                                               | ✅     | **Ejecutado**                                                    | `studyService.test.ts` («G4 — degradación en los cuatro supuestos de F2»): sin consentimiento (no llama al proveedor) + red/cuota/salida inválida (degrada y la sesión avanza, turno `degraded`). Además `consent.test.ts`, `httpProvider.test.ts`, `resilience.test.ts`, `llmEngine.test.ts` y `ocrImport.test.ts` por capa.                                                                                                                                                                                                                                                                                                                                      |
+| G5     | Sin secretos en cliente ni en el APK                                                       | ✅     | **Ejecutado** (escaneo real del APK nuevo)                       | Escaneo **2026-11-12** con `zipfile` sobre `dist/socracia-1.0.0-local-d076.apk` (**1162 entradas**): **0** `AIza…`, **0** `sk-…`, **0** `github_pat_`, **0** JWT, **0** clave privada, **0** `api_key` literal. El bundle trae `https://socracia.onrender.com` y **no** `localhost:8787`. Escaneo previo sobre el APK de EAS (`f2173e7a…`): 0 coincidencias. El tarball fuente: solo **nombres** de variable y patrones en docs, nunca un valor.                                                                                                                                                                                                                   |
+| G6     | Textos legales alineados y marcados para revisión humana                                   | ✅     | **Implementado + revisión humana pendiente**                     | `docs/privacy-policy.md`, `docs/terms-of-use.md`, `store/privacy-declarations.json`, `storeListing.test.ts`, `legalDocuments.test.ts` y `LegalScreen.test.tsx` en verde; ambos textos marcados «PENDIENTE DE REVISIÓN HUMANA». El apartado 2.3 y `privacy-declarations.json` describen el motor real (pregunta, respuesta y fragmento citado salen solo con consentimiento; el servidor no los almacena).                                                                                                                                                                                                                                                          |
+| G7     | APK generado por EAS, instalable, versión 1.0.0                                            | ⚠️     | **Parcial: build EAS `Succeeded`; falta descargar/instalar**     | **2026-11-15:** empujado `main` (`355afaf`, con D-074/D-075/D-076/D-078) y disparado el workflow `Expo EAS` (run [`43711949398`](https://github.com/elqkocamisas/Socracia/actions/runs/43711949398), `success`); build EAS [`01643295…`](https://expo.dev/accounts/camiseros-team/projects/socracia/builds/01643295-4187-4c11-bf02-2889a32540a4) con **status `Succeeded`**, artefacto **APK**, perfil `release-apk`, distribución interna, `appVersion 1.0.0`. Falta **descargar** el artefacto (sesión de Expo o `eas-cli build:download`), instalarlo y escanearlo (G5). Alternativa local: `dist/socracia-1.0.0-local-d076.apk` (76 MB, **anterior a D-078**). |
+| G8     | Smoke test humano en dispositivo real                                                      | ⏳     | **Pendiente (humano)**                                           | Checklist actualizado: `docs/release-1.0-smoke.md` (apunta al APK al día `dist/socracia-1.0.0-local-d076.apk`). No ejecutable por un agente (requiere teléfono).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| G9     | Documentación y paquete fuente reproducibles                                               | ✅     | **Ejecutado** (reproducido en esta sesión)                       | `npm run package:source` → `dist/socracia-1.0.0-fuente.tar.gz` (**264 ficheros**) + manifiesto. `npm run verify` reproducido en verde (662 pruebas). El tarball no contiene valores de secreto (solo nombres de patrón en docs).                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 
 Leyenda: ✅ cumplida · ⚠️ parcial (requiere paso humano o no verificable aquí) · ❌ no verificada · ⏳ pendiente.
 
@@ -451,15 +490,13 @@ dependencias con `llm: null` **hardcodeado** y no existía ningún `LlmProvider`
 
 ## Riesgos abiertos
 
-1. **G3 flaky (riesgo principal).** En la sesión de consolidación, de tres
-   corridas consecutivas de `npm run eval:real`, **una quedó por debajo** (76.7 %
-   / 91.7 %) y **dos superaron** (80.0 % / 100 %), siempre con 0 citas. La
-   concordancia **roza el umbral** (≥80 %) y varía por el muestreo del modelo.
-   Mitigación aplicada: el arnés distingue un caso fallido de la caída del
-   proveedor (D-077). Mitigación **pendiente** (Sprint 0 del checklist): fijar
-   `temperature: 0` en la evaluación, ampliar el conjunto y exigir **tres corridas
-   consecutivas** verdes. Riesgo residual: una corrida en frío (_cold start_ de
-   Render) puede tardar; conviene calentar el servicio antes.
+1. **G3 — estabilizada (riesgo cerrado).** La varianza en el umbral se resolvió en
+   la sesión de estabilización (D-079). Tres corridas consecutivas de `npm run
+eval:real` dan **100.0 % / 96.7 % / 96.6 %** de concordancia (mediana 96.7 %,
+   ≥ 80 %), **100 %** de paráfrasis correctas (≥ 90 %) y **0** citas inventadas.
+   Margen ≥ 16.6 puntos sobre el umbral (antes: cero). Riesgo residual: una corrida
+   en frío (_cold start_ de Render) puede tardar; conviene calentar el servicio
+   antes.
 2. **G7 parcial: falta el APK de EAS al día.** El build `f2173e7a…` («Succeeded»)
    es anterior a D-074/D-075/D-076/**D-078**. No se pudo recompilar aquí porque
    **`EXPO_TOKEN` no está disponible** y el **primer keystore de Android no se
@@ -496,11 +533,11 @@ dependencias con `llm: null` **hardcodeado** y no existía ningún `LlmProvider`
 
 ## Qué haría falta para convertir esto en GO
 
-1. **Estabilizar G3** (Sprint 0 del checklist): fijar `temperature: 0` en la
-   evaluación, ampliar el conjunto de casos y exigir **tres corridas consecutivas**
-   de `npm run eval:real` por encima del umbral. Hoy la puerta se alcanza, pero no
-   de forma estable (1 de 3 corridas quedó por debajo). **Agente**, con cuota del
-   proveedor disponible.
+1. ~~**Estabilizar G3** (Sprint 0 del checklist).~~ **Hecho en la sesión de
+   estabilización (D-079).** Tres corridas consecutivas de `npm run eval:real`
+   quedan por encima del umbral con margen amplio (100.0 % / 96.7 % / 96.6 %).
+   Queda un resto **informativo**: verificar `followUp`/`explanation` con proveedor
+   real (la cuota gratuita se agota antes de llegar a esas rutas).
 
 2. **Generar el APK de EAS al día con D-074/D-075/D-076/D-078** (G7) y **ejecutar
    el smoke test en un teléfono real** (G8). Es **humano**: requiere `EXPO_TOKEN`
@@ -533,10 +570,10 @@ dependencias con `llm: null` **hardcodeado** y no existía ningún `LlmProvider`
 3. **Ejecutar el smoke test** con `docs/release-1.0-smoke.md` y firmar el
    resultado APTO/NO APTO.
 
-G1, G2, G4, G5, G6 y G9 están cumplidas con evidencia **ejecutada**. **G3 se
-alcanza pero es flaky** (2 de 3 corridas verdes; 0 citas inventadas siempre). El
-NO-GO se sostiene en **G3 (inestable)**, **G7 (APK de EAS al día, paso humano)** y
-**G8 (smoke en dispositivo, humano)**.
+G1, G2, G3, G4, G5, G6 y G9 están cumplidas con evidencia **ejecutada**. **G3
+dejó de ser flaky** (3 de 3 corridas verdes, con margen amplio; 0 citas inventadas
+siempre). El NO-GO se sostiene **solo** en **G7 (APK de EAS al día, paso humano)**
+y **G8 (smoke en dispositivo, humano)**.
 
 Los pasos concretos, con sus comandos exactos, están en
 `docs/release-1.0-checklist.md` y en `docs/release-1.0-smoke.md`.

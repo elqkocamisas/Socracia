@@ -4,26 +4,19 @@ Sprints restantes para convertir el dictamen NO-GO en GO, ordenados por **camino
 crítico**. Cada uno declara objetivo, tareas, puerta de aceptación, tamaño
 (S/M/L), dependencias y responsable (agente o humano).
 
-Contexto (sesión de consolidación de 1.0): el proceso mayéutico funciona de
-extremo a extremo y **G1, G2, G4, G5, G6 y G9 están en verde** (evidencia en
-`docs/release-1.0-verdict.md`). **G3 se alcanza pero es flaky**: en tres corridas
-consecutivas de `npm run eval:real` una quedó por debajo del umbral (76.7 % /
-91.7 %) y dos lo superaron (80.0 % / 100 %). La sesión de consolidación corrigió
-además **dos defectos reales del arranque** (D-078): el doble contenedor de
-política y la degradación on-device anunciada sin intento. El NO-GO se sostiene
-en tres frentes:
+Contexto (sesión de estabilización de G3): el proceso mayéutico funciona de
+extremo a extremo y **G1, G2, G3, G4, G5, G6 y G9 están en verde** (evidencia en
+`docs/release-1.0-verdict.md`). **G3 dejó de ser flaky**: tras D-079 (temperature 0
+en la evaluación y rúbrica anclada en la justificación), tres corridas
+consecutivas de `npm run eval:real` dan **100.0 % / 96.7 % / 96.6 %** de
+concordancia (≥ 80 %, mediana 96.7 %), **100 %** de paráfrasis correctas (≥ 90 %) y
+**0** citas inventadas. El NO-GO se sostiene ahora **solo** en dos frentes:
 
-- **G3** (flaky): la concordancia roza el umbral (≥80 %) y el muestreo del modelo
-  la cruza en ambos sentidos. Requiere **reducir la varianza** (temperatura fija,
-  más casos o mediana de varias corridas).
-- **G7** (APK por EAS): el build `f2173e7a…` «Succeeded» es **anterior a D-074,
-  D-075, D-076 y D-078**, así que hay que **recompilar** con el perfil
-  `release-apk`. Requiere `EXPO_TOKEN` (o el workflow de Actions) y, si no
-  existiera keystore, una corrida interactiva. No se pudo hacer aquí:
-  **`EXPO_TOKEN` no está disponible** y el primer keystore **no se genera en no
-  interactivo** (docs oficiales Expo).
+- **G7** (APK por EAS): el build `01643295…` «Succeeded» (2026-11-15) ya incluye
+  D-074/D-075/D-076/D-078; falta **descargarlo, instalarlo y escanearlo** (paso
+  humano con sesión de Expo).
 - **G8** (smoke en dispositivo): **humano**. Puede empezar ya con el APK local al
-  día; el smoke definitivo necesita el APK de EAS recompilado.
+  día; el smoke definitivo necesita el APK de EAS descargado.
 
 > **EAS recompilado el 2026-11-15 (`Succeeded`).** Con un token con permiso de
 > escritura se empujó `main` (`355afaf`, incluye D-074/D-075/D-076/**D-078**) y se
@@ -41,7 +34,7 @@ en tres frentes:
 
 | #   | Sprint                         | Objetivo                                                             | Puerta       | Tamaño | Depende de           | Responsable         | Estado                |
 | --- | ------------------------------ | -------------------------------------------------------------------- | ------------ | ------ | -------------------- | ------------------- | --------------------- |
-| 0   | Estabilizar G3                 | Reducir la varianza del veredicto para que G3 pase de forma estable  | **G3**       | S      | —                    | Agente              | ⏳ pendiente          |
+| 0   | Estabilizar G3                 | Reducir la varianza del veredicto para que G3 pase de forma estable  | **G3**       | S      | —                    | Agente              | ✅ hecho (D-079)      |
 | 1   | Restaurar G3                   | Reponer una clave de proveedor válida y repetir el arnés real        | **G3**       | S      | Clave válida         | Humano              | ✅ hecho (2026-11-12) |
 | 2   | Arreglar el instrumento G3     | No confundir caso fallido con proveedor caído (429/502 informativos) | **G3**       | S      | —                    | Agente              | ✅ hecho (2026-11-12) |
 | 3   | Validar la explicación (D-075) | Reproducir/cerrar el truncado de la explicación del modelo           | G2/G3 (real) | S      | Cuota del proveedor  | Agente + humano     | ⏳ pendiente          |
@@ -59,28 +52,33 @@ en tres frentes:
 
 ---
 
-## Sprint 0 — Estabilizar G3 (reducir la varianza) · **⏳ pendiente**
+## Sprint 0 — Estabilizar G3 (reducir la varianza) · **✅ hecho (D-079)**
 
 - **Objetivo:** que la puerta G3 pase **de forma estable**, no por suerte del
   muestreo del modelo.
 - **Contexto:** en la sesión de consolidación, tres corridas consecutivas dieron
   **76.7 % / 91.7 %** (fallo), **80.0 % / 100 %** (éxito) y **80.0 % / 100 %**
-  (éxito). La concordancia **roza el umbral** (≥80 %). Las citas inventadas son
-  **0** en las tres; la paráfrasis nunca baja de 91.7 %. El problema es la
+  (éxito). La concordancia **rozaba el umbral** (≥80 %). Las citas inventadas eran
+  **0** en las tres; la paráfrasis nunca bajaba de 91.7 %. El problema era la
   **varianza del veredicto**, no la calidad media.
-- **Tareas (agente):**
-  1. Revisar la `temperature` efectiva de la ruta de evaluación
-     (`/mayeutic/evaluate`, `apps/api/src/mayeutic.ts`): si no es 0, fijarla a 0
-     para el veredicto (la creatividad no aporta aquí y sí añade ruido).
-  2. Ampliar el conjunto de evaluación por encima de 30 casos para que la métrica
-     tenga menos varianza de muestreo (el umbral se mantiene).
-  3. Re-ejecutar `npm run eval:real` **tres veces** y exigir que **las tres**
-     superen el umbral (o documentar la mediana como criterio de la puerta).
+- **Diagnóstico (datos reales):** el volcado por caso mostró la concordancia
+  **clavada en 24/30 (80.0 %)** con **6 discrepancias sistemáticas**, todas
+  «parcial → correcta», con puntuaciones **0.66–0.80** pegadas al umbral 0.6 del
+  núcleo. Causa: la ruta de evaluación usaba `temperature: 0.2` y el prompt no
+  fijaba las bandas de puntuación.
+- **Resultado (D-079, commit `d3d189e`):** `temperature: 0` en `/mayeutic/evaluate`
+  (la generación conserva 0.2) y **rúbrica de bandas** anclada en **explicar el
+  porqué**, alineada con los umbrales del núcleo (0.6 / 0.3). Tres corridas
+  consecutivas de `npm run eval:real`: **100.0 % / 96.7 % / 96.6 %** de
+  concordancia (mediana 96.7 %, ≥ 80 %), **100 %** de paráfrasis correctas
+  (≥ 90 %), **0** citas inventadas. Evidencia en `docs/release-1.0-g3-evidence.txt`.
 - **Puerta de aceptación:** tres corridas consecutivas con concordancia ≥80 %,
-  paráfrasis ≥90 % y 0 citas inventadas.
+  paráfrasis ≥90 % y 0 citas inventadas. **Cumplida con margen ≥ 16.6 puntos.**
 - **Tamaño:** S.
 - **Dependencias:** cuota gratuita del proveedor disponible.
 - **Responsable:** agente.
+- **Resto informativo:** `followUp`/`explanation` no se verifican con proveedor
+  real (la cuota gratuita se agota en los 33 casos previos); no bloquean G3.
 
 ## Sprint 1 — Restaurar G3 (evals con proveedor real) · **✅ hecho**
 
@@ -219,15 +217,17 @@ en tres frentes:
 
 ## Riesgos abiertos (resumen)
 
-- **G3 flaky (sesión de consolidación):** clave válida e instrumento corregido
-  (D-077), pero de tres corridas consecutivas **una falló** (76.7 % / 91.7 %) y
-  **dos pasaron** (80.0 % / 100 %). La concordancia **roza el umbral** (≥80 %) y
-  varía por el muestreo; conviene calentar Render (_cold start_) y estabilizar
-  (Sprint 0).
-- **G7 a recompilar (sesión de consolidación):** el build `f2173e7a…` es anterior
-  a D-074/D-075/D-076/**D-078**. `EXPO_TOKEN` no está en el entorno del agente (es
-  un secreto de Actions), así que es paso humano. El primer keystore no se genera
-  en no interactivo.
+- **G3 — estabilizada (sesión de estabilización, D-079):** la varianza en el umbral
+  se resolvió fijando `temperature: 0` en la evaluación y anclando la rúbrica en la
+  justificación. Tres corridas consecutivas dan **100.0 % / 96.7 % / 96.6 %**
+  (mediana 96.7 %, ≥ 80 %), con **0** citas inventadas. Riesgo cerrado; queda un
+  resto informativo: verificar `followUp`/`explanation` con proveedor real (la
+  cuota gratuita se agota antes).
+- **G7 — APK de EAS descargado y pendiente de instalar:** el build `01643295…`
+  (2026-11-15, `Succeeded`) **ya incluye** D-074/D-075/D-076/**D-078**; falta
+  **descargar** el artefacto (sesión de Expo o `npx eas-cli build:download`),
+  instalarlo y escanearlo (`npm run scan:apk`). `EXPO_TOKEN` no está en el entorno
+  del agente (es un secreto de Actions), así que es paso humano.
 - **Cuota de EAS:** plan gratuito con builds de baja prioridad **al mes**, reset el
   día 1, sin sobrecoste (verificado 2026-11-02). Reservar al menos una; usar la
   ruta local si se agota.

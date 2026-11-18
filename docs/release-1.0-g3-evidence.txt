@@ -1,90 +1,73 @@
 # Evidencia G3 — evals con proveedor real (Gemini)
 
-## Sesión de consolidación de 1.0 — G3 es FLAKY (3 corridas consecutivas)
+## Sesión de estabilización de G3 — 3 corridas consecutivas (2026-11-16)
 
 Backend: https://socracia.onrender.com
 Comando: SOCRA_REAL_EVAL_BASE_URL=https://socracia.onrender.com npm run eval:real
-Commit: ed4bd51 (main local, incluye D-076; D-078 sin commitear)
+Commit servido por el backend: d3d189e (main; fija temperature 0 y la rúbrica
+de evaluación por justificación, ver D-079).
 
 ```
-Corrida 1 (FALLO)
+Corrida 1 (ÉXITO)
   evaluación: 30/30 casos con veredicto
   generación: 3/3 casos
-  concordancia de veredicto: 76.7 % (≥ 80 %)   ← por debajo
-  paráfrasis correctas aceptadas: 91.7 % (≥ 90 %)
+  concordancia de veredicto: 100.0 % (≥ 80 %)
+  paráfrasis correctas aceptadas: 100.0 % (≥ 90 %)
   citas/preguntas inventadas: 0 (= 0)
-  G3 NO alcanzada.
+  discrepancias: ninguna
+  G3 alcanzada con proveedor real.
 
 Corrida 2 (ÉXITO)
   evaluación: 30/30 casos con veredicto
   generación: 3/3 casos
-  concordancia de veredicto: 80.0 % (≥ 80 %)
+  concordancia de veredicto: 96.7 % (≥ 80 %)
   paráfrasis correctas aceptadas: 100.0 % (≥ 90 %)
   citas/preguntas inventadas: 0 (= 0)
+  discrepancias: c1-ev-9 [esperado parcial → incorrecta] score 0.200
   G3 alcanzada con proveedor real.
 
 Corrida 3 (ÉXITO)
-  evaluación: 30/30 casos con veredicto
+  evaluación: 29/30 casos con veredicto (1 descartado por salida irregular)
   generación: 3/3 casos
-  concordancia de veredicto: 80.0 % (≥ 80 %)
+  concordancia de veredicto: 96.6 % (≥ 80 %)
   paráfrasis correctas aceptadas: 100.0 % (≥ 90 %)
   citas/preguntas inventadas: 0 (= 0)
+  discrepancias: c1-ev-9 [esperado parcial → incorrecta] score 0.200
   G3 alcanzada con proveedor real.
 ```
 
-**Interpretación honesta:** G3 **se alcanza** (2 de 3 corridas) pero **no de forma
-estable**: la concordancia roza el umbral (≥80 %) y el muestreo del modelo la cruza
-en ambos sentidos (76.7 % ↔ 80.0 %). Las citas inventadas son **0** en las tres
-corridas, y la paráfrasis nunca baja de 91.7 %. La puerta no puede darse por
-cumplida de forma estable hasta reducir la varianza (p. ej. fijar `temperature: 0`
-en el backend, ampliar el conjunto de casos o repetir la corrida y tomar la mediana).
+Mediana de concordancia de las 3 corridas: **96.7 %** (≥ 80 %). Margen sobre el
+umbral: ≥ 16.6 puntos. Antes de D-079 la concordancia quedaba clavada en 24/30
+(80.0 %) y un solo caso la cruzaba en ambos sentidos (76.7 % ↔ 80.0 %).
 
----
+### Repreguntas y explicaciones (informativas, no bloquean G3)
 
-# Evidencia G3 — evals con proveedor real (Gemini)
+Las 3 corridas agotan la cuota gratuita diaria por modelo al llegar a los casos
+de `followUp` y `explanation`: los 6 casos (3 + 3) devuelven **HTTP 429 (cuota)**.
+El arnés los registra sin evidencia y continúa, en vez de descartar la evaluación
+y la generación ya recogidas, que son las que sostienen la puerta. La verificación
+con proveedor real de esas dos rutas queda **pendiente** (ver riesgos del dictamen).
 
-Fecha: 2026-11-12T19:44Z
-Backend: https://socracia.onrender.com
-Comando: SOCRA_REAL_EVAL_BASE_URL=https://socracia.onrender.com npm run eval:real
-Commit: be1d0c8 (main local, incluye D-076)
+### Diagnóstico que motivó D-079
+
+Volcado por caso (corrida previa, commit e3b22d6): concordancia 24/30 (80.0 %) con
+**6 discrepancias sistemáticas**, todas «parcial → correcta», con puntuaciones
+0.66–0.80 pegadas al umbral 0.6 del núcleo:
 
 ```
-
-Informe por categoría
-  evaluación: 30/30 casos con veredicto
-  generación: 2/3 casos
-  repregunta (seguimiento): 0/0 aceptadas (no revelan la respuesta)
-  explicación: 0/0 aceptadas (con cita verificada)
-
-Métricas G3
-  concordancia de veredicto: 80.0 % (≥ 80 %)
-  paráfrasis correctas aceptadas: 100.0 % (≥ 90 %)
-  citas/preguntas inventadas: 0 (= 0)
-  repreguntas aceptadas: 0/0 (informativo, no bloquea G3)
-  explicaciones aceptadas: 0/0 (informativo, no bloquea G3)
-
-G3 alcanzada con proveedor real.
+  c1-ev-6 [parcial → correcta] 0.66  «Porque el principio de legalidad la sujeta a la ley.»
+  c1-ev-7 [parcial → correcta] 0.66  «Necesita una habilitación legal previa.»
+  c3-ev-3 [parcial → correcta] 0.66  «El reglamento es inválido.»
+  c2-ev-3 [parcial → correcta] 0.80  «A hechos posteriores a su entrada en vigor.»
+  c2-ev-4 [parcial → correcta] 0.80  «A los hechos futuros.»
 ```
 
-## Nota de instrumentación
+Causa: la ruta de evaluación usaba `temperature: 0.2` (un veredicto es
+clasificación, no creación) y el prompt no fijaba las bandas de puntuación, así
+que el modelo puntuaba conclusiones telegráficas como correctas. Ver D-079.
 
-El arnés se corrigió en esta sesión para no confundir un fallo de un caso con
-indisponibilidad del proveedor:
+## Histórico (sesiones anteriores)
 
-- Un 429 en las categorías **informativas** (repregunta/explicación, que el propio
-  informe marca «no bloquea G3») ya no aborta la corrida; se registra sin evidencia.
-- Un 502 por **salida irregular** de un modelo (formato no válido) se reintenta y,
-  si persiste, cuenta como **caso fallido**, no como puerta «no verificada».
-- Solo 503 o cuota diaria agotada dejan G3 «no verificada».
-
-Antes del arreglo, la primera ejecución abortó con «El proveedor ha limitado la
-frecuencia» (429 en /llm/complete) y la segunda con «evaluación con formato no
-válido» (502), descartando la evidencia real de evaluación y generación.
-
-## Limitación conocida (no bloquea G3)
-
-`/llm/complete` (repregunta y explicación generadas por el modelo) usa **un solo
-modelo**; al agotar su cuota diaria devuelve 429 constante, mientras `/mayeutic/*`
-(evaluación/generación) rota entre tres modelos y responde 200. La app degrada a
-la heurística para repregunta/explicación (D-043), que es el comportamiento
-exigido por F2 ante «cuota agotada». Categorías informativas: 0/0 en esta corrida.
+- 2026-11-15 — consolidación de 1.0: 3 corridas → 76.7 %/91.7 %, 80.0 %/100 %,
+  80.0 %/100 %. Concordancia **clavada en el umbral** (flaky).
+- 2026-11-12 → 80.0 %; 2026-11-11 → 83.3 %; 2026-11-10 → 83.3 %/80.0 %.

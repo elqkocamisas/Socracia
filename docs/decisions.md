@@ -1769,3 +1769,49 @@ StudyError>`; el orden de preferencia es proveedor semántico → evaluador LLM
   abre el guardián sin reconstruir el motor) y dos casos en
   `embeddingResolution.test.ts` (a nivel de `bootstrap`). El APK debe
   recompilarse para incorporar ambos arreglos.
+
+## D-079 — El veredicto de la evaluación es reproducible: temperature 0 y rúbrica por justificación
+
+- **Fecha:** estabilización de G3 (2026-11-16)
+- **Contexto:** la puerta G3 (evals con proveedor real) **oscilaba en el umbral**:
+  tres corridas consecutivas dieron 76.7 % → 80.0 % → 80.0 % de concordancia, con
+  la métrica **clavada en 24/30**. Un solo caso límite cruzaba el ≥ 80 % en ambos
+  sentidos. El volcado por caso (añadido al arnés) mostró la causa: **seis
+  discrepancias sistemáticas**, todas «parcial → correcta», con puntuaciones
+  0.66–0.80 pegadas al umbral 0.6 del núcleo.
+- **Causa raíz:** dos defectos del adaptador, no del modelo ni del umbral.
+  1. La ruta de evaluación (`/mayeutic/evaluate`) usaba `temperature: 0.2`. Un
+     veredicto es una **clasificación**; la creatividad no aporta y añade ruido de
+     muestreo justo en la frontera.
+  2. El prompt de evaluación **no fijaba las bandas de puntuación**, así que el
+     modelo puntuaba con su propio criterio, más generoso: una **conclusión
+     telegráfica** («El reglamento es inválido.») recibía 0.66 y contaba como
+     correcta, cuando la pedagogía del tutor la quiere **parcial**.
+- **Decisión:**
+  1. **`temperature: 0` en la evaluación.** `complete` acepta la temperatura por
+     parámetro (privado); la generación conserva 0.2 (crear preguntas sí admite
+     variación). Ninguna firma pública cambia.
+  2. **Rúbrica de bandas en el prompt.** La frontera correcta/parcial se ancla en
+     **explicar el porqué** (la causa, el fundamento o la consecuencia): 0.6–1 si
+     lo explica —aunque use otras palabras, una paráfrasis fiel es correcta—;
+     0.3–0.59 si solo enuncia la conclusión; 0–0.29 si es incorrecta. Las bandas
+     están alineadas con los umbrales del núcleo (`correct: 0.6`, `partial: 0.3`).
+- **Motivos:** el veredicto debe ser reproducible y coherente con la distinción
+  pedagógica real (justificar frente a enunciar), no con la coincidencia literal
+  de términos clave. Dos iteraciones intermedias —una rúbrica que exigía los
+  términos clave— **hundieron** paráfrasis correctas a 0.50–0.55 (paráfrasis
+  aceptadas 75 %, por debajo del 90 %); se descartaron por sobreajuste al flanco
+  contrario. La rúbrica final protege la paráfrasis y marca la conclusión desnuda.
+- **Alternativas descartadas:** (a) subir el umbral del núcleo o del arnés: mueve
+  el problema, no lo resuelve; (b) subir el número de casos o tomar la mediana de
+  varias corridas: enmascara la varianza en vez de eliminarla; (c) exigir los
+  términos clave en la rúbrica: probado, hunde la paráfrasis (ver arriba).
+- **Consecuencias:** **G3 estabilizada con proveedor real.** Tres corridas
+  consecutivas tras el cambio: **100.0 % / 96.7 % / 96.6 %** de concordancia
+  (mediana 96.7 %, ≥ 80 %), **100 %** de paráfrasis correctas aceptadas (≥ 90 %),
+  **0** citas inventadas. Margen ≥ 16.6 puntos sobre el umbral, frente al margen
+  cero anterior. Evidencia en `docs/release-1.0-g3-evidence.txt`. El contrato del
+  dominio no cambia; los tests existentes pasan sin tocarse (se añaden dos casos
+  en `apps/api/src/__tests__/mayeutic.test.ts` que fijan temperature 0 y la
+  rúbrica). Pendiente: verificar `followUp`/`explanation` con proveedor real (la
+  cuota gratuita se agota antes; informativo, no bloquea G3).
